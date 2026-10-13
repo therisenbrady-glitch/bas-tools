@@ -87,6 +87,7 @@ VAV reheat, VAV cooling only, AHU, RTU, FCU, Unit ventilator, Exhaust fan, Blank
 
 ## Getting results out
 
+- **Save checkout CSV** saves every point on the job as a spreadsheet, one row per point, ready for Excel or a closeout package. Columns: Project, Unit, Type, Model, Location, Point, Description, Point kind (hardware / software value / room sensor), Status (PASS, FAIL, N/A, Open), Note, Checked by, Checked at. Rows are sorted by unit type, then tag. The example unit is left out.
 - **Copy punch list** copies every FAIL across the whole job (not just the current tab) as a numbered list with unit, location, point, and your note, ready to paste into an email or text.
 - **Export** saves the entire job (project name, units, every status and note) as a dated `.json` file.
 
@@ -117,3 +118,4 @@ Split work by unit (for example floor 2 vs floor 3). If two people edit the same
 
 - `index.html`: the full tracker. No install needed.
 - `checkout-<project>-<date>.json`: job files made with Export.
+- `checkout-<project>-<date>.csv`: checkout spreadsheets made with Save checkout CSV.
