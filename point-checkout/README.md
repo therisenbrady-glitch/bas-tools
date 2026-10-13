@@ -94,6 +94,8 @@ VAV reheat, VAV cooling only, AHU, RTU, FCU, Unit ventilator, Exhaust fan, Blank
 - **Copy punch list** copies every FAIL across the whole job (not just the current tab) as a numbered list with unit, location, point, and your note, ready to paste into an email or text.
 - **Export job** saves the entire job (project name, units, every status and note) as a dated `.json` file.
 
+**Choosing where files save:** in Chrome or Edge on a computer, **Export job** and **Save checkout CSV** open a save window so you can pick the folder and file name. Other browsers (Safari, Firefox, phones) and the claude.ai link save to the normal Downloads location. To be asked every time in those, turn on the browser's "Ask where to save each file" setting.
+
 ### Handing off between techs (standalone file)
 1. Tech A taps **Export job** and sends the `.json` file.
 2. Tech B taps **Import file** and picks it.

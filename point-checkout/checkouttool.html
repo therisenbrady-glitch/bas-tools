@@ -476,20 +476,29 @@ footer{font-size:12px;color:var(--muted)}
     const payload = {format:'point-checkout', version:1, exported: new Date().toISOString(), project, units: units.map(u => ({tag:u.tag,type:u.type,loc:u.loc,model:u.model||'',example:!!u.example,points:u.points}))};
     const text = JSON.stringify(payload, null, 2);
     const filename = `checkout-${slug(project.name)}-${new Date().toISOString().slice(0,10)}.json`;
-    if (downloads) {
-      try { await downloads.save({filename, data: text}); toast(`Exported ${units.length} units`); }
-      catch(e) { toast('Export was cancelled or blocked.', true); }
-      return;
-    }
-    try {
-      const url = URL.createObjectURL(new Blob([text], {type:'application/json'}));
-      const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-      toast(`Exported ${units.length} units`);
-    } catch(e) { toast('This browser blocked the download.', true); }
+    await saveFile(filename, text, 'application/json', `Exported ${units.length} units`);
   });
   // ---------- checkout CSV (one row per point, for Excel / closeout) ----------
+  // Lets the viewer pick the folder and file name where the browser supports it
+  // (Chrome / Edge on a computer, opened as a file or normal web page). Elsewhere
+  // the file goes to the browser's normal download location.
+  const canPickSave = (() => { try { return typeof window.showSaveFilePicker === 'function' && window.self === window.top; } catch(e) { return false; } })();
   async function saveFile(filename, text, mime, okMsg){
+    if (canPickSave) {
+      const ext = filename.slice(filename.lastIndexOf('.'));
+      let handle;
+      try {
+        handle = await window.showSaveFilePicker({suggestedName: filename, types: [{description: ext === '.csv' ? 'CSV spreadsheet' : 'Checkout job file', accept: {[mime]: [ext]}}]});
+      } catch(e) {
+        if (e && e.name === 'AbortError') { toast('Save cancelled.'); return; }
+        handle = null; // picker refused: fall through to a normal download
+      }
+      if (handle) {
+        try { const w = await handle.createWritable(); await w.write(new Blob([text], {type: mime})); await w.close(); toast(`${okMsg} → ${handle.name}`); }
+        catch(e) { toast('Could not write that file. Pick another folder or name.', true); }
+        return;
+      }
+    }
     if (downloads) {
       try { await downloads.save({filename, data: text}); toast(okMsg); }
       catch(e) { toast('Save was cancelled or blocked.', true); }
