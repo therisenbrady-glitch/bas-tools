@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Point Checkout Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: single column job sheet; nameplate header, project summary readout, filter chips, stacked unit cards that expand into point lists */
+:root{
+  --bg:#eef1f3; --panel:#ffffff; --ink:#18222b; --muted:#5b6873; --line:#cfd6dc; --sunk:#f5f7f8;
+  --steel:#2f4a5e; --accent:#d98a10; --accent-ink:#1b1305;
+  --ok:#2e7d4f; --ok-bg:#e3f2e9; --bad:#b3362c; --bad-bg:#f8e3e1; --na:#6b7782; --na-bg:#e6eaed;
+  --readout:#17232d; --readout-ink:#e9f0f4; --readout-dim:#8fa3b2;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#10171d; --panel:#18222a; --ink:#e3eaef; --muted:#93a3af; --line:#2b3944; --sunk:#131c23;
+  --steel:#9cb8cc; --accent:#f0a22e; --accent-ink:#1b1305;
+  --ok:#5fc48a; --ok-bg:#16301f; --bad:#ef6f62; --bad-bg:#3a1a17; --na:#93a3af; --na-bg:#232f38;
+  --readout:#0a1015; --readout-ink:#e9f0f4; --readout-dim:#7f93a2; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10171d; --panel:#18222a; --ink:#e3eaef; --muted:#93a3af; --line:#2b3944; --sunk:#131c23;
+  --steel:#9cb8cc; --accent:#f0a22e; --accent-ink:#1b1305;
+  --ok:#5fc48a; --ok-bg:#16301f; --bad:#ef6f62; --bad-bg:#3a1a17; --na:#93a3af; --na-bg:#232f38;
+  --readout:#0a1015; --readout-ink:#e9f0f4; --readout-dim:#7f93a2; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:flex;flex-direction:column;gap:14px}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header{display:flex;flex-direction:column;gap:4px;border-left:4px solid var(--accent);padding-left:12px}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;margin:0;text-wrap:balance}
+.proj{display:flex;align-items:center;gap:8px;margin-top:4px;min-width:0}
+.proj input{flex:1;min-width:0;border:0;border-bottom:1px dashed var(--line);background:transparent;color:var(--ink);font-family:var(--f-body);font-size:15px;font-weight:500;padding:4px 0}
+.mode{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+
+.readout{background:var(--readout);color:var(--readout-ink);border-radius:8px;padding:14px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.readout div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.readout .lbl{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--readout-dim)}
+.readout b{font-family:var(--f-mono);font-weight:600;font-size:24px;font-variant-numeric:tabular-nums}
+.readout .bar{grid-column:1/-1;height:6px;border-radius:3px;background:#2c3a45;overflow:hidden;display:flex}
+.readout .bar i{display:block;height:100%}
+@media (max-width:420px){.readout{grid-template-columns:repeat(2,1fr)}}
+.typetabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;position:sticky;top:env(safe-area-inset-top, 0px);z-index:3;background:var(--bg);padding-block:8px;margin-block:-8px}
+.typetabs::-webkit-scrollbar{display:none}
+.typetabs:empty{display:none}
+.tt{flex:0 0 auto;display:flex;flex-direction:column;gap:3px;min-width:76px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:7px 11px 8px;text-align:left}
+.tt[aria-selected="true"]{background:var(--steel);border-color:var(--steel);color:var(--panel)}
+.tt .tn{display:flex;align-items:baseline;gap:6px;font-family:var(--f-display);font-weight:700;font-size:17px;letter-spacing:.04em;line-height:1}
+.tt .tc{font-family:var(--f-mono);font-size:12px;font-weight:500;opacity:.75}
+.tt .tp{font-family:var(--f-mono);font-size:11px;opacity:.8;display:flex;gap:6px;align-items:center}
+.tt .tf{color:var(--bad);font-weight:700}
+.tt[aria-selected="true"] .tf{color:#ffb3ab}
+.tt .tbar{height:3px;border-radius:2px;background:color-mix(in srgb,currentColor 18%,transparent);overflow:hidden}
+.tt .tbar i{display:block;height:100%;background:var(--ok)}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chips{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
+.chips button{border:0;background:transparent;color:var(--muted);font-weight:600;font-size:13px;padding:7px 12px}
+.chips button[aria-pressed="true"]{background:var(--steel);color:var(--panel)}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:600;font-size:13px;padding:7px 12px;border-radius:6px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom, 0px));z-index:5;max-width:calc(100% - 32px);background:var(--readout);color:var(--readout-ink);font-size:13.5px;font-weight:500;padding:10px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.25);border-left:4px solid var(--ok)}
+.toast:empty{display:none}
+.toast.bad{border-left-color:var(--bad)}
+
+.add{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.add h2{font-family:var(--f-display);font-weight:600;font-size:20px;margin:0}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:10px}
+@media (max-width:480px){.grid3{grid-template-columns:1fr 1fr}.grid3 .wide{grid-column:1/-1}}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.field input,.field select{border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--ink);font-family:var(--f-mono);font-size:15px;padding:9px 10px;min-width:0;width:100%}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.row-end{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+.units{display:flex;flex-direction:column;gap:10px}
+.unit{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.unit.example{border-style:dashed}
+.uhead{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;width:100%;border:0;background:transparent;color:var(--ink);text-align:left;padding:12px 14px}
+.type{font-family:var(--f-display);font-weight:700;font-size:14px;letter-spacing:.06em;background:var(--steel);color:var(--panel);border-radius:4px;padding:3px 7px;min-width:44px;text-align:center}
+.uname{display:flex;flex-direction:column;min-width:0}
+.uname b{font-family:var(--f-mono);font-size:16px;font-weight:600;overflow-wrap:anywhere}
+.uname span{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.ustat{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.ustat .n{font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums;color:var(--muted)}
+.mini{width:84px;height:5px;border-radius:3px;background:var(--na-bg);overflow:hidden;display:flex}
+.mini i{display:block;height:100%}
+.flag{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px}
+.flag.fail{color:var(--bad);background:var(--bad-bg)}
+.flag.done{color:var(--ok);background:var(--ok-bg)}
+.flag.ex{color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,transparent)}
+
+.points{border-top:1px solid var(--line);display:flex;flex-direction:column}
+.pt{display:grid;grid-template-columns:4px 1fr auto;gap:0 10px;align-items:center;padding:8px 14px 8px 0;border-bottom:1px solid var(--line)}
+.pt:last-of-type{border-bottom:0}
+.pt .stripe{align-self:stretch;background:transparent}
+.pt[data-s="pass"] .stripe{background:var(--ok)}
+.pt[data-s="fail"] .stripe{background:var(--bad)}
+.pt[data-s="na"] .stripe{background:var(--na)}
+.pname{min-width:0;font-size:14px;overflow-wrap:anywhere}
+.pmeta{font-size:11.5px;color:var(--muted);font-family:var(--f-mono)}
+.pt[data-s="na"] .pname{color:var(--muted);text-decoration:line-through}
+.sbtns{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.sbtns button{border:0;background:var(--panel);color:var(--muted);font-weight:700;font-size:12px;padding:7px 9px;min-width:42px;letter-spacing:.03em}
+.sbtns button+button{border-left:1px solid var(--line)}
+.sbtns button[data-v="pass"][aria-pressed="true"]{background:var(--ok);color:var(--panel)}
+.sbtns button[data-v="fail"][aria-pressed="true"]{background:var(--bad);color:var(--panel)}
+.sbtns button[data-v="na"][aria-pressed="true"]{background:var(--na);color:var(--panel)}
+.note{grid-column:2/-1;margin-top:6px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--ink);font-size:13.5px;padding:7px 9px;width:100%;font-family:var(--f-body)}
+.pt[data-s="fail"] .note{border-color:var(--bad)}
+.ufoot{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--sunk);border-top:1px solid var(--line);align-items:center}
+.ufoot input{flex:1;min-width:140px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:14px;padding:7px 9px}
+
+.empty{background:var(--panel);border:1px dashed var(--line);border-radius:8px;padding:22px 18px;display:flex;flex-direction:column;gap:6px}
+.empty b{font-family:var(--f-display);font-size:20px}
+.empty p{margin:0;color:var(--muted);font-size:14px;max-width:60ch}
+footer{font-size:12px;color:var(--muted)}
+.xlgroups{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.xg{display:grid;grid-template-columns:auto 1fr minmax(120px,170px);gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+.xg:last-child{border-bottom:0}
+.xg.off{opacity:.5}
+.xg input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.xg .xm{min-width:0;display:flex;flex-direction:column}
+.xg .xm b{font-family:var(--f-mono);font-size:14px}
+.xg .xm span{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.xg select{border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--ink);font-size:13.5px;padding:7px 8px;min-width:0;width:100%}
+@media (max-width:440px){.xg{grid-template-columns:auto 1fr}.xg select{grid-column:2}}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Commissioning · Point-to-point</span>
+    <h1>Point Checkout Tracker</h1>
+    <div class="proj">
+      <input id="projName" aria-label="Project name" placeholder="Project / building name" maxlength="80">
+      <span class="mode" id="mode">Connecting…</span>
+    </div>
+  </header>
+
+  <nav class="typetabs" id="typeTabs" role="tablist" aria-label="Unit type"></nav>
+
+  <section class="readout" aria-label="Progress">
+    <div><span class="lbl" id="sUnitsLbl">Units</span><b id="sUnits">0</b></div>
+    <div><span class="lbl">Points</span><b id="sPoints">0</b></div>
+    <div><span class="lbl">Complete</span><b id="sPct">0%</b></div>
+    <div><span class="lbl">Fails</span><b id="sFails">0</b></div>
+    <div class="bar" id="sBar" aria-hidden="true"></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="chips" role="group" aria-label="Filter units">
+      <button type="button" data-f="all" aria-pressed="true">All</button>
+      <button type="button" data-f="open" aria-pressed="false">Open</button>
+      <button type="button" data-f="fail" aria-pressed="false">Fails</button>
+      <button type="button" data-f="done" aria-pressed="false">Done</button>
+    </div>
+    <span class="spacer"></span>
+    <button class="btn" type="button" id="copyPunch">Copy punch list</button>
+    <button class="btn" type="button" id="exportBtn">Export</button>
+    <button class="btn" type="button" id="importBtn">Import</button>
+    <input type="file" id="importFile" accept=".json,.xml,.xlsx,.xls,.csv,application/json,text/xml,application/xml" hidden>
+    <button class="btn primary" type="button" id="openAdd">Add unit</button>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+
+  <form class="add" id="addForm" hidden>
+    <h2>Add a unit</h2>
+    <div class="grid3">
+      <div class="field"><label for="fTag">Tag</label><input id="fTag" required placeholder="VAV-2-14" maxlength="40" autocomplete="off"></div>
+      <div class="field"><label for="fType">Type</label>
+        <select id="fType">
+          <option value="VAV">VAV · reheat</option><option value="VAVC">VAV · cooling only</option>
+          <option value="AHU">AHU</option><option value="RTU">RTU</option>
+          <option value="FCU">FCU</option><option value="UV">Unit ventilator</option><option value="EF">Exhaust fan</option>
+          <option value="BLANK">Blank (no points)</option>
+        </select></div>
+      <div class="field wide"><label for="fLoc">Location / serves</label><input id="fLoc" placeholder="2nd floor, Rm 214" maxlength="80" autocomplete="off"></div>
+    </div>
+    <p class="hint">The type loads a standard point list. Add or N/A points afterward to match the points list for the job.</p>
+    <div class="row-end">
+      <button class="btn" type="button" id="cancelAdd">Cancel</button>
+      <button class="btn primary" type="submit">Add unit</button>
+    </div>
+  </form>
+
+  <section class="add" id="xlPanel" hidden aria-labelledby="xlTitle">
+    <h2 id="xlTitle">Load from spreadsheet</h2>
+    <p class="hint" id="xlSummary"></p>
+    <div class="xlgroups" id="xlGroups"></div>
+    <p class="hint">Controllers are grouped by model. Pick the point list for each group, or untick a group to leave it out. Tags already on the list are skipped so existing progress is kept.</p>
+    <div class="row-end">
+      <button class="btn" type="button" id="xlCancel">Cancel</button>
+      <button class="btn primary" type="button" id="xlGo">Add units</button>
+    </div>
+  </section>
+
+  <div class="units" id="units"></div>
+
+  <footer id="foot">Tap a unit to open its points. PASS, FAIL, or N/A each point; a fail opens a note for the punch list. Export saves the whole job to a file; Import takes an exported job file, an EBO XML export (pulls each controller's I/O and key points), or an Excel/CSV list of controllers to start a new job. Points marked ◦ are software values.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  const TEMPLATES = {
+    VAV: ['Controller online (BACnet)','Space temp reading','Setpoint adjust','Airflow reading (zero / offset)','Damper command & direction','Damper position feedback','Min airflow setpoint met','Max airflow setpoint met','Reheat valve / stage command','Discharge air temp','Occupancy / schedule','Sequence: cooling → heating changeover'],
+    VAVC: ['Controller online (BACnet)','Space temp reading','Setpoint adjust','Airflow reading (zero / offset)','Damper command & direction','Damper position feedback','Min airflow setpoint met','Max airflow setpoint met','Occupancy / schedule'],
+    AHU: ['Controller online (BACnet)','Supply fan start/stop','Supply fan status','Supply fan VFD speed cmd / feedback','Return fan start/stop & status','OA damper command & position','Return / relief damper','Outside air temp','Mixed air temp','Return air temp','Supply air temp','Duct static pressure','Building static pressure','CHW / DX cooling command','HW / heating command','Filter differential pressure','Freezestat (low limit) trip','Smoke detector shutdown','High static safety trip','Economizer sequence','Static pressure reset','Supply air temp reset','Alarms to front end'],
+    RTU: ['Controller online (BACnet)','Supply fan start/stop','Supply fan status','Cooling stage 1','Cooling stage 2','Heating stage 1','Heating stage 2','Economizer damper command & position','Outside air temp','Supply air temp','Return air temp','Space temp / setpoint','Occupancy / schedule','Smoke shutdown','Alarms to front end'],
+    FCU: ['Controller online (BACnet)','Fan start/stop','Fan status','Fan speed','Space temp reading','Setpoint adjust','CHW valve command','HW valve command','Discharge air temp','Condensate overflow alarm','Occupancy / schedule'],
+    UV: ['Controller online (BACnet)','Supply fan start/stop','Supply fan status','Space temp reading','Setpoint adjust','Discharge air temp','OA / economizer damper command','Face & bypass damper command','HW valve command','Cooling valve / DX command','Low limit (freezestat) trip','Occupancy / override','Sequence: occupied heating & cooling'],
+    EF: ['Controller online (BACnet)','Fan start/stop','Fan status','Interlock with AHU / schedule','Alarms to front end'],
+    BLANK: []
+  };
+  const TYPE_LABEL = {VAV:'VAV',VAVC:'VAV',AHU:'AHU',RTU:'RTU',FCU:'FCU',UV:'UV',EF:'EF',BLANK:'—'};
+
+  // ---------- state ----------
+  let units = [];               // [{id, tag, type, loc, example, points:[{n,s,note,by,at}], at}]
+  let project = {name:''};
+  let filter = 'all';
+  let typeTab = 'all';
+  try { typeTab = localStorage.getItem('pct-tab') || 'all'; } catch(e) {}
+  const TAB_ORDER = ['AHU','RTU','VAV','UV','FCU','EF','Other'];
+  const tabOf = u => { const l = TYPE_LABEL[u.type]; return !l || l === '—' ? 'Other' : l; };
+  const inTab = u => typeTab === 'all' || tabOf(u) === typeTab;
+  const open = new Set();
+  let canWrite = true;
+  let me = null, userNs = null;
+  const names = {};
+
+  // ---------- storage adapter (shared db, else this browser) ----------
+  const LKEY = 'pct-local-v1';
+  const local = {
+    load(){ try { return JSON.parse(localStorage.getItem(LKEY) || 'null') || {units:[],project:{name:''}}; } catch(e){ return {units:[],project:{name:''}}; } },
+    save(){ try { localStorage.setItem(LKEY, JSON.stringify({units, project})); } catch(e){} }
+  };
+  let db = null;
+  const chains = {};
+  function queue(id, fn){ const p = (chains[id] || Promise.resolve()).then(fn, fn); chains[id] = p.catch(()=>{}); return p; }
+  function onWriteError(e){
+    if (e && e.code === 'invalid_argument') { canWrite = false; render(); toast('This link is view-only. Changes were not saved.', true); }
+    else if (e && e.code === 'quota_exceeded') toast('Storage is full. Remove finished units to add more.', true);
+    else if (e && e.code === 'resource_exhausted') toast('Saving too fast. Slowing down and retrying…', true);
+    else toast(`Could not save (${(e && (e.code || e.message)) || 'unknown error'}). Check your connection and try again.`, true);
+    throw e;
+  }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  async function writeWithRetry(u){
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try { await writeUnit(u); return true; }
+      catch(e) {
+        if (e && (e.code === 'resource_exhausted' || e.code === 'unavailable')) { await sleep(800 * (attempt + 1) + Math.random()*300); continue; }
+        return false;
+      }
+    }
+    return false;
+  }
+  function writeUnit(u){
+    u.at = Date.now();
+    if (!db) { local.save(); return Promise.resolve(); }
+    const body = JSON.parse(JSON.stringify({tag:u.tag,type:u.type,loc:u.loc||'',model:u.model||'',example:!!u.example,points:u.points,at:u.at}));
+    return queue(u.id, () => db.collection('units').doc(u.id).set(body)).catch(onWriteError);
+  }
+  function deleteUnit(id){
+    units = units.filter(u => u.id !== id); open.delete(id); render();
+    if (!db) { local.save(); return; }
+    queue(id, () => db.collection('units').doc(id).delete()).catch(onWriteError);
+  }
+  function writeProject(){
+    if (!db) { local.save(); return; }
+    queue('project', () => db.doc('meta/project').set({name: project.name})).catch(onWriteError);
+  }
+
+  // ---------- render ----------
+  function counts(u){
+    const c = {pass:0,fail:0,na:0,open:0,total:u.points.length};
+    u.points.forEach(p => { c[p.s || 'open'] = (c[p.s || 'open']||0) + 1; });
+    c.applicable = c.total - c.na; c.done = c.pass;
+    return c;
+  }
+  function unitState(c){ if (c.fail) return 'fail'; if (c.total && c.open === 0) return 'done'; return 'open'; }
+  function fmtTime(t){ if (!t) return ''; const d = new Date(t); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+
+  function renderSummary(){
+    let pts=0,pass=0,fail=0,na=0;
+    const scope = units.filter(inTab);
+    scope.forEach(u => { const c = counts(u); pts+=c.total; pass+=c.pass; fail+=c.fail; na+=c.na; });
+    const app = pts - na;
+    $('sUnitsLbl').textContent = typeTab === 'all' ? 'Units' : typeTab + ' units';
+    $('sUnits').textContent = scope.length;
+    $('sPoints').textContent = pts;
+    $('sPct').textContent = app ? Math.round(pass/app*100) + '%' : '0%';
+    $('sFails').textContent = fail;
+    const w = v => pts ? (v/pts*100) + '%' : '0';
+    $('sBar').innerHTML = `<i style="width:${w(pass)};background:var(--ok)"></i><i style="width:${w(fail)};background:var(--bad)"></i><i style="width:${w(na)};background:var(--na)"></i>`;
+  }
+
+  function renderTabs(){
+    const by = {};
+    units.forEach(u => { const t = tabOf(u); (by[t] = by[t] || {n:0,pts:0,pass:0,na:0,fail:0}); const c = counts(u); const b = by[t]; b.n++; b.pts+=c.total; b.pass+=c.pass; b.na+=c.na; b.fail+=c.fail; });
+    const tabs = Object.keys(by).sort((a,b) => (TAB_ORDER.indexOf(a)+1 || 99) - (TAB_ORDER.indexOf(b)+1 || 99) || a.localeCompare(b));
+    if (typeTab !== 'all' && !by[typeTab]) typeTab = 'all';
+    if (tabs.length < 2) { $('typeTabs').innerHTML = ''; typeTab = 'all'; return; }
+    const tot = Object.values(by).reduce((a,b) => ({n:a.n+b.n,pts:a.pts+b.pts,pass:a.pass+b.pass,na:a.na+b.na,fail:a.fail+b.fail}), {n:0,pts:0,pass:0,na:0,fail:0});
+    const btn = (key, label, b) => { const app = b.pts - b.na; const pct = app ? Math.round(b.pass/app*100) : 0;
+      return `<button type="button" class="tt" role="tab" id="tab-${key}" data-tab="${key}" aria-selected="${typeTab===key}"><span class="tn">${label}<span class="tc">${b.n}</span></span><span class="tbar"><i style="width:${pct}%"></i></span><span class="tp">${pct}%${b.fail ? `<span class="tf">${b.fail} fail</span>` : ''}</span></button>`; };
+    $('typeTabs').innerHTML = btn('all','All',tot) + tabs.map(t => btn(t, esc(t), by[t])).join('');
+  }
+
+  function render(){
+    if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('note')) { pendingRender = true; return; }
+    pendingRender = false;
+    renderTabs();
+    renderSummary();
+    $('openAdd').hidden = !canWrite;
+    if (document.activeElement !== $('projName')) $('projName').value = project.name || '';
+    $('projName').readOnly = !canWrite;
+
+    const list = units.slice().sort((a,b) => a.tag.localeCompare(b.tag, undefined, {numeric:true}))
+      .filter(u => inTab(u) && (filter === 'all' || unitState(counts(u)) === filter));
+
+    if (!units.length) {
+      $('units').innerHTML = `<div class="empty"><b>No units yet</b><p>${canWrite ? 'Add your first unit with <strong>Add unit</strong>. Pick VAV, AHU, RTU, or FCU and a standard point list loads for it. Then work down the list marking each point PASS, FAIL, or N/A.' : 'Units added by the commissioning tech will show here with each point\'s status.'}</p></div>`;
+      return;
+    }
+    if (!list.length) { $('units').innerHTML = `<div class="empty"><b>Nothing in this filter</b><p>No units match. Switch to All to see every unit.</p></div>`; return; }
+
+    $('units').innerHTML = list.map(u => {
+      const c = counts(u), st = unitState(c), isOpen = open.has(u.id);
+      const w = v => c.total ? (v/c.total*100)+'%' : '0';
+      const flag = u.example ? '<span class="flag ex">Example</span>' : st==='fail' ? `<span class="flag fail">${c.fail} fail</span>` : st==='done' ? '<span class="flag done">Done</span>' : '';
+      const pts = isOpen ? `<div class="points">${u.points.map((p,i) => {
+        const s = p.s || '';
+        const who = p.by && names[p.by] ? names[p.by] + ' · ' : '';
+        const meta = s ? `<div class="pmeta">${esc(who)}${esc(fmtTime(p.at))}</div>` : '';
+        const note = (s === 'fail' || p.note) ? `<input class="note" data-u="${u.id}" data-i="${i}" placeholder="What failed? (goes on punch list)" value="${esc(p.note||'')}" ${canWrite?'':'readonly'} aria-label="Note for ${esc(p.n)}">` : '';
+        const b = v => `<button type="button" data-u="${u.id}" data-i="${i}" data-v="${v}" aria-pressed="${s===v}" ${canWrite?'':'disabled'}>${v==='na'?'N/A':v.toUpperCase()}</button>`;
+        return `<div class="pt" data-s="${s}"><span class="stripe"></span><div class="pname">${esc(p.n)}${meta}</div><div class="sbtns" role="group" aria-label="${esc(p.n)}">${b('pass')}${b('fail')}${b('na')}</div>${note}</div>`;
+      }).join('') || '<div class="pt"><span class="stripe"></span><div class="pname" style="color:var(--muted)">No points yet. Add one below.</div></div>'}</div>
+      ${canWrite ? `<div class="ufoot"><input class="newpt" data-u="${u.id}" placeholder="Add a point, e.g. CO2 sensor" maxlength="80" aria-label="New point for ${esc(u.tag)}"><button class="btn" type="button" data-addpt="${u.id}">Add point</button><button class="btn danger" type="button" data-del="${u.id}">${delArm===u.id?'Tap again to delete':'Delete unit'}</button></div>` : ''}` : '';
+      return `<article class="unit${u.example?' example':''}">
+        <button class="uhead" type="button" data-toggle="${u.id}" aria-expanded="${isOpen}">
+          <span class="type">${TYPE_LABEL[u.type]||esc(u.type)}</span>
+          <span class="uname"><b>${esc(u.tag)}</b><span>${esc([u.loc, u.model].filter(Boolean).join(' · '))}</span></span>
+          <span class="ustat"><span class="n">${c.pass}/${c.applicable} pass</span><span class="mini"><i style="width:${w(c.pass)};background:var(--ok)"></i><i style="width:${w(c.fail)};background:var(--bad)"></i><i style="width:${w(c.na)};background:var(--na)"></i></span>${flag}</span>
+        </button>${pts}</article>`;
+    }).join('');
+  }
+  let pendingRender = false, delArm = null;
+
+  function toast(msg, bad, sticky){ const t = $('toast'); t.textContent = msg; t.classList.toggle('bad', !!bad); clearTimeout(toast._t); if (!sticky) toast._t = setTimeout(()=> t.textContent = '', bad ? 7000 : 3500); }
+
+  // ---------- events ----------
+  $('typeTabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-tab]'); if (!b) return;
+    typeTab = b.dataset.tab; delArm = null;
+    try { localStorage.setItem('pct-tab', typeTab); } catch(err) {}
+    render();
+    window.scrollTo({top: Math.min(window.scrollY, $('typeTabs').offsetTop - 8)});
+  });
+  document.querySelector('.chips').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    filter = b.dataset.f;
+    document.querySelectorAll('.chips button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    render();
+  });
+  $('openAdd').addEventListener('click', () => { $('addForm').hidden = false; $('fTag').focus(); });
+  $('cancelAdd').addEventListener('click', () => { $('addForm').hidden = true; });
+  $('addForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const tag = $('fTag').value.trim(); if (!tag) return;
+    if (units.some(u => u.tag.toLowerCase() === tag.toLowerCase())) { toast(`${tag} is already on the list.`, true); return; }
+    const type = $('fType').value;
+    const u = {id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2,6), tag, type, loc: $('fLoc').value.trim(), points: TEMPLATES[type].map(n => ({n, s:''})) };
+    units.push(u); open.add(u.id); writeUnit(u);
+    $('fTag').value = ''; $('fLoc').value = ''; $('addForm').hidden = true;
+    toast(`Added ${tag}`); render();
+  });
+
+  $('units').addEventListener('click', e => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.toggle) { const id = t.dataset.toggle; open.has(id) ? open.delete(id) : open.add(id); delArm = null; render(); return; }
+    if (t.dataset.v && canWrite) {
+      const u = units.find(x => x.id === t.dataset.u); if (!u) return;
+      const p = u.points[+t.dataset.i];
+      const v = t.dataset.v;
+      p.s = p.s === v ? '' : v; p.at = p.s ? Date.now() : null; p.by = p.s ? me : null;
+      writeUnit(u); render();
+      if (p.s === 'fail') { const n = document.querySelector(`.note[data-u="${u.id}"][data-i="${t.dataset.i}"]`); if (n) n.focus(); }
+      return;
+    }
+    if (t.dataset.addpt) { addPoint(t.dataset.addpt); return; }
+    if (t.dataset.del) {
+      if (delArm === t.dataset.del) { const u = units.find(x => x.id === t.dataset.del); delArm = null; deleteUnit(t.dataset.del); toast(`Deleted ${u ? u.tag : 'unit'}`); }
+      else { delArm = t.dataset.del; render(); }
+    }
+  });
+  function addPoint(id){
+    const inp = document.querySelector(`.newpt[data-u="${id}"]`); const n = inp && inp.value.trim(); if (!n) return;
+    const u = units.find(x => x.id === id); u.points.push({n, s:''}); writeUnit(u); render();
+    const again = document.querySelector(`.newpt[data-u="${id}"]`); if (again) again.focus();
+  }
+  $('units').addEventListener('keydown', e => { if (e.target.classList.contains('newpt') && e.key === 'Enter') { e.preventDefault(); addPoint(e.target.dataset.u); } });
+  $('units').addEventListener('change', e => {
+    if (!e.target.classList.contains('note')) return;
+    const u = units.find(x => x.id === e.target.dataset.u); if (!u) return;
+    const p = u.points[+e.target.dataset.i]; const v = e.target.value.trim();
+    if ((p.note||'') !== v) { p.note = v; writeUnit(u); }
+  });
+  $('units').addEventListener('focusout', e => { if (e.target.classList.contains('note') && pendingRender) setTimeout(render, 0); });
+  $('projName').addEventListener('change', () => { project.name = $('projName').value.trim(); writeProject(); });
+
+  $('copyPunch').addEventListener('click', () => {
+    const lines = [];
+    units.slice().sort((a,b)=>a.tag.localeCompare(b.tag,undefined,{numeric:true})).forEach(u => {
+      u.points.filter(p => p.s === 'fail').forEach(p => lines.push(`${u.tag}${u.loc?' ('+u.loc+')':''} – ${p.n}${p.note?': '+p.note:''}`));
+    });
+    const head = (project.name ? project.name + ' – ' : '') + 'Controls punch list, ' + new Date().toLocaleDateString();
+    const text = lines.length ? head + '\n\n' + lines.map((l,i) => `${i+1}. ${l}`).join('\n') : head + '\n\nNo open fails.';
+    const done = () => toast(lines.length ? `Copied ${lines.length} item${lines.length>1?'s':''}` : 'Copied. No fails to list.');
+    try { navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done)); } catch(e) { fallbackCopy(text, done); }
+  });
+  // ---------- export / import ----------
+  let downloads = null;
+  function slug(s){ return (s || 'job').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40) || 'job'; }
+  $('exportBtn').addEventListener('click', async () => {
+    if (!units.length) { toast('Nothing to export yet. Add a unit first.', true); return; }
+    const payload = {format:'point-checkout', version:1, exported: new Date().toISOString(), project, units: units.map(u => ({tag:u.tag,type:u.type,loc:u.loc,model:u.model||'',example:!!u.example,points:u.points}))};
+    const text = JSON.stringify(payload, null, 2);
+    const filename = `checkout-${slug(project.name)}-${new Date().toISOString().slice(0,10)}.json`;
+    if (downloads) {
+      try { await downloads.save({filename, data: text}); toast(`Exported ${units.length} units`); }
+      catch(e) { toast('Export was cancelled or blocked.', true); }
+      return;
+    }
+    try {
+      const url = URL.createObjectURL(new Blob([text], {type:'application/json'}));
+      const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast(`Exported ${units.length} units`);
+    } catch(e) { toast('This browser blocked the download.', true); }
+  });
+  $('importBtn').addEventListener('click', () => { if (!canWrite) { toast('This link is view-only. Import is off.', true); return; } $('importFile').value = ''; $('importFile').click(); });
+  $('importFile').addEventListener('change', () => {
+    const f = $('importFile').files[0]; if (!f) return;
+    if (/\.(xlsx|xls|csv)$/i.test(f.name)) { readSheet(f); return; }
+    if (/\.xml$/i.test(f.name)) { readXml(f); return; }
+    const r = new FileReader();
+    r.onload = () => {
+      let data;
+      try { data = JSON.parse(r.result); } catch(e) { toast('That file is not a checkout export.', true); return; }
+      if (!data || data.format !== 'point-checkout' || !Array.isArray(data.units)) { toast('That file is not a checkout export.', true); return; }
+      let added = 0, updated = 0;
+      data.units.forEach(x => {
+        if (!x || !x.tag) return;
+        const pts = Array.isArray(x.points) ? x.points.map(p => ({n:String(p.n||''), s:['pass','fail','na'].includes(p.s)?p.s:'', note:p.note?String(p.note):'', by:p.by||null, at:p.at||null})).filter(p => p.n) : [];
+        let u = units.find(y => y.tag.toLowerCase() === String(x.tag).toLowerCase());
+        if (u) { u.type = String(x.type||u.type); u.loc = String(x.loc||''); u.model = String(x.model||''); u.points = pts; u.example = !!x.example; updated++; }
+        else { u = {id:'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), tag:String(x.tag), type:String(x.type||'BLANK'), loc:String(x.loc||''), model:String(x.model||''), example:!!x.example, points:pts}; units.push(u); added++; }
+        writeUnit(u);
+      });
+      if (!project.name && data.project && data.project.name) { project.name = String(data.project.name); writeProject(); }
+      render();
+      toast(`Imported: ${added} new, ${updated} updated`);
+    };
+    r.onerror = () => toast('Could not read that file.', true);
+    r.readAsText(f);
+  });
+
+  // ---------- spreadsheet import ----------
+  let xl = null;
+  const TYPE_OPTS = [['VAV','VAV · reheat'],['VAVC','VAV · cooling only'],['AHU','AHU'],['RTU','RTU'],['FCU','FCU'],['UV','Unit ventilator'],['EF','Exhaust fan'],['BLANK','Blank (no points)']];
+  function guessType(s){
+    s = s.toUpperCase();
+    if (/\bAHU\b|AHU-?\d|AHU-[A-Z]/.test(s)) return 'AHU';
+    if (/\bRTU\b|RTU-?\d/.test(s)) return 'RTU';
+    if (/\bVAV\b|VAV-?\d/.test(s)) return 'VAV';
+    if (/\bUV\b|UV-?\d|UNIT VENT/.test(s)) return 'UV';
+    if (/\bFCU\b|FCU-?\d/.test(s)) return 'FCU';
+    if (/\bEF\b|EF-?\d|EXHAUST/.test(s)) return 'EF';
+    return null;
+  }
+  function modelName(t){
+    if (!t) return 'No model listed';
+    const parts = String(t).trim().split('.');
+    const last = parts[parts.length-1];
+    if (/^[A-Za-z]{1,6}\d{1,4}[A-Za-z]{0,3}$/.test(last)) return last;
+    if (/udt/i.test(t) && parts.length >= 2) return 'Custom type ' + parts[parts.length-2].slice(0,6);
+    return last.slice(0,28);
+  }
+  function splitName(name, descr){
+    name = String(name).trim(); descr = descr == null ? '' : String(descr).trim();
+    const m = name.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+    if (m && m[1] && /[A-Za-z].*\d/.test(m[2])) return {tag: m[2].trim(), loc: m[1].trim()};
+    let loc = descr;
+    if (loc.toLowerCase() === name.toLowerCase()) loc = '';
+    else if (loc.toLowerCase().startsWith(name.toLowerCase())) loc = loc.slice(name.length).replace(/^[\s\-–:]+/, '');
+    return {tag: name, loc};
+  }
+  function readSheet(f){
+    if (!window.XLSX) { toast('The spreadsheet reader did not load. Check your internet connection and reload.', true); return; }
+    const r = new FileReader();
+    r.onload = () => {
+      let rows;
+      try {
+        const wb = XLSX.read(new Uint8Array(r.result), {type:'array'});
+        rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:'', blankrows:false});
+      } catch(e) { toast('Could not read that spreadsheet.', true); return; }
+      buildPreview(rows, f.name);
+    };
+    r.onerror = () => toast('Could not read that file.', true);
+    r.readAsArrayBuffer(f);
+  }
+  function buildPreview(rows, fname){
+    const find = (hdr, re) => hdr.findIndex(h => re.test(String(h).trim()));
+    let hi = rows.findIndex(r => r.some(c => /^(name|tag|unit|equipment|equip|device|controller name)$/i.test(String(c).trim())));
+    let nameI = 0, typeI = -1, descI = -1, start = 0;
+    if (hi >= 0) {
+      const h = rows[hi]; start = hi + 1;
+      nameI = find(h, /^(name|tag|unit|equipment|equip|device|controller name)$/i);
+      typeI = find(h, /^(type|model|controller|controller type|device type)$/i);
+      descI = find(h, /^(descr|description|location|loc|serves|room|area)$/i);
+    }
+    const entries = [];
+    rows.slice(start).forEach(r => {
+      const nm = String(r[nameI] ?? '').trim(); if (!nm) return;
+      entries.push({name: nm, model: typeI >= 0 ? modelName(String(r[typeI] ?? '').trim()) : 'All rows', descr: descI >= 0 ? r[descI] : '', points: null});
+    });
+    previewFromEntries(entries, fname);
+  }
+
+  // ---------- XML (EBO export or similar) ----------
+  const CTRL_RE = /(^|\.)udt\.|\.udt$|(^|[^a-z])(mp[cvx]|rp[cv]|as-?[pb]|mpx|b3|b4|ab|kmc|bcx|bcmd|uc\d|symbio|sc\+?)\d{0,4}[a-z]?($|[^a-z])|controller|bacnet\.device|\.device$/i;
+  const PT_IO_RE = /(analog|binary|multi-?state)(input|output)|universal(input|output)|digital(input|output)|counter(input)?|current(input|output)|voltage(input|output)|resist(ive|ance)input|temperatureinput|thermistor|\.io\.|(^|\.)(ai|ao|bi|bo|ui|uo|di|do)$/i;
+  const PT_VAL_RE = /(analog|binary|multi-?state)value|(^|\.)(av|bv|msv)$|\.value$|variable/i;
+  const PT_SKIP_RE = /trend|(^|\.)(log|eventlog|datalog)$|alarm|notification|program|script|function|graphic|folder|calendar|schedule|binding|chart|report|bus$|network$|module$/i;
+  const KEY_RE = /set ?point|stpt|\bsp\b|_sp|sp$|occ|flow|cfm|airfl|min|max|temp|tmp|damp|dmpr|valve|vlv|cmd|command|status|sts|speed|spd|static|press|co2|humid|\brh\b|mode|enable|reset|offset|k-?fact|heat|cool|fan|econ|dat|sat|mat|rat|oat|zn|space|stage/i;
+  function attr(el, names){ for (const n of names) { const v = el.getAttribute(n); if (v != null && v !== '') return v; } return ''; }
+  function readXml(f){
+    const r = new FileReader();
+    r.onload = () => {
+      let doc;
+      try { doc = new DOMParser().parseFromString(r.result, 'application/xml'); } catch(e) {}
+      if (!doc || doc.getElementsByTagName('parsererror').length) { toast('That XML file could not be read.', true); return; }
+      const entries = parseEboXml(doc);
+      if (!entries.length) { toast('No controllers found in that XML. Send it to Claude so the importer can be tuned to its layout.', true); return; }
+      previewFromEntries(entries, f.name);
+    };
+    r.onerror = () => toast('Could not read that file.', true);
+    r.readAsText(f);
+  }
+
+  // EBO export: objects are <OI NAME TYPE DESCR>; device types are defined in <Types><ObjectType Name Base DisplayName>
+  const SKIP_FOLDER_RE = /^(Trends|Programs|Functions|Graphics|Alarms|Ports|App Menus|Modbus|Room Bus|Onboard IO|Consumer Values|Flow Balance Data)$/i;
+  const HW_RE = /\.point\.\w*(Input|Output)$/;
+  const VAVDATA_RE = /\.vav\.(BoxFlow|VelocityPressure|DamperCommand|FlowSetpoint|DischargeAirTemp|EffectiveReheatCommand)$/;
+  const SENSOR_RE = /RoomUnit(Temperature|Humidity|CO2|Occupancy)Sensor$/;
+  const VALUE_RE = /\.value\.(Analog|Digital|Multistate)Value$/;
+  const KEEP_VAL_RE = /^(RmTmp|RmCO2|RmRH|DprPos|AirFl|OccCmd|OccSts|OccSched|OccCmdTs|OccOvrPb|RmOccOvr|OccSnsrSts|EconEna|HtgEna|AhuHtgEna|ClgEna|ClgCmd|DxStg|OaDprPosMin|OaMinPos|Safeties|Occupancy|HeatEnable)$/i;
+  const SP_NAME_RE = /(Sp|Spt|Stp|Cspt|Hspt)$|Spt(Htg|Clg|Min|Max|RhtMin|RhtMax)$|^AirFlSpt/;
+  const SP_SKIP_RE = /limit|lockout|changeover|differential|deadband|default|range|offset|absolute|delay|gain|integration|interval|deadzone/i;
+  function eboAttr(el, n){ return el.getAttribute(n) || el.getAttribute(n.toLowerCase()) || el.getAttribute(n[0] + n.slice(1).toLowerCase()) || ''; }
+  function parseEboXml(doc){
+    const typeNames = {};
+    [...doc.getElementsByTagName('ObjectType')].forEach(t => {
+      const n = t.getAttribute('Name'); if (!n) return;
+      const disp = (t.getAttribute('DisplayName') || '').trim();
+      const base = (t.getAttribute('Base') || '').split('.').pop();
+      typeNames[n] = disp || base || '';
+    });
+    const root = doc.getElementsByTagName('ExportedObjects')[0] || doc.documentElement;
+    const ois = [...root.getElementsByTagName('OI')];
+    if (!ois.length) return [];
+    const kidsOf = el => [...el.children].filter(k => k.tagName === 'OI');
+    let ctrls = ois.filter(el => kidsOf(el).some(k => /ApplicationProxy$/i.test(eboAttr(k,'TYPE'))));
+    if (!ctrls.length) {
+      const isC = el => CTRL_RE.test(eboAttr(el,'TYPE')) && !HW_RE.test(eboAttr(el,'TYPE'));
+      ctrls = ois.filter(el => { if (!isC(el)) return false; for (let p = el.parentElement; p && p !== root; p = p.parentElement) if (p.tagName === 'OI' && isC(p)) return false; return true; });
+    }
+    return ctrls.map(el => {
+      const ty = eboAttr(el,'TYPE');
+      const model = typeNames[ty] || modelName(ty);
+      const hw = [], vav = [], sens = [], vals = []; const seen = new Set(); let role = '';
+      (function walk(node, inIoFolder){
+        kidsOf(node).forEach(k => {
+          const nm = eboAttr(k,'NAME'), t = eboAttr(k,'TYPE'), d = eboAttr(k,'DESCR').trim();
+          const kids = kidsOf(k);
+          if (/^udt\./.test(t) && node !== el && /ApplicationProxy$/i.test(eboAttr(node,'TYPE')) && d && !role) role = d;
+          if (kids.length) { if (!SKIP_FOLDER_RE.test(nm)) walk(k, /^(Inputs|Outputs|Points)$/i.test(nm)); return; }
+          const label = nm + (d && d.toLowerCase() !== nm.toLowerCase() ? ' — ' + d : '');
+          const key = nm.toLowerCase();
+          const push = arr => { if (seen.has(key)) return; seen.add(key); arr.push(label); };
+          if (HW_RE.test(t)) push(hw);
+          else if (VAVDATA_RE.test(t)) push(vav);
+          else if (SENSOR_RE.test(t)) { if (!seen.has('sensor:' + key)) { seen.add('sensor:' + key); sens.push('Room sensor: ' + nm); } }
+          else if (VALUE_RE.test(t)) {
+            if (/^Calc/i.test(nm)) return;
+            if (inIoFolder || KEEP_VAL_RE.test(nm) || /Alm$|Alarm$/.test(nm) || (SP_NAME_RE.test(nm) && !SP_SKIP_RE.test(d))) push(vals);
+          }
+        });
+      })(el, false);
+      const points = hw.concat(vav, sens, vals.map(v => '◦ ' + v)).slice(0, 80);
+      return {name: eboAttr(el,'NAME'), model, descr: eboAttr(el,'DESCR') || role, points, role};
+    });
+  }
+
+  function previewFromEntries(entries, fname){
+    const groups = new Map(); const seen = new Set(); let dup = 0, total = 0, withPts = 0;
+    entries.forEach(en => {
+      const {tag, loc} = splitName(en.name, en.descr);
+      if (seen.has(tag.toLowerCase())) { dup++; return; }
+      seen.add(tag.toLowerCase()); total++;
+      if (!groups.has(en.model)) groups.set(en.model, {model: en.model, rows:[], votes:{}});
+      const g = groups.get(en.model);
+      const pts = en.points && en.points.length ? en.points : null; if (pts) withPts++;
+      const gt = guessType(en.name + ' ' + String(en.descr || ''));
+      g.rows.push({tag, loc, points: pts, guess: gt});
+      if (gt) g.votes[gt] = (g.votes[gt] || 0) + 1;
+    });
+    if (!total) { toast('No units found. The file needs a list of unit or controller names.', true); return; }
+    xl = {groups: [...groups.values()].map(g => {
+      const best = Object.entries(g.votes).sort((a,b) => b[1]-a[1])[0];
+      const guess = best ? best[0] : 'BLANK';
+      const hasPts = g.rows.some(r => r.points);
+      return {model: g.model, rows: g.rows, guess, hasPts, type: hasPts ? 'FILE' : guess, on: true};
+    }).sort((a,b) => b.rows.length - a.rows.length)};
+    $('xlSummary').textContent = `${fname}: ${total} unit${total>1?'s':''} in ${xl.groups.length} group${xl.groups.length>1?'s':''}${withPts ? `, points found for ${withPts}` : ''}${dup ? `, ${dup} duplicate name${dup>1?'s':''} skipped` : ''}.`;
+    renderPreview();
+    $('addForm').hidden = true; $('xlPanel').hidden = false; $('xlPanel').scrollIntoView({block:'start'});
+  }
+  function renderPreview(){
+    $('xlGroups').innerHTML = xl.groups.map((g,i) => {
+      const sample = g.rows.slice(0,3).map(r => r.tag).join(', ') + (g.rows.length > 3 ? ` +${g.rows.length-3} more` : '') + (g.hasPts ? ` · ~${Math.round(g.rows.reduce((s,r) => s + (r.points ? r.points.length : 0), 0) / g.rows.length)} pts each in file` : '');
+      const opts = (g.hasPts ? [['FILE','Points from file']] : []).concat(TYPE_OPTS);
+      return `<div class="xg${g.on?'':' off'}"><input type="checkbox" id="xgOn${i}" data-xg="${i}" ${g.on?'checked':''} aria-label="Include ${esc(g.model)}">
+        <label class="xm" for="xgOn${i}"><b>${esc(g.model)} · ${g.rows.length}</b><span>${esc(sample)}</span></label>
+        <select id="xgType${i}" data-xgt="${i}" aria-label="Point list for ${esc(g.model)}">${opts.map(([v,l]) => `<option value="${v}" ${g.type===v?'selected':''}>${l}</option>`).join('')}</select></div>`;
+    }).join('');
+    const n = xl.groups.filter(g => g.on).reduce((s,g) => s + g.rows.length, 0);
+    $('xlGo').textContent = `Add ${n} unit${n===1?'':'s'}`; $('xlGo').disabled = !n;
+  }
+  $('xlGroups').addEventListener('change', e => {
+    const t = e.target;
+    if (t.dataset.xg != null) { xl.groups[+t.dataset.xg].on = t.checked; renderPreview(); }
+    if (t.dataset.xgt != null) xl.groups[+t.dataset.xgt].type = t.value;
+  });
+  $('xlCancel').addEventListener('click', () => { xl = null; $('xlPanel').hidden = true; });
+  $('xlGo').addEventListener('click', async () => {
+    if (!xl) { toast('The spreadsheet preview expired. Pick the file again with Import.', true); $('xlPanel').hidden = true; return; }
+    if (!canWrite) { toast('This link is view-only. Import is off.', true); return; }
+    try { await runImport(); }
+    catch(e) { toast(`Import stopped: ${(e && (e.code || e.message)) || e}`, true); }
+  });
+  async function runImport(){
+    const have = new Set(units.map(u => u.tag.toLowerCase()));
+    const fresh = []; let skipped = 0;
+    xl.groups.forEach(g => { if (!g.on) return; g.rows.forEach(r => {
+      const k = r.tag.toLowerCase(); if (have.has(k)) { skipped++; return; } have.add(k);
+      const useFile = g.type === 'FILE';
+      const names = useFile ? (r.points || TEMPLATES[g.guess] || []) : TEMPLATES[g.type];
+      fresh.push({id: 'u' + Date.now().toString(36) + fresh.length.toString(36) + Math.random().toString(36).slice(2,5), tag: r.tag, type: useFile ? (r.guess || g.guess) : g.type, loc: r.loc, model: g.model === 'All rows' || g.model === 'No model listed' ? '' : g.model, points: names.map(n => ({n, s:''}))});
+    }); });
+    xl = null; $('xlPanel').hidden = true;
+    if (!fresh.length) { toast(skipped ? `All ${skipped} units are already on the list.` : 'No groups were selected.', true); return; }
+    units.push(...fresh); render();
+    window.scrollTo({top: $('units').offsetTop - 80});
+    let ok = 0, failed = 0;
+    for (const u of fresh) {
+      toast(`Saving ${ok + failed + 1} of ${fresh.length}…`, false, true);
+      if (await writeWithRetry(u)) ok++; else failed++;
+    }
+    if (failed) toast(`Saved ${ok} of ${fresh.length}. ${failed} did not save. Run Import again with the same file to add the rest.`, true);
+    else toast(`Added ${ok} unit${ok===1?'':'s'}${skipped ? `, skipped ${skipped} already on the list` : ''}`);
+  }
+
+  function fallbackCopy(text, done){
+    const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch(e){}
+    ta.remove(); ok ? done() : toast('Copy was blocked. Select the fails manually.', true);
+  }
+
+  // ---------- boot ----------
+  const l = local.load(); units = l.units || []; project = l.project || {name:''};
+  $('mode').textContent = 'Saved in this browser';
+  render();
+
+  async function resolveNames(){
+    if (!userNs) return;
+    const ids = [...new Set(units.flatMap(u => u.points.map(p => p.by)).filter(Boolean))].filter(id => !(id in names));
+    if (!ids.length) return;
+    try { const ps = await userNs.profiles(ids); ids.forEach(id => { const n = ps && ps[id] && ps[id].name; names[id] = n ? n.split(' ')[0] : ''; }); render(); } catch(e){}
+  }
+
+  (async () => {
+    if (!window.claude || !window.claude.use) return;
+    const [d, u, dl] = await Promise.all([claude.use('db'), claude.use('user'), claude.use('downloads')]);
+    downloads = dl;
+    userNs = u;
+    if (u) { try { me = await u.id(); } catch(e){} try { const cw = await u.can('data.write'); if (cw === false) canWrite = false; } catch(e){} }
+    if (!d) return;
+    db = d;
+    $('mode').textContent = canWrite ? 'Shared · live' : 'Shared · view only';
+    units = []; project = {name:''}; render();
+    db.collection('units').onSnapshot(snap => {
+      units = snap.docs.map(doc => { const x = doc.data() || {}; return {id: doc.id, tag: String(x.tag||doc.id), type: String(x.type||'BLANK'), loc: String(x.loc||''), model: String(x.model||''), example: !!x.example, at: x.at, points: Array.isArray(x.points) ? x.points.map(p => ({n:String(p.n||''), s: ['pass','fail','na'].includes(p.s)?p.s:'', note: p.note?String(p.note):'', by: p.by||null, at: p.at||null})) : []}; });
+      render(); resolveNames();
+    }, () => { $('mode').textContent = 'Offline · reload to reconnect'; });
+    db.doc('meta/project').onSnapshot(s => { project = {name: (s.exists && s.data().name) || ''}; render(); }, () => {});
+  })();
+})();
+</script>
+
+</body>
+</html>
