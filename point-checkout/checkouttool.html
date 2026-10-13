@@ -520,19 +520,39 @@ footer{font-size:12px;color:var(--muted)}
     if (!list.length) { toast('Only the example unit is on the list. Add real units first.', true); return; }
     const ids = [...new Set(list.flatMap(u => u.points.map(p => p.by)).filter(id => id && !(id in names)))];
     if (ids.length && userNs) { try { const ps = await userNs.profiles(ids); ids.forEach(id => { names[id] = (ps && ps[id] && ps[id].name) || ''; }); } catch(e){} }
-    const rows = [['Project','Unit','Type','Model','Location','Point','Description','Point kind','Status','Note','Checked by','Checked at']];
-    let n = 0;
-    list.forEach(u => u.points.forEach(p => {
-      let nm = p.n || '', kind = 'Hardware / standard';
-      if (nm.startsWith('◦ ')) { nm = nm.slice(2); kind = 'Software value'; }
-      else if (nm.startsWith('Room sensor: ')) kind = 'Room sensor';
-      const i = nm.indexOf(' — ');
-      const point = i >= 0 ? nm.slice(0, i) : nm, desc = i >= 0 ? nm.slice(i + 3) : '';
-      const at = p.at ? new Date(p.at) : null;
-      rows.push([project.name || '', u.tag, tabOf(u), u.model || '', u.loc || '', point, desc, kind, STATUS_TXT[p.s || ''], p.note || '',
-        (p.by && names[p.by]) || '', at ? at.toLocaleDateString() + ' ' + at.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}) : '']);
-      n++;
-    }));
+    // One row per controller. The job is split into a section per unit type,
+    // each with its own header row of that type's points (in import order).
+    const shortName = n => { n = n || ''; if (n.startsWith('◦ ')) n = n.slice(2); const i = n.indexOf(' — '); return i >= 0 ? n.slice(0, i) : n; };
+    const fmtAt = t => { const d = new Date(t); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); };
+    const CELL = {pass:'PASS', fail:'FAIL', na:'N/A', '':''};
+    const rows = [];
+    const tot = {pass:0, fail:0, na:0, open:0};
+    rows.push(['Point checkout' + (project.name ? ': ' + project.name : '')]);
+    rows.push(['Saved ' + fmtAt(Date.now())]);
+    const sumRow = rows.length; rows.push([]);
+    const groups = [];
+    list.forEach(u => { const t = tabOf(u); let g = groups.find(x => x.t === t); if (!g) groups.push(g = {t, units: []}); g.units.push(u); });
+    groups.forEach(g => {
+      const cols = [];
+      g.units.forEach(u => u.points.forEach(p => { const k = shortName(p.n); if (k && !cols.includes(k)) cols.push(k); }));
+      rows.push([]);
+      rows.push([`${g.t} (${g.units.length} unit${g.units.length === 1 ? '' : 's'})`]);
+      rows.push(['Unit', 'Location', 'Model', '% complete', 'Pass', 'Fail', 'N/A', 'Open', 'Fail notes', 'Last checked', ...cols]);
+      g.units.forEach(u => {
+        const c = counts(u); tot.pass += c.pass; tot.fail += c.fail; tot.na += c.na; tot.open += c.open || 0;
+        const byName = {}; u.points.forEach(p => { byName[shortName(p.n)] = p; });
+        const notes = u.points.filter(p => p.s === 'fail').map(p => shortName(p.n) + (p.note ? ': ' + p.note : '')).join('; ');
+        const last = u.points.reduce((m, p) => p.at && (!m || p.at > m.at) ? p : m, null);
+        const lastTxt = last ? fmtAt(last.at) + (last.by && names[last.by] ? ' (' + names[last.by] + ')' : '') : '';
+        rows.push([u.tag, u.loc || '', u.model || '', c.applicable ? Math.round(c.pass / c.applicable * 100) + '%' : '', c.pass, c.fail, c.na, c.open || 0, notes, lastTxt,
+          ...cols.map(k => byName[k] ? (CELL[byName[k].s || ''] ?? '') : '—')]);
+      });
+    });
+    const app = tot.pass + tot.fail + tot.open;
+    rows[sumRow] = [`${list.length} units · ${app ? Math.round(tot.pass / app * 100) : 0}% complete · ${tot.pass} pass · ${tot.fail} fail · ${tot.na} N/A · ${tot.open} open`];
+    rows.push([]);
+    rows.push(['Blank = not checked yet. — = point not on that unit.']);
+    const n = tot.pass + tot.fail + tot.na + tot.open;
     const text = '\ufeff' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
     await saveFile(`checkout-${slug(project.name)}-${new Date().toISOString().slice(0,10)}.csv`, text, 'text/csv', `Saved CSV: ${list.length} units, ${n} points`);
   });

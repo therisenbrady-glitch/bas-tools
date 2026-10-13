@@ -90,7 +90,11 @@ VAV reheat, VAV cooling only, AHU, RTU, FCU, Unit ventilator, Exhaust fan, Blank
 
 ## Getting results out
 
-- **Save checkout CSV** saves every point on the job as a spreadsheet, one row per point, ready for Excel or a closeout package. Columns: Project, Unit, Type, Model, Location, Point, Description, Point kind (hardware / software value / room sensor), Status (PASS, FAIL, N/A, Open), Note, Checked by, Checked at. Rows are sorted by unit type, then tag. The example unit is left out.
+- **Save checkout CSV** saves a spreadsheet with **one row per controller**, ready for Excel or a closeout package:
+  - At the top: project name, save time, and job totals (units, % complete, pass / fail / N/A / open).
+  - Then a section per unit type (AHU, VAV, UV, FCU, …), each with its own header row.
+  - Each row: Unit, Location, Model, % complete, Pass, Fail, N/A, Open, Fail notes (every failed point with its note), Last checked (time and who), then one column per point showing PASS, FAIL, or N/A.
+  - A blank point cell means not checked yet; **—** means that point isn't on that unit. The example unit is left out.
 - **Copy punch list** copies every FAIL across the whole job (not just the current tab) as a numbered list with unit, location, point, and your note, ready to paste into an email or text.
 - **Export job** saves the entire job (project name, units, every status and note) as a dated `.json` file.
 
