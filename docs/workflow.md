@@ -26,8 +26,8 @@ The VAV Field Calculator is for any time you're balancing or troubleshooting a b
 Use the scanner's CSV (it opens in Excel) for the device ID, name, and MAC of each controller while you set up the database in EBO.
 
 ## 3. Commissioning: load the job into the tracker
-1. In WorkStation, export the network (or the controller folders) as **XML**.
-2. Open the **Point Checkout Tracker**, enter the project name, and tap **Import file**. Pick the XML.
+1. Export the network: in EBO WorkStation as **XML**, or in Niagara Workbench as a **.bog** (right-click the BACnet device folder → Export).
+2. Open the **Point Checkout Tracker**, enter the project name, and tap **Import file**. Pick the XML or .bog.
 3. In **Review import**, check the point list for each controller model (**Points from file** is usually right), then tap **Add units**.
 4. Tap **Import file** again and pick the scanner's `devices-….csv`.
 5. The **Scanned devices** panel shows:
@@ -35,7 +35,7 @@ Use the scanner's CSV (it opens in Excel) for the device ID, name, and MAC of ea
    - **Scanned but not on the list**: usually a name that's different in the scanner. Fix it there and import again.
    - **On the list but not scanned**: controllers nobody scanned at install
 
-Matched units show their device ID in the header and a **Scanned** line (model, serial, MACs) when opened.
+Matched units show their device ID in the header and a **Device** line (model, serial, MACs) when opened.
 
 > Imported the scan list first? That's fine. Import the XML afterwards and the scanned units take on the real points.
 

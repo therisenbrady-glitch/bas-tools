@@ -205,7 +205,7 @@ footer{font-size:12px;color:var(--muted)}
     <div class="act-start">
       <button class="btn primary" type="button" id="importBtn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/></svg><span>Import file</span></button>
       <button class="btn ghost" type="button" id="openAdd"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add unit</span></button>
-      <input type="file" id="importFile" accept=".json,.xml,.xlsx,.xls,.csv,application/json,text/xml,application/xml" hidden>
+      <input type="file" id="importFile" accept=".json,.xml,.bog,.xlsx,.xls,.csv,application/json,text/xml,application/xml" hidden>
     </div>
     <div class="tray" role="group" aria-label="Save and share">
       <button class="tbtn" type="button" id="copyPunch"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/></svg><span>Copy punch list</span></button>
@@ -278,7 +278,7 @@ footer{font-size:12px;color:var(--muted)}
   </div>
   <div class="units" id="units"></div>
 
-  <footer id="foot">Tap a unit to open its points. PASS, FAIL, or N/A each point; a fail opens a note for the punch list. Save checkout CSV writes every point with its status for Excel or closeout. Export saves the whole job to a file; Import takes an exported job file, an EBO XML export (pulls each controller's I/O and key points), or an Excel/CSV list of controllers to start a new job. Points marked ◦ are software values.</footer>
+  <footer id="foot">Tap a unit to open its points. PASS, FAIL, or N/A each point; a fail opens a note for the punch list. Save checkout CSV writes every point with its status for Excel or closeout. Export saves the whole job to a file; Import takes an exported job file, an EBO XML export or Niagara .bog (pulls each controller's I/O and key points), or an Excel/CSV list of controllers to start a new job. Points marked ◦ are software values.</footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -425,7 +425,7 @@ footer{font-size:12px;color:var(--muted)}
       const bulkN = u.points.filter(p => p.bulk && p.s === 'pass').length;
       const openN = u.points.filter(p => !p.s).length;
       const passAll = isOpen && canWrite && (bulkN || openN) ? `<div class="pabar"><span class="pahint">${bulkN ? `${bulkN} point${bulkN===1?'':'s'} passed in bulk` : `${openN} open point${openN===1?'':'s'}`}</span><button type="button" class="pabtn" data-passall="${u.id}" aria-pressed="${!!bulkN}">${bulkN ? 'Undo pass all' : 'Pass all points'}</button></div>` : '';
-      const devbar = isOpen && u.dev ? `<div class="devbar"><span class="devlbl">Scanned</span>${esc(devLine(u.dev))}</div>` : '';
+      const devbar = isOpen && u.dev ? `<div class="devbar"><span class="devlbl">Device</span>${esc(devLine(u.dev))}</div>` : '';
       const pts = isOpen ? devbar + passAll + `<div class="points">${u.points.map((p,i) => {
         const s = p.s || '';
         const who = p.by && names[p.by] ? names[p.by] + ' · ' : '';
@@ -652,6 +652,7 @@ footer{font-size:12px;color:var(--muted)}
     const f = $('importFile').files[0]; if (!f) return;
     if (/\.(xlsx|xls|csv)$/i.test(f.name)) { readSheet(f); return; }
     if (/\.xml$/i.test(f.name)) { readXml(f); return; }
+    if (/\.bog$/i.test(f.name)) { readBog(f); return; }
     const r = new FileReader();
     r.onload = () => {
       let data;
@@ -791,13 +792,94 @@ footer{font-size:12px;color:var(--muted)}
   const PT_SKIP_RE = /trend|(^|\.)(log|eventlog|datalog)$|alarm|notification|program|script|function|graphic|folder|calendar|schedule|binding|chart|report|bus$|network$|module$/i;
   const KEY_RE = /set ?point|stpt|\bsp\b|_sp|sp$|occ|flow|cfm|airfl|min|max|temp|tmp|damp|dmpr|valve|vlv|cmd|command|status|sts|speed|spd|static|press|co2|humid|\brh\b|mode|enable|reset|offset|k-?fact|heat|cool|fan|econ|dat|sat|mat|rat|oat|zn|space|stage/i;
   function attr(el, names){ for (const n of names) { const v = el.getAttribute(n); if (v != null && v !== '') return v; } return ''; }
+  // ---------- Niagara .bog (a zip holding file.xml) ----------
+  async function unzipXml(buf){
+    const dv = new DataView(buf), u8 = new Uint8Array(buf);
+    let eocd = -1;
+    for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 66000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) throw new Error('not a zip');
+    let p = dv.getUint32(eocd + 16, true); const n = dv.getUint16(eocd + 10, true);
+    const td = new TextDecoder();
+    let pick = null;
+    for (let k = 0; k < n; k++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+      const name = td.decode(u8.subarray(p + 46, p + 46 + nlen));
+      if (/\.xml$/i.test(name) && (!pick || /^file\.xml$/i.test(name))) pick = {method, csize, off};
+      p += 46 + nlen + xlen + clen;
+    }
+    if (!pick) throw new Error('no xml');
+    const lh = pick.off, start = lh + 30 + dv.getUint16(lh + 26, true) + dv.getUint16(lh + 28, true);
+    const data = u8.subarray(start, start + pick.csize);
+    if (pick.method === 0) return td.decode(data);
+    if (pick.method !== 8 || typeof DecompressionStream !== 'function') throw new Error('unsupported');
+    const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return await new Response(stream).text();
+  }
+  async function readBog(f){
+    toast('Reading the Niagara export…', false, true);
+    let text;
+    try { text = await unzipXml(await f.arrayBuffer()); }
+    catch(e) { toast('Could not open that .bog here. Rename it to .zip, unzip it, and import the file.xml inside.', true); return; }
+    let doc;
+    try { doc = new DOMParser().parseFromString(text, 'application/xml'); } catch(e) {}
+    if (!doc || doc.getElementsByTagName('parsererror').length) { toast('That .bog file could not be read.', true); return; }
+    const entries = parseNiagara(doc);
+    if (!entries.length) { toast('No devices with points found in that .bog. Export the device folder (or BacnetNetwork) with its points.', true); return; }
+    toast(`Found ${entries.length} devices`);
+    previewFromEntries(entries, f.name);
+  }
+  // Niagara bajaObjectGraph: a device is any component with a "points" extension.
+  // Control points carry their BACnet object in proxyExt/objectId (e.g. binaryInput:12).
+  const NG_POINT_T = /^c:\w+(Point|Writable)$/;
+  const NG_IO = /^(analog|binary|multiState)(Input|Output)$/i;
+  const NG_KEEP = /(Sp|Spt|Stp|SetPt|Setpoint)$|Alm$|Alarm$|^(RmTmp|RmCO2|RmRH|ZnT|SpaceT|DprPos|AirFl|Flow|Occ|OpMode|HvacMd|OAT$|OaTmp|Econ|OaMin|HtgEn|ClgEn|ChwAvail|HwAvail|Safet)/i;
+  const NG_SKIP = /Rst|Reset|Calc|Lockout|Max|Min(?!Pct|Pos)|Hi$|Lo$|Low$|Dly|Delay|Gain|Integ|Deadband|Db$|Offset/i;
+  const ngName = n => String(n || '').replace(/\$([0-9a-fA-F]{2})/g, (m, h) => String.fromCharCode(parseInt(h, 16)));
+  const OBJ_ABBR = {analogInput:'AI', analogOutput:'AO', analogValue:'AV', binaryInput:'BI', binaryOutput:'BO', binaryValue:'BV', multiStateInput:'MI', multiStateOutput:'MO', multiStateValue:'MV'};
+  function ngKids(el, name){ const out = []; for (const c of el.children) if (c.nodeName === 'p' && (!name || c.getAttribute('n') === name)) out.push(c); return out; }
+  function ngVal(el, path){ let cur = el; for (const n of path) { cur = ngKids(cur, n)[0]; if (!cur) return ''; } return cur.getAttribute('v') || ''; }
+  function parseNiagara(doc){
+    const all = [...doc.getElementsByTagName('p')];
+    const devices = all.filter(el => ngKids(el, 'points').some(pe => /PointDeviceExt$/.test(pe.getAttribute('t') || '')));
+    return devices.map(el => {
+      const name = ngName(el.getAttribute('n'));
+      const t = el.getAttribute('t') || '';
+      const typeName = t.includes(':') ? t.split(':').pop() : t;
+      const dobj = ngKids(ngKids(el, 'config')[0] || el, 'deviceObject')[0];
+      const did = dobj ? (ngVal(dobj, ['objectId']).match(/device:(\d+)/) || [])[1] || '' : '';
+      const model = dobj ? ngVal(dobj, ['modelName']) : '';
+      const serial = dobj ? (ngVal(dobj, ['serialNumber']) || ngVal(dobj, ['mpxSerialNumber'])) : '';
+      const io = [], vals = [], seen = new Set();
+      (function walk(node){
+        for (const c of ngKids(node)) {
+          const ct = c.getAttribute('t') || '';
+          if (NG_POINT_T.test(ct)) {
+            const pn = ngName(c.getAttribute('n'));
+            if (/^c:String/.test(ct) || seen.has(pn.toLowerCase())) continue;
+            const oid = ngVal(c, ['proxyExt', 'objectId']);
+            const [otype, onum] = oid.split(':');
+            const tag = OBJ_ABBR[otype] ? ` — ${OBJ_ABBR[otype]}-${onum}` : '';
+            if (NG_IO.test(otype || '')) { seen.add(pn.toLowerCase()); io.push(pn + tag); }
+            else if (NG_KEEP.test(pn) && !NG_SKIP.test(pn)) { seen.add(pn.toLowerCase()); vals.push('◦ ' + pn + tag); }
+          } else if (ct && !/ProxyExt|Facets|Alarm|History|Annotation|Format|Ord$/.test(ct) && c.firstElementChild) walk(c);
+        }
+      })(ngKids(el, 'points')[0]);
+      const isOut = x => /— [ABM]O-/.test(x) ? 1 : 0;
+      io.sort((a, b) => isOut(a) - isOut(b));   // inputs first, outputs after (stable)
+      const hint = [ngVal(el, ['ntpl$3adesc']), ngVal(el, ['points', 'Description', 'fallback', 'value']), typeName].join(' ');
+      return {name, model: typeName || 'No model listed', descr: '', hint, points: io.concat(vals).slice(0, 80),
+              dev: cleanDev({did, serial, model, mac: '', netmac: ''})};
+    }).filter(e => e.name);
+  }
+
   function readXml(f){
     const r = new FileReader();
     r.onload = () => {
       let doc;
       try { doc = new DOMParser().parseFromString(r.result, 'application/xml'); } catch(e) {}
       if (!doc || doc.getElementsByTagName('parsererror').length) { toast('That XML file could not be read.', true); return; }
-      const entries = parseEboXml(doc);
+      const entries = doc.documentElement && doc.documentElement.nodeName === 'bajaObjectGraph' ? parseNiagara(doc) : parseEboXml(doc);
       if (!entries.length) { toast('No controllers found in that XML. Send it to Claude so the importer can be tuned to its layout.', true); return; }
       previewFromEntries(entries, f.name);
     };
@@ -868,7 +950,7 @@ footer{font-size:12px;color:var(--muted)}
       if (!groups.has(en.model)) groups.set(en.model, {model: en.model, rows:[], votes:{}});
       const g = groups.get(en.model);
       const pts = en.points && en.points.length ? en.points : null; if (pts) withPts++;
-      const gt = guessType(en.name + ' ' + String(en.descr || ''));
+      const gt = guessType(en.name + ' ' + String(en.descr || '') + ' ' + String(en.hint || ''));
       g.rows.push({tag, loc, points: pts, guess: gt, dev: en.dev || null});
       if (gt) g.votes[gt] = (g.votes[gt] || 0) + 1;
     });

@@ -23,7 +23,7 @@ A point-to-point commissioning checklist for BAS jobs. Load a controller list (o
 
 The buttons at the top are in two rows: **Import file** and **Add unit** start work, and the row below (**Copy punch list**, **Save checkout CSV**, **Export job**) gets results out.
 
-Tap **Import file** and pick a file. Four kinds are accepted:
+Tap **Import file** and pick a file. Five kinds are accepted:
 
 ### 1. EBO XML export (recommended)
 Export the network or controller folders from WorkStation as `.xml`.
@@ -44,7 +44,20 @@ Points are pulled from the controller's actual database:
 
 Left out: trends, programs, functions, graphics, alarm objects, ports/Modbus/room bus, consumer values, PID tuning, limits, differentials, delays, and calculated values.
 
-### 2. Excel or CSV controller list
+### 2. Niagara export (`.bog`)
+In Workbench, right-click the BACnet device folder (or the whole BacnetNetwork) and choose **Export** to save a `.bog` file, then import it here. Each device that has a **Points** extension becomes a unit:
+
+- **Name** comes from the device's name in the station (`$20` and other escapes are decoded).
+- **Model** comes from the device type, such as `RPC12A`. The full model and **serial number** are read from the device object and shown on the unit's **Device** line, along with the device ID when the export has it.
+- **Points** are the proxy points under Points:
+  - Every **input and output** (AI, AO, BI, BO, MI, MO), listed inputs first, with its BACnet object, for example `SaTmp — AI-11`.
+  - **Key values**, marked **◦**: setpoints, alarms, occupancy, mode, room temp, economizer and OA minimum, heating/cooling available.
+  - Left out: resets, limits, lockouts, min/max, delays, tuning, and description strings.
+- The type tab is guessed from the device name and its template description, so `UV …` goes to the UV tab.
+
+The `.bog` is a zip file. The tracker opens it directly in current Safari, Chrome, and Edge. On an older browser, rename it to `.zip`, unzip it, and import the `file.xml` inside.
+
+### 3. Excel or CSV controller list
 For a sheet with one row per controller. The importer looks for these column headers:
 
 | Purpose | Header names it recognizes |
@@ -55,10 +68,10 @@ For a sheet with one row per controller. The importer looks for these column hea
 
 A spreadsheet has no points in it, so each group gets a standard template (see below).
 
-### 3. Device Scanner list (`devices-….csv` or `.json`)
+### 4. Device Scanner list (`devices-….csv` or `.json`)
 The file made with **Export for checkout** (or **Export job**) in the Device Scanner. Scanning happens at install and checkout comes later, so this works in either order:
 
-- **Units already on the list** (for example from the EBO XML): each scanned device is matched to a unit by name. The match ignores spaces, dashes, and case, so `vav 12` matches `VAV-12`. Its device ID, model, serial, and both MACs are attached. The ID shows in the unit's header, and the full details show in a **Scanned** line when the unit is open.
+- **Units already on the list** (for example from the EBO XML): each scanned device is matched to a unit by name. The match ignores spaces, dashes, and case, so `vav 12` matches `VAV-12`. Its device ID, model, serial, and both MACs are attached. The ID shows in the unit's header, and the full details show in a **Device** line when the unit is open.
 - **Empty list:** the scanned devices become units through the normal review step, grouped by model, with template points.
 - **EBO XML imported after a scan list:** units that came from the scan, with nothing checked yet, take the real points from the export and keep their scanned details.
 
@@ -68,7 +81,7 @@ A **Scanned devices** panel then shows what matched, plus two lists to check bef
 
 The checkout CSV includes **Device ID** and **Serial** columns.
 
-### 4. Job file (`.json`)
+### 5. Job file (`.json`)
 A file made with **Export job**. It restores everything, including statuses and notes.
 
 ### The review step
