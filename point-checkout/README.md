@@ -21,7 +21,9 @@ A point-to-point commissioning checklist for BAS jobs. Load a controller list (o
 
 ## Starting a job
 
-Tap **Import** and pick a file. Three kinds are accepted:
+The buttons at the top are in two rows: **Import file** and **Add unit** start work, and the row below (**Copy punch list**, **Save checkout CSV**, **Export job**) gets results out.
+
+Tap **Import file** and pick a file. Three kinds are accepted:
 
 ### 1. EBO XML export (recommended)
 Export the network or controller folders from WorkStation as `.xml`.
@@ -54,7 +56,7 @@ For a sheet with one row per controller. The importer looks for these column hea
 A spreadsheet has no points in it, so each group gets a standard template (see below).
 
 ### 3. Job file (`.json`)
-A file made with **Export**. It restores everything, including statuses and notes.
+A file made with **Export job**. It restores everything, including statuses and notes.
 
 ### The review step
 Before anything is added, the **Review import** panel shows controllers **grouped by model**. Each row is a model, not a single unit; the count shows how many units are in it. For each group you can:
@@ -71,7 +73,7 @@ Then tap **Add N units**. A counter at the bottom of the screen shows progress.
 ## Doing the checkout
 
 - **Type tabs** across the top (All, AHU, VAV, UV, FCU, Other…) split the job by unit type. Each tab shows its count, % complete, and fails. The progress panel below reflects the selected tab.
-- **Status chips** (All / Open / Fails / Done) filter within the current tab.
+- **Show** (All / Open / Fails / Done), just above the unit list, filters within the current tab.
 - Tap a unit to open its point list, then mark each point:
   - **PASS**: verified
   - **FAIL**: opens a note field. Describe the problem; it goes on the punch list.
@@ -90,11 +92,11 @@ VAV reheat, VAV cooling only, AHU, RTU, FCU, Unit ventilator, Exhaust fan, Blank
 
 - **Save checkout CSV** saves every point on the job as a spreadsheet, one row per point, ready for Excel or a closeout package. Columns: Project, Unit, Type, Model, Location, Point, Description, Point kind (hardware / software value / room sensor), Status (PASS, FAIL, N/A, Open), Note, Checked by, Checked at. Rows are sorted by unit type, then tag. The example unit is left out.
 - **Copy punch list** copies every FAIL across the whole job (not just the current tab) as a numbered list with unit, location, point, and your note, ready to paste into an email or text.
-- **Export** saves the entire job (project name, units, every status and note) as a dated `.json` file.
+- **Export job** saves the entire job (project name, units, every status and note) as a dated `.json` file.
 
 ### Handing off between techs (standalone file)
-1. Tech A taps **Export** and sends the `.json` file.
-2. Tech B taps **Import** and picks it.
+1. Tech A taps **Export job** and sends the `.json` file.
+2. Tech B taps **Import file** and picks it.
    - Units with a matching tag are **replaced** by the imported version.
    - New tags are added.
 
@@ -118,5 +120,5 @@ Split work by unit (for example floor 2 vs floor 3). If two people edit the same
 ## Files
 
 - `index.html`: the full tracker. No install needed.
-- `checkout-<project>-<date>.json`: job files made with Export.
+- `checkout-<project>-<date>.json`: job files made with Export job.
 - `checkout-<project>-<date>.csv`: checkout spreadsheets made with Save checkout CSV.

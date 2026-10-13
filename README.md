@@ -10,4 +10,4 @@ Each tool is a single HTML file. Download it and open it in Chrome, Edge, or Saf
 
 ## Tips
 - On a phone, open the file in Safari or Chrome. File previews from email or the Files app often show the page with buttons that don't work.
-- The tracker saves to the browser on that device. Use **Export** / **Import** to hand a job to someone else, and export regularly so clearing browser data doesn't wipe a job.
+- The tracker saves to the browser on that device. Use **Export job** / **Import file** to hand a job to someone else, and export regularly so clearing browser data doesn't wipe a job.
