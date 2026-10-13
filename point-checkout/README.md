@@ -57,9 +57,10 @@ A spreadsheet has no points in it, so each group gets a standard template (see b
 A file made with **Export**. It restores everything, including statuses and notes.
 
 ### The review step
-Before anything is added, controllers are shown **grouped by model**. For each group you can:
+Before anything is added, the **Review import** panel shows controllers **grouped by model**. Each row is a model, not a single unit; the count shows how many units are in it. For each group you can:
 - Keep **Points from file** (XML only), or switch to a standard template.
 - Untick the group to leave it out.
+- Tap **Show all units** to list every unit in the group (scrolls inside the panel) and untick individual units to skip them.
 
 Then tap **Add N units**. A counter at the bottom of the screen shows progress.
 

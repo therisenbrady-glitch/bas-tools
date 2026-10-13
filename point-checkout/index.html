@@ -138,6 +138,19 @@ footer{font-size:12px;color:var(--muted)}
 .xg .xm span{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
 .xg select{border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--ink);font-size:13.5px;padding:7px 8px;min-width:0;width:100%}
 @media (max-width:440px){.xg{grid-template-columns:auto 1fr}.xg select{grid-column:2}}
+.xgwrap{border-bottom:1px solid var(--line)}
+.xgwrap:last-child{border-bottom:0}
+.xgwrap .xg{border-bottom:0}
+.xshow{grid-column:2/-1;justify-self:start;background:none;border:0;padding:2px 0;color:var(--steel);font-size:12.5px;font-weight:600;text-decoration:underline;cursor:pointer}
+.xlist{max-height:min(320px,50vh);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;border-top:1px solid var(--line);background:var(--sunk)}
+.xu{display:grid;grid-template-columns:auto auto 1fr;gap:10px;align-items:center;padding:7px 12px 7px 40px;border-bottom:1px solid var(--line);font-size:13.5px}
+.xu:last-child{border-bottom:0}
+.xu input{width:16px;height:16px;accent-color:var(--accent)}
+.xu .xt{font-family:var(--f-display);font-weight:700;font-size:12px;letter-spacing:.05em;background:var(--na-bg);color:var(--ink);border-radius:3px;padding:1px 6px;min-width:36px;text-align:center}
+.xu .xn{min-width:0;overflow-wrap:anywhere}
+.xu .xn b{font-family:var(--f-mono);font-weight:600}
+.xu .xn span{color:var(--muted)}
+.xu.off{opacity:.45}
 </style>
 
 <div class="wrap">
@@ -198,10 +211,10 @@ footer{font-size:12px;color:var(--muted)}
   </form>
 
   <section class="add" id="xlPanel" hidden aria-labelledby="xlTitle">
-    <h2 id="xlTitle">Load from spreadsheet</h2>
+    <h2 id="xlTitle">Review import</h2>
     <p class="hint" id="xlSummary"></p>
     <div class="xlgroups" id="xlGroups"></div>
-    <p class="hint">Controllers are grouped by model. Pick the point list for each group, or untick a group to leave it out. Tags already on the list are skipped so existing progress is kept.</p>
+    <p class="hint">Controllers are grouped by model. Tap <strong>Show all units</strong> to see every unit in a group and untick any you want to leave out. Pick the point list for each group, or untick a group to leave it out. Tags already on the list are skipped so existing progress is kept.</p>
     <div class="row-end">
       <button class="btn" type="button" id="xlCancel">Cancel</button>
       <button class="btn primary" type="button" id="xlGo">Add units</button>
@@ -681,7 +694,7 @@ footer{font-size:12px;color:var(--muted)}
       const hasPts = g.rows.some(r => r.points);
       return {model: g.model, rows: g.rows, guess, hasPts, type: hasPts ? 'FILE' : guess, on: true};
     }).sort((a,b) => b.rows.length - a.rows.length)};
-    $('xlSummary').textContent = `${fname}: ${total} unit${total>1?'s':''} in ${xl.groups.length} group${xl.groups.length>1?'s':''}${withPts ? `, points found for ${withPts}` : ''}${dup ? `, ${dup} duplicate name${dup>1?'s':''} skipped` : ''}.`;
+    $('xlSummary').textContent = `${fname}: ${total} unit${total>1?'s':''} across ${xl.groups.length} controller model${xl.groups.length>1?'s':''}${withPts ? `, points found for ${withPts}` : ''}${dup ? `, ${dup} duplicate name${dup>1?'s':''} skipped` : ''}.`;
     renderPreview();
     $('addForm').hidden = true; $('xlPanel').hidden = false; $('xlPanel').scrollIntoView({block:'start'});
   }
@@ -689,17 +702,27 @@ footer{font-size:12px;color:var(--muted)}
     $('xlGroups').innerHTML = xl.groups.map((g,i) => {
       const sample = g.rows.slice(0,3).map(r => r.tag).join(', ') + (g.rows.length > 3 ? ` +${g.rows.length-3} more` : '') + (g.hasPts ? ` · ~${Math.round(g.rows.reduce((s,r) => s + (r.points ? r.points.length : 0), 0) / g.rows.length)} pts each in file` : '');
       const opts = (g.hasPts ? [['FILE','Points from file']] : []).concat(TYPE_OPTS);
-      return `<div class="xg${g.on?'':' off'}"><input type="checkbox" id="xgOn${i}" data-xg="${i}" ${g.on?'checked':''} aria-label="Include ${esc(g.model)}">
-        <label class="xm" for="xgOn${i}"><b>${esc(g.model)} · ${g.rows.length}</b><span>${esc(sample)}</span></label>
-        <select id="xgType${i}" data-xgt="${i}" aria-label="Point list for ${esc(g.model)}">${opts.map(([v,l]) => `<option value="${v}" ${g.type===v?'selected':''}>${l}</option>`).join('')}</select></div>`;
+      const picked = g.rows.filter(r => !r.off).length;
+      const count = picked === g.rows.length ? `${g.rows.length}` : `${picked} of ${g.rows.length}`;
+      const typeFor = r => { const t = g.type === 'FILE' ? (r.guess || g.guess) : g.type; const l = TYPE_LABEL[t]; return !l || l === '—' ? 'Other' : l; };
+      const list = g.open ? `<div class="xlist" role="group" aria-label="Units in ${esc(g.model)}">${g.rows.map((r,j) => `<label class="xu${r.off || !g.on ? ' off' : ''}"><input type="checkbox" data-xu="${i}:${j}" ${r.off?'':'checked'} ${g.on?'':'disabled'} aria-label="Include ${esc(r.tag)}"><span class="xt">${typeFor(r)}</span><span class="xn"><b>${esc(r.tag)}</b>${r.loc ? ` <span>· ${esc(r.loc)}</span>` : ''}${r.points ? ` <span>· ${r.points.length} pts</span>` : ''}</span></label>`).join('')}</div>` : '';
+      return `<div class="xgwrap"><div class="xg${g.on?'':' off'}"><input type="checkbox" id="xgOn${i}" data-xg="${i}" ${g.on?'checked':''} aria-label="Include ${esc(g.model)}">
+        <label class="xm" for="xgOn${i}"><b>${esc(g.model)} · ${count} unit${g.rows.length===1?'':'s'}</b><span>${esc(sample)}</span></label>
+        <select id="xgType${i}" data-xgt="${i}" aria-label="Point list for ${esc(g.model)}">${opts.map(([v,l]) => `<option value="${v}" ${g.type===v?'selected':''}>${l}</option>`).join('')}</select>
+        <button type="button" class="xshow" data-xopen="${i}" aria-expanded="${!!g.open}">${g.open ? 'Hide units' : `Show all ${g.rows.length} unit${g.rows.length===1?'':'s'}`}</button></div>${list}</div>`;
     }).join('');
-    const n = xl.groups.filter(g => g.on).reduce((s,g) => s + g.rows.length, 0);
+    const n = xl.groups.filter(g => g.on).reduce((s,g) => s + g.rows.filter(r => !r.off).length, 0);
     $('xlGo').textContent = `Add ${n} unit${n===1?'':'s'}`; $('xlGo').disabled = !n;
   }
   $('xlGroups').addEventListener('change', e => {
     const t = e.target;
     if (t.dataset.xg != null) { xl.groups[+t.dataset.xg].on = t.checked; renderPreview(); }
-    if (t.dataset.xgt != null) xl.groups[+t.dataset.xgt].type = t.value;
+    if (t.dataset.xgt != null) { xl.groups[+t.dataset.xgt].type = t.value; if (xl.groups[+t.dataset.xgt].open) renderPreview(); }
+    if (t.dataset.xu != null) { const [gi, ri] = t.dataset.xu.split(':').map(Number); xl.groups[gi].rows[ri].off = !t.checked; const keep = t.closest('.xlist') ? t.closest('.xlist').scrollTop : 0; renderPreview(); const l = document.querySelectorAll('.xlist'); l.forEach(x => { if (x.querySelector(`[data-xu^="${gi}:"]`)) x.scrollTop = keep; }); }
+  });
+  $('xlGroups').addEventListener('click', e => {
+    const b = e.target.closest('[data-xopen]'); if (!b) return;
+    const g = xl.groups[+b.dataset.xopen]; g.open = !g.open; renderPreview();
   });
   $('xlCancel').addEventListener('click', () => { xl = null; $('xlPanel').hidden = true; });
   $('xlGo').addEventListener('click', async () => {
@@ -711,7 +734,7 @@ footer{font-size:12px;color:var(--muted)}
   async function runImport(){
     const have = new Set(units.map(u => u.tag.toLowerCase()));
     const fresh = []; let skipped = 0;
-    xl.groups.forEach(g => { if (!g.on) return; g.rows.forEach(r => {
+    xl.groups.forEach(g => { if (!g.on) return; g.rows.forEach(r => { if (r.off) return;
       const k = r.tag.toLowerCase(); if (have.has(k)) { skipped++; return; } have.add(k);
       const useFile = g.type === 'FILE';
       const names = useFile ? (r.points || TEMPLATES[g.guess] || []) : TEMPLATES[g.type];
