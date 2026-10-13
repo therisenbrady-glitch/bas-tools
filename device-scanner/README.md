@@ -20,13 +20,13 @@ After a code is read, a **New device** form opens with:
 - **Device name.** It's suggested from the last device (`VAV-7` → `VAV-8`) and is editable.
 - **Device ID.** The next ID, also editable. Later devices count on from whatever you saved last.
 - **Location / serves** (optional). It shows as the unit's location in the checkout tool.
-- **Model, Serial number, Bluetooth MAC.** These are filled in from the code when it can tell which is which. The full text of the code is under **Scanned code text** if anything needs fixing.
+- **Model, Serial number, Bluetooth MAC, Network MAC.** These are filled in from the code. On Schneider RP and MP controller labels, all four are read automatically. The full text of the code is under **Scanned code text** if anything needs fixing.
 
 **Save & scan next** saves and goes straight back to the camera (or the photo picker) for the next controller.
 
 ### Checks
 - A device ID that's already used, or outside 0–4194302, blocks saving.
-- If a scanned serial or MAC matches a device already on the list, you get a warning and a link to open that one instead.
+- If a scanned serial or either MAC matches a device already on the list, you get a warning and a link to open that one instead.
 - Devices that share an ID, serial, or MAC are highlighted in the list.
 
 Tap any device in the list to edit or delete it.
@@ -34,7 +34,7 @@ Tap any device in the list to edit or delete it.
 ## Getting the list out
 | Button | Saves |
 |---|---|
-| **Export for checkout** | A CSV with columns `NAME, TYPE, DESCR, DEVICE ID, SERIAL, BT MAC, SCANNED`. In the checkout tool, tap **Import file** and pick it: units come in grouped by model, and you choose the point list for each group. It also opens in Excel. |
+| **Export for checkout** | A CSV with columns `NAME, TYPE, DESCR, DEVICE ID, SERIAL, BT MAC, NETWORK MAC, SCANNED`. In the checkout tool, tap **Import file** and pick it: units come in grouped by model, and you choose the point list for each group. It also opens in Excel. |
 | **Export job** | A `.json` file of this device list, to hand off or continue on another device. |
 | **Import job** | Loads a job file. Devices with the same serial (or MAC, or name) are updated, and the rest are added. |
 
@@ -46,4 +46,12 @@ In Chrome or Edge on a computer, exports let you choose the folder. Elsewhere th
 - For small codes, fill the guide box with the code and hold steady. A little light helps a lot.
 
 ## Label formats
-The reader handles QR, Data Matrix, Aztec, PDF417, Code 128, and Code 39. It picks out model, serial, and MAC from `key: value` text, URLs with query values, JSON, and GS1 serial fields. It recognizes model names like `MP-V-7A`, `MP-C-24A`, and `RP-C-12A`, including when they're inside a part number like `SXWMPV7A10001`. Anything it can't sort out stays in the scanned text for you to copy into the right field.
+**Schneider controller labels** (the small black label with a Data Matrix code, e.g. RP-C-12A-F-24V) store everything run together in one line:
+
+```
+S/N: TD253550311RP-C-12A-F-24VMAC: 00:50:06:29:E5:AABT: F0:FD:45:73:E5:9F
+```
+
+The scanner splits that into Serial `TD253550311`, Model `RP-C-12A-F-24V`, Network MAC `00:50:06:29:E5:AA`, and Bluetooth MAC `F0:FD:45:73:E5:9F`. The handwritten location on the label isn't in the code, so type it into **Location / serves**.
+
+The reader (zxing-cpp, built in) handles light-on-dark Data Matrix codes like these, as well as QR, Aztec, PDF417, Code 128, and Code 39. For other labels it picks out fields from `key: value` text, URLs with query values, JSON, and GS1 serial fields. Anything it can't sort out stays in the scanned text for you to copy into the right field.
