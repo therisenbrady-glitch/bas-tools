@@ -169,6 +169,7 @@ footer{font-size:12px;color:var(--muted)}
     </div>
     <span class="spacer"></span>
     <button class="btn" type="button" id="copyPunch">Copy punch list</button>
+    <button class="btn" type="button" id="csvBtn">Save checkout CSV</button>
     <button class="btn" type="button" id="exportBtn">Export</button>
     <button class="btn" type="button" id="importBtn">Import</button>
     <input type="file" id="importFile" accept=".json,.xml,.xlsx,.xls,.csv,application/json,text/xml,application/xml" hidden>
@@ -209,7 +210,7 @@ footer{font-size:12px;color:var(--muted)}
 
   <div class="units" id="units"></div>
 
-  <footer id="foot">Tap a unit to open its points. PASS, FAIL, or N/A each point; a fail opens a note for the punch list. Export saves the whole job to a file; Import takes an exported job file, an EBO XML export (pulls each controller's I/O and key points), or an Excel/CSV list of controllers to start a new job. Points marked ◦ are software values.</footer>
+  <footer id="foot">Tap a unit to open its points. PASS, FAIL, or N/A each point; a fail opens a note for the punch list. Save checkout CSV writes every point with its status for Excel or closeout. Export saves the whole job to a file; Import takes an exported job file, an EBO XML export (pulls each controller's I/O and key points), or an Excel/CSV list of controllers to start a new job. Points marked ◦ are software values.</footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -456,6 +457,46 @@ footer{font-size:12px;color:var(--muted)}
       toast(`Exported ${units.length} units`);
     } catch(e) { toast('This browser blocked the download.', true); }
   });
+  // ---------- checkout CSV (one row per point, for Excel / closeout) ----------
+  async function saveFile(filename, text, mime, okMsg){
+    if (downloads) {
+      try { await downloads.save({filename, data: text}); toast(okMsg); }
+      catch(e) { toast('Save was cancelled or blocked.', true); }
+      return;
+    }
+    try {
+      const url = URL.createObjectURL(new Blob([text], {type: mime}));
+      const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast(okMsg);
+    } catch(e) { toast('This browser blocked the download.', true); }
+  }
+  const csvCell = v => { v = v == null ? '' : String(v); return /[",\r\n]/.test(v) || /^[=+\-@]/.test(v) ? '"' + (/^[=+\-@]/.test(v) ? "'" : '') + v.replace(/"/g, '""') + '"' : v; };
+  const STATUS_TXT = {pass:'PASS', fail:'FAIL', na:'N/A', '':'Open'};
+  $('csvBtn').addEventListener('click', async () => {
+    if (!units.length) { toast('Nothing to save yet. Add or import units first.', true); return; }
+    const order = t => { const i = TAB_ORDER.indexOf(t); return i < 0 ? 99 : i; };
+    const list = units.filter(u => !u.example).slice().sort((a,b) => order(tabOf(a)) - order(tabOf(b)) || a.tag.localeCompare(b.tag, undefined, {numeric:true}));
+    if (!list.length) { toast('Only the example unit is on the list. Add real units first.', true); return; }
+    const ids = [...new Set(list.flatMap(u => u.points.map(p => p.by)).filter(id => id && !(id in names)))];
+    if (ids.length && userNs) { try { const ps = await userNs.profiles(ids); ids.forEach(id => { names[id] = (ps && ps[id] && ps[id].name) || ''; }); } catch(e){} }
+    const rows = [['Project','Unit','Type','Model','Location','Point','Description','Point kind','Status','Note','Checked by','Checked at']];
+    let n = 0;
+    list.forEach(u => u.points.forEach(p => {
+      let nm = p.n || '', kind = 'Hardware / standard';
+      if (nm.startsWith('◦ ')) { nm = nm.slice(2); kind = 'Software value'; }
+      else if (nm.startsWith('Room sensor: ')) kind = 'Room sensor';
+      const i = nm.indexOf(' — ');
+      const point = i >= 0 ? nm.slice(0, i) : nm, desc = i >= 0 ? nm.slice(i + 3) : '';
+      const at = p.at ? new Date(p.at) : null;
+      rows.push([project.name || '', u.tag, tabOf(u), u.model || '', u.loc || '', point, desc, kind, STATUS_TXT[p.s || ''], p.note || '',
+        (p.by && names[p.by]) || '', at ? at.toLocaleDateString() + ' ' + at.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}) : '']);
+      n++;
+    }));
+    const text = '\ufeff' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+    await saveFile(`checkout-${slug(project.name)}-${new Date().toISOString().slice(0,10)}.csv`, text, 'text/csv', `Saved CSV: ${list.length} units, ${n} points`);
+  });
+
   $('importBtn').addEventListener('click', () => { if (!canWrite) { toast('This link is view-only. Import is off.', true); return; } $('importFile').value = ''; $('importFile').click(); });
   $('importFile').addEventListener('change', () => {
     const f = $('importFile').files[0]; if (!f) return;
