@@ -6,7 +6,7 @@ Each tool is a single HTML file. Download it and open it in Chrome, Edge, or Saf
 | Tool | What it does |
 |---|---|
 | [Point Checkout Tracker](point-checkout/) | Point-to-point commissioning checklist. Imports an EBO XML network export or an Excel/CSV controller list, splits units into tabs by type, tracks PASS / FAIL / N/A per point, and copies out a punch list. See its [README](point-checkout/README.md). |
-| [VAV Field Calculator](vav-calculator/) | Airflow from velocity pressure and K-factor, K-factor balance correction, reheat coil load (hot water GPM or electric kW/amps), and a round inlet reference table. |
+| [VAV Field Calculator](vav-calculator/) | Airflow from velocity pressure and K-factor, K-factor balance correction, reheat coil load (hot water GPM or electric kW/amps), and a round inlet reference table. See its [README](vav-calculator/README.md). |
 
 ## Tips
 - On a phone, open the file in Safari or Chrome. File previews from email or the Files app often show the page with buttons that don't work.
