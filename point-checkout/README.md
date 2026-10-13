@@ -79,6 +79,9 @@ Then tap **Add N units**. A counter at the bottom of the screen shows progress.
   - **FAIL**: opens a note field. Describe the problem; it goes on the punch list.
   - **N/A**: not used on this unit (for example Rht2Cmd on a single-stage box)
   - Tap the same button again to clear it.
+- **Pass all points** (top of an open unit) marks every *open* point on that unit PASS in one tap. Points already marked FAIL or N/A are left alone.
+  - The button turns solid and changes to **Undo pass all**. Tapping it sets only the bulk-passed points back to open.
+  - Any point you change by hand after a pass all is yours, and Undo won't touch it.
 - **Add point** at the bottom of a unit adds a custom point. **Delete unit** asks for a second tap to confirm.
 - **Add unit** adds a single unit by hand using a standard template.
 
