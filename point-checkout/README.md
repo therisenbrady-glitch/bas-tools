@@ -6,7 +6,7 @@ A point-to-point commissioning checklist for BAS jobs. Load a controller list (o
 
 ## Two ways to use it
 
-| | Live link (claude.ai) | Standalone file (`index.html`) |
+| | Live link (claude.ai) | Standalone file (`checkouttool.html`) |
 |---|---|---|
 | Where it saves | Shared online store | The browser on that device only |
 | Multiple techs | Everyone sees the same list live, with who checked each point and when | Each person has their own copy. Hand jobs off with Export / Import |
@@ -119,6 +119,6 @@ Split work by unit (for example floor 2 vs floor 3). If two people edit the same
 
 ## Files
 
-- `index.html`: the full tracker. No install needed.
+- `checkouttool.html`: the full tracker. No install needed.
 - `checkout-<project>-<date>.json`: job files made with Export job.
 - `checkout-<project>-<date>.csv`: checkout spreadsheets made with Save checkout CSV.
