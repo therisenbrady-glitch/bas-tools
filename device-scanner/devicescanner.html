@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="en">
 <head>
-<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
-<link rel="icon" type="image/png" href="../assets/favicon.png">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="../assets/favicon.png">
 <style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -126,6 +126,12 @@ details.raw pre{margin:6px 0 0;font-family:var(--f-mono);font-size:12px;backgrou
 .toast.bad{border-left-color:var(--bad)}
 footer{font-size:12px;color:var(--muted)}
 @media (prefers-reduced-motion:no-preference){.flash{animation:flash 1s ease-out}@keyframes flash{from{background:color-mix(in srgb,var(--accent) 30%,transparent)}to{background:transparent}}}
+
+.clr{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--muted);font-family:var(--f-body);font-weight:600;font-size:11.5px;padding:4px 9px;border-radius:5px;cursor:pointer;white-space:nowrap}
+.clr:hover{border-color:var(--bad);color:var(--bad)}
+.clr[data-step="1"]{border-color:var(--bad);color:var(--bad);background:var(--bad-bg,transparent)}
+.clr[data-step="2"]{background:var(--bad);border-color:var(--bad);color:#fff}
+.clr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
 
 <div class="wrap">
@@ -135,6 +141,7 @@ footer{font-size:12px;color:var(--muted)}
     <div class="proj">
       <input id="projName" aria-label="Project name" placeholder="Project / building name" maxlength="80">
       <span class="mode" id="mode">Saved in this browser</span>
+      <button type="button" class="clr" id="clearBtn" title="Erase every device in this list">Clear list</button>
     </div>
   </header>
 
@@ -315,6 +322,7 @@ footer{font-size:12px;color:var(--muted)}
     $('nextId').textContent = nextId();
     $('devCount').textContent = devices.length;
     ['scanBtn','photoBtn','manualBtn','importBtn'].forEach(id => $(id).disabled = !canWrite);
+    $('clearBtn').hidden = !canWrite || !devices.length;
     $('listBar').hidden = devices.length < 6;
     const q = ($('search').value || '').trim().toLowerCase();
     const bad = dupInfo();
@@ -331,6 +339,31 @@ footer{font-size:12px;color:var(--muted)}
         ${d.model ? `<span class="dtag">${esc(d.model)}</span>` : '<span></span>'}</button>`).join('')}</div>`
       + (bad.size ? `<p class="alert" style="margin-top:8px">Highlighted devices share a device ID, serial, or MAC with another device. Tap one to fix it.</p>` : '');
   }
+
+  // ---------- clear list ----------
+  function armClear(btn, label, step1, step2, run){
+    let t = null;
+    const reset = () => { btn.dataset.step = ''; btn.textContent = label; clearTimeout(t); };
+    document.addEventListener('click', e => { if (btn.dataset.step && !btn.contains(e.target)) reset(); }, true);
+    btn.addEventListener('click', async () => {
+      const s = btn.dataset.step || '';
+      clearTimeout(t); t = setTimeout(reset, 6000);
+      if (!s) { btn.dataset.step = '1'; btn.textContent = step1(); toast('Tap again to confirm. Export first if you might need this job.', true, true); return; }
+      if (s === '1') { btn.dataset.step = '2'; btn.textContent = step2(); toast('Last check: one more tap erases it for good.', true, true); return; }
+      reset(); await run();
+    });
+  }
+  armClear($('clearBtn'), 'Clear list', () => 'Clear list?', () => `Erase ${devices.length} device${devices.length===1?'':'s'}`, async () => {
+    const ids = devices.map(d => d.id);
+    stopLive(); closeForm();
+    devices = []; job = {name: '', startId: 1001, step: 1}; $('search').value = '';
+    $('projName').value = ''; $('startId').value = 1001; $('stepId').value = 1;
+    render();
+    if (!db) { saveLocal(); toast('Device list cleared'); return; }
+    let n = 0;
+    for (const id of ids) { n++; toast(`Clearing ${n} of ${ids.length}…`, false, true); try { await queue(id, () => db.collection('devices').doc(id).delete()); } catch(e) {} }
+    writeJob(); toast('Device list cleared');
+  });
 
   // ---------- form ----------
   function openForm(data, src){

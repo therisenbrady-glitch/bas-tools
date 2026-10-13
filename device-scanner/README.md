@@ -31,6 +31,8 @@ After a code is read, a **New device** form opens with:
 
 Tap any device in the list to edit or delete it.
 
+**Clear list** (next to the project name) erases every device and resets the start ID to 1001, for starting a new job. It takes three taps: **Clear list → Clear list? → Erase N devices**. Tapping anywhere else, or waiting a few seconds, cancels it. Use **Export job** first if you might need the old list.
+
 ## Getting the list out
 | Button | Saves |
 |---|---|

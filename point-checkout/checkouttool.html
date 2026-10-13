@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="en">
 <head>
-<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
-<link rel="icon" type="image/png" href="../assets/favicon.png">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="../assets/favicon.png">
 <style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -182,6 +182,12 @@ footer{font-size:12px;color:var(--muted)}
 .co-logo img{height:26px;width:auto}
 .co-l{display:var(--logo-l,block)}
 .co-d{display:var(--logo-d,none)}
+
+.clr{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--muted);font-family:var(--f-body);font-weight:600;font-size:11.5px;padding:4px 9px;border-radius:5px;cursor:pointer;white-space:nowrap}
+.clr:hover{border-color:var(--bad);color:var(--bad)}
+.clr[data-step="1"]{border-color:var(--bad);color:var(--bad);background:var(--bad-bg,transparent)}
+.clr[data-step="2"]{background:var(--bad);border-color:var(--bad);color:#fff}
+.clr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
 
 <div class="wrap">
@@ -191,6 +197,7 @@ footer{font-size:12px;color:var(--muted)}
     <div class="proj">
       <input id="projName" aria-label="Project name" placeholder="Project / building name" maxlength="80">
       <span class="mode" id="mode">Connecting…</span>
+      <button type="button" class="clr" id="clearBtn" title="Erase every unit and point in this job">Clear job</button>
     </div>
   </header>
 
@@ -398,6 +405,7 @@ footer{font-size:12px;color:var(--muted)}
     renderTabs();
     renderSummary();
     $('openAdd').hidden = !canWrite;
+    $('clearBtn').hidden = !canWrite || !units.length;
     if (document.activeElement !== $('projName')) $('projName').value = project.name || '';
     $('projName').readOnly = !canWrite;
 
@@ -438,6 +446,33 @@ footer{font-size:12px;color:var(--muted)}
   let pendingRender = false, delArm = null;
 
   function toast(msg, bad, sticky){ const t = $('toast'); t.textContent = msg; t.classList.toggle('bad', !!bad); clearTimeout(toast._t); if (!sticky) toast._t = setTimeout(()=> t.textContent = '', bad ? 7000 : 3500); }
+
+  // ---------- clear job ----------
+  function armClear(btn, label, step1, step2, run){
+    let t = null;
+    const reset = () => { btn.dataset.step = ''; btn.textContent = label; clearTimeout(t); };
+    document.addEventListener('click', e => { if (btn.dataset.step && !btn.contains(e.target)) reset(); }, true);
+    btn.addEventListener('click', async () => {
+      const s = btn.dataset.step || '';
+      clearTimeout(t); t = setTimeout(reset, 6000);
+      if (!s) { btn.dataset.step = '1'; btn.textContent = step1(); toast('Tap again to confirm. Export first if you might need this job.', true, true); return; }
+      if (s === '1') { btn.dataset.step = '2'; btn.textContent = step2(); toast('Last check: one more tap erases it for good.', true, true); return; }
+      reset(); await run();
+    });
+  }
+  armClear($('clearBtn'), 'Clear job', () => 'Clear job?', () => `Erase ${units.length} unit${units.length===1?'':'s'}`, async () => {
+    const ids = units.map(u => u.id);
+    units = []; project = {name: ''}; open.clear(); filter = 'all'; typeTab = 'all'; delArm = null;
+    try { localStorage.setItem('pct-tab', 'all'); } catch(e) {}
+    document.querySelectorAll('.chips button').forEach(x => x.setAttribute('aria-pressed', x.dataset.f === 'all'));
+    xl = null; ['xlPanel','scanPanel','addForm'].forEach(id => { const el = $(id); if (el) el.hidden = true; });
+    $('projName').value = '';
+    render();
+    if (!db) { local.save(); toast('Job cleared'); return; }
+    let n = 0;
+    for (const id of ids) { n++; toast(`Clearing ${n} of ${ids.length}…`, false, true); try { await queue(id, () => db.collection('units').doc(id).delete()); } catch(e) {} }
+    writeProject(); toast('Job cleared');
+  });
 
   // ---------- events ----------
   $('typeTabs').addEventListener('click', e => {

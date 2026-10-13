@@ -1,6 +1,6 @@
 # VAV Field Calculator
 
-Quick airflow, balancing, and reheat math for VAV boxes in the field. It's one HTML file (`index.html`) that works offline once opened. Your last inputs are remembered on that device.
+Quick airflow, balancing, and reheat math for VAV boxes in the field. It's one HTML file (`index.html`) that works offline once opened. Your last inputs are remembered on that device. **Reset** (top right) puts every input back to its starting value after three taps: **Reset → Reset inputs? → Tap to reset all**.
 
 The page has four tabs:
 

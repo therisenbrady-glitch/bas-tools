@@ -58,3 +58,6 @@ Matched units show their device ID in the header and a **Scanned** line (model, 
 - Open the tools from the Field Tools page in **Safari**, not from an email attachment or the Files app.
 - Tap **Share → Add to Home Screen** for each tool you use. It opens like an app, and Safari won't clear its saved jobs.
 - Export your jobs regularly as a backup.
+
+## Starting a new job
+In the tracker and the scanner, **Clear job** / **Clear list** (next to the project name) erases everything on that device so you can start fresh. It takes three taps so it can't happen by accident. Export the old job first.

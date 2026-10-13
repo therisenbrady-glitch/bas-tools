@@ -97,6 +97,7 @@ Then tap **Add N units**. A counter at the bottom of the screen shows progress.
   - Any point you change by hand after a pass all is yours, and Undo won't touch it.
 - **Add point** at the bottom of a unit adds a custom point. **Delete unit** asks for a second tap to confirm.
 - **Add unit** adds a single unit by hand using a standard template.
+- **Clear job** (next to the project name) erases every unit and point to start a new job. It takes three taps: **Clear job → Clear job? → Erase N units**. Tapping anywhere else, or waiting a few seconds, cancels it. Use **Export job** first if you might need the old job.
 
 ### Standard templates
 Used for spreadsheet imports, hand-added units, or when you override "Points from file":
