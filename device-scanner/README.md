@@ -1,0 +1,49 @@
+# Device Scanner
+
+Builds the master device list for a job site. Scan the code on each controller's label, give it a name, and it gets the next BACnet device ID automatically. Export the list straight into the **Point Checkout Tracker**.
+
+It's one HTML file (`devicescanner.html`). The code reader is built in, so it works offline.
+
+## Setting up a job
+1. Enter the project name.
+2. Set **Start ID**, the first device ID for this job (for example `12001`), and **Step**, how much each new device adds (usually `1`).
+3. **Next device ID** shows what the next device will get.
+
+## Adding devices
+| Button | What it does |
+|---|---|
+| **Scan code** | Opens the camera. Point it at the QR or Data Matrix code on the controller label, and it reads it as soon as it's in focus. |
+| **Photo / image** | Take a picture of the label or pick one from your photos. On an iPhone this offers both. |
+| **Type in** | Add a device by hand. |
+
+After a code is read, a **New device** form opens with:
+- **Device name.** It's suggested from the last device (`VAV-7` → `VAV-8`) and is editable.
+- **Device ID.** The next ID, also editable. Later devices count on from whatever you saved last.
+- **Location / serves** (optional). It shows as the unit's location in the checkout tool.
+- **Model, Serial number, Bluetooth MAC.** These are filled in from the code when it can tell which is which. The full text of the code is under **Scanned code text** if anything needs fixing.
+
+**Save & scan next** saves and goes straight back to the camera (or the photo picker) for the next controller.
+
+### Checks
+- A device ID that's already used, or outside 0–4194302, blocks saving.
+- If a scanned serial or MAC matches a device already on the list, you get a warning and a link to open that one instead.
+- Devices that share an ID, serial, or MAC are highlighted in the list.
+
+Tap any device in the list to edit or delete it.
+
+## Getting the list out
+| Button | Saves |
+|---|---|
+| **Export for checkout** | A CSV with columns `NAME, TYPE, DESCR, DEVICE ID, SERIAL, BT MAC, SCANNED`. In the checkout tool, tap **Import file** and pick it: units come in grouped by model, and you choose the point list for each group. It also opens in Excel. |
+| **Export job** | A `.json` file of this device list, to hand off or continue on another device. |
+| **Import job** | Loads a job file. Devices with the same serial (or MAC, or name) are updated, and the rest are added. |
+
+In Chrome or Edge on a computer, exports let you choose the folder. Elsewhere they go to Downloads.
+
+## Camera notes
+- The live camera needs the tool opened from a web address (`https://`), such as GitHub Pages. Opened from the claude.ai link, or as a file on a computer, use **Photo / image** instead.
+- On an iPhone, Safari asks for camera permission the first time.
+- For small codes, fill the guide box with the code and hold steady. A little light helps a lot.
+
+## Label formats
+The reader handles QR, Data Matrix, Aztec, PDF417, Code 128, and Code 39. It picks out model, serial, and MAC from `key: value` text, URLs with query values, JSON, and GS1 serial fields. It recognizes model names like `MP-V-7A`, `MP-C-24A`, and `RP-C-12A`, including when they're inside a part number like `SXWMPV7A10001`. Anything it can't sort out stays in the scanned text for you to copy into the right field.

@@ -6,6 +6,7 @@ Each tool is a single HTML file. Download it and open it in Chrome, Edge, or Saf
 | Tool | What it does |
 |---|---|
 | [Point Checkout Tracker](point-checkout/checkouttool.html) | Point-to-point commissioning checklist. Imports an EBO XML network export or an Excel/CSV controller list, splits units into tabs by type, tracks PASS / FAIL / N/A per point, and copies out a punch list. See its [README](point-checkout/README.md). |
+| [Device Scanner](device-scanner/devicescanner.html) | Scan controller label codes (camera or photo), name each device, and auto-number BACnet device IDs into a job's master device list. Exports a CSV the checkout tracker imports. See its [README](device-scanner/README.md). |
 | [VAV Field Calculator](vav-calculator/) | Airflow from velocity pressure and K-factor, K-factor balance correction, reheat coil load (hot water GPM or electric kW/amps), and a round inlet reference table. See its [README](vav-calculator/README.md). |
 
 ## Tips
