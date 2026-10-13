@@ -1,7 +1,14 @@
 # bas-tools
 Handful of useful tools for our BAS work
 
-Each tool is a single HTML file. Download it and open it in Chrome, Edge, or Safari. Nothing to install.
+**Open on any phone or computer:**
+- Checkout tracker: https://therisenbrady-glitch.github.io/bas-tools/point-checkout/checkouttool.html
+- Device scanner: https://therisenbrady-glitch.github.io/bas-tools/device-scanner/devicescanner.html
+- VAV calculator: https://therisenbrady-glitch.github.io/bas-tools/vav-calculator/
+
+On an iPhone, open a link in Safari and tap **Share → Add to Home Screen** to get an app icon. The device scanner's live camera only works from these links.
+
+Each tool is also a single HTML file you can download and open in Chrome, Edge, or Safari. Nothing to install.
 
 | Tool | What it does |
 |---|---|
