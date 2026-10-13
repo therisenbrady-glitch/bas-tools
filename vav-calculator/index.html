@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>VAV Field Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column, nameplate header, segmented tool switcher, input panel above a readout panel */
+:root{
+  --bg:#eef1f3; --panel:#ffffff; --ink:#18222b; --muted:#5b6873; --line:#cfd6dc;
+  --steel:#2f4a5e; --accent:#d98a10; --accent-ink:#1b1305;
+  --ok:#2e7d4f; --warn:#b26a00; --bad:#b3362c;
+  --readout:#17232d; --readout-ink:#e9f0f4; --readout-dim:#8fa3b2;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#10171d; --panel:#18222a; --ink:#e3eaef; --muted:#93a3af; --line:#2b3944;
+  --steel:#9cb8cc; --accent:#f0a22e; --accent-ink:#1b1305;
+  --ok:#5fc48a; --warn:#f0a22e; --bad:#ef6f62;
+  --readout:#0a1015; --readout-ink:#e9f0f4; --readout-dim:#7f93a2; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10171d; --panel:#18222a; --ink:#e3eaef; --muted:#93a3af; --line:#2b3944;
+  --steel:#9cb8cc; --accent:#f0a22e; --accent-ink:#1b1305;
+  --ok:#5fc48a; --warn:#f0a22e; --bad:#ef6f62;
+  --readout:#0a1015; --readout-ink:#e9f0f4; --readout-dim:#7f93a2; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:560px;margin:0 auto;padding-inline:16px;padding-block:20px 40px;display:flex;flex-direction:column;gap:16px}
+
+header{display:flex;flex-direction:column;gap:4px;border-left:4px solid var(--accent);padding-left:12px}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;margin:0;letter-spacing:.01em;text-wrap:balance}
+header p{margin:2px 0 0;color:var(--muted);font-size:14px}
+
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px;gap:4px;position:sticky;top:env(safe-area-inset-top,0px);z-index:2}
+.tabs button{font-family:var(--f-display);font-weight:600;font-size:16px;letter-spacing:.03em;text-transform:uppercase;border:0;background:transparent;color:var(--muted);padding:9px 4px;border-radius:5px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--steel);color:var(--panel)}
+.tabs button:focus-visible,.field input:focus-visible,.field select:focus-visible,.seg button:focus-visible,.link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.panel h2{font-family:var(--f-display);font-weight:600;font-size:20px;margin:0;letter-spacing:.02em}
+.formula{font-family:var(--f-mono);font-size:12.5px;color:var(--muted);margin:-8px 0 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:420px){.grid{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.field .row{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:6px;background:var(--bg);overflow:hidden}
+.field input,.field select{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font-family:var(--f-mono);font-size:17px;padding:10px 10px}
+.field .unit{font-family:var(--f-mono);font-size:12px;color:var(--muted);padding:0 10px;display:flex;align-items:center;border-left:1px solid var(--line);white-space:nowrap}
+.hint{font-size:12.5px;color:var(--muted);margin:0}
+.link{background:none;border:0;padding:0;color:var(--steel);font:inherit;font-size:12.5px;font-weight:600;text-decoration:underline;cursor:pointer}
+
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;align-self:flex-start}
+.seg button{border:0;background:transparent;color:var(--muted);font-family:var(--f-body);font-weight:600;font-size:13px;padding:7px 14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+
+.readout{background:var(--readout);color:var(--readout-ink);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.readout .main{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.readout .big{font-family:var(--f-mono);font-weight:600;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+.readout .bigunit{font-family:var(--f-display);font-size:22px;color:var(--readout-dim);letter-spacing:.04em}
+.readout .lbl{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--readout-dim)}
+.subs{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;border-top:1px solid #2c3a45;padding-top:12px}
+.subs div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.subs b{font-family:var(--f-mono);font-weight:500;font-size:18px;font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:4px 10px;border-radius:999px;align-self:flex-start}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.ok{color:#7fdba3;background:rgba(95,196,138,.14)}
+.pill.warn{color:#f5b955;background:rgba(240,162,46,.15)}
+.pill.bad{color:#ff9187;background:rgba(239,111,98,.16)}
+
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
+th{font-family:var(--f-body);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:right;padding:6px 8px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+td{text-align:right;padding:7px 8px;border-bottom:1px solid var(--line)}
+tr.sel td{background:color-mix(in srgb,var(--accent) 16%,transparent)}
+footer{font-size:12px;color:var(--muted)}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Terminal unit · Field tools</span>
+    <h1>VAV Field Calculator</h1>
+    <p>Airflow, K-factor balancing, reheat load, and inlet sizing. Standard air, sea level.</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Calculator">
+    <button role="tab" id="t-air" aria-selected="true" data-tab="air">Airflow</button>
+    <button role="tab" id="t-k" aria-selected="false" data-tab="k">K-Factor</button>
+    <button role="tab" id="t-heat" aria-selected="false" data-tab="heat">Reheat</button>
+    <button role="tab" id="t-ref" aria-selected="false" data-tab="ref">Inlets</button>
+  </nav>
+
+  <!-- AIRFLOW -->
+  <section data-pane="air">
+    <div class="panel">
+      <h2>Airflow from velocity pressure</h2>
+      <p class="formula">CFM = K × √ΔP &nbsp;·&nbsp; ideal K = 4005 × inlet area</p>
+      <div class="grid">
+        <div class="field"><label for="a-inlet">Inlet size</label>
+          <div class="row"><select id="a-inlet"></select><span class="unit">in Ø</span></div></div>
+        <div class="field"><label for="a-dp">Flow sensor ΔP</label>
+          <div class="row"><input id="a-dp" type="number" inputmode="decimal" step="0.001" min="0" value="0.450"><span class="unit">in. w.c.</span></div></div>
+      </div>
+      <div class="field"><label for="a-k">K-factor / flow coefficient</label>
+        <div class="row"><input id="a-k" type="number" inputmode="decimal" step="1" min="0" value="890"><span class="unit">CFM @ 1″</span></div>
+        <p class="hint">Use the box manufacturer's K for the pickup. Ideal K ignores pickup amplification. <button class="link" id="a-ideal" type="button">Use ideal K</button></p>
+      </div>
+    </div>
+    <div class="readout" style="margin-top:12px">
+      <span class="lbl">Airflow</span>
+      <div class="main"><span class="big" id="a-cfm">–</span><span class="bigunit">CFM</span></div>
+      <span class="pill" id="a-pill"></span>
+      <div class="subs">
+        <div><span class="lbl">Inlet velocity</span><b id="a-fpm">–</b></div>
+        <div><span class="lbl">Inlet area</span><b id="a-area">–</b></div>
+        <div><span class="lbl">Ideal K</span><b id="a-idealk">–</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- K FACTOR -->
+  <section data-pane="k" hidden>
+    <div class="panel">
+      <h2>K-factor balance correction</h2>
+      <p class="formula">K<sub>new</sub> = K<sub>old</sub> × (measured ÷ displayed)</p>
+      <div class="grid">
+        <div class="field"><label for="k-disp">Controller reads</label>
+          <div class="row"><input id="k-disp" type="number" inputmode="decimal" min="0" value="620"><span class="unit">CFM</span></div></div>
+        <div class="field"><label for="k-meas">Hood / traverse</label>
+          <div class="row"><input id="k-meas" type="number" inputmode="decimal" min="0" value="575"><span class="unit">CFM</span></div></div>
+      </div>
+      <div class="field"><label for="k-old">Current K-factor</label>
+        <div class="row"><input id="k-old" type="number" inputmode="decimal" min="0" value="890"><span class="unit">CFM @ 1″</span></div>
+        <p class="hint">Check max and min both. If the error differs a lot between them, the sensor offset or zero needs work before the K-factor.</p>
+      </div>
+    </div>
+    <div class="readout" style="margin-top:12px">
+      <span class="lbl">New K-factor</span>
+      <div class="main"><span class="big" id="k-new">–</span><span class="bigunit">K</span></div>
+      <span class="pill" id="k-pill"></span>
+      <div class="subs">
+        <div><span class="lbl">Reading error</span><b id="k-err">–</b></div>
+        <div><span class="lbl">Correction multiplier</span><b id="k-mult">–</b></div>
+        <div><span class="lbl">Implied ΔP now</span><b id="k-dp">–</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REHEAT -->
+  <section data-pane="heat" hidden>
+    <div class="panel">
+      <h2>Reheat coil load</h2>
+      <p class="formula">BTU/h = 1.08 × CFM × ΔT<sub>air</sub> &nbsp;·&nbsp; GPM = BTU/h ÷ (500 × ΔT<sub>water</sub>)</p>
+      <div class="seg" role="group" aria-label="Coil type">
+        <button type="button" id="h-hw" aria-pressed="true">Hot water</button>
+        <button type="button" id="h-el" aria-pressed="false">Electric</button>
+      </div>
+      <div class="field"><label for="h-cfm">Heating airflow</label>
+        <div class="row"><input id="h-cfm" type="number" inputmode="decimal" min="0" value="300"><span class="unit">CFM</span></div></div>
+      <div class="grid">
+        <div class="field"><label for="h-eat">Entering air</label>
+          <div class="row"><input id="h-eat" type="number" inputmode="decimal" value="55"><span class="unit">°F</span></div></div>
+        <div class="field"><label for="h-lat">Leaving air</label>
+          <div class="row"><input id="h-lat" type="number" inputmode="decimal" value="90"><span class="unit">°F</span></div></div>
+      </div>
+      <div class="field" id="h-wdt-field"><label for="h-wdt">Water ΔT</label>
+        <div class="row"><input id="h-wdt" type="number" inputmode="decimal" min="0" value="20"><span class="unit">°F</span></div></div>
+      <div class="field" id="h-v-field" hidden><label for="h-v">Heater voltage</label>
+        <div class="row"><select id="h-v">
+          <option value="120,1">120 V · 1 ph</option><option value="208,1">208 V · 1 ph</option>
+          <option value="277,1" selected>277 V · 1 ph</option><option value="208,3">208 V · 3 ph</option>
+          <option value="480,3">480 V · 3 ph</option></select></div></div>
+    </div>
+    <div class="readout" style="margin-top:12px">
+      <span class="lbl">Coil capacity</span>
+      <div class="main"><span class="big" id="h-btu">–</span><span class="bigunit">BTU/h</span></div>
+      <span class="pill" id="h-pill"></span>
+      <div class="subs">
+        <div><span class="lbl">Air ΔT</span><b id="h-dt">–</b></div>
+        <div><span class="lbl">Electric equiv.</span><b id="h-kw">–</b></div>
+        <div><span class="lbl" id="h-lastlbl">Water flow</span><b id="h-last">–</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INLET REFERENCE -->
+  <section data-pane="ref" hidden>
+    <div class="panel">
+      <h2>Round inlet reference</h2>
+      <p class="formula">Ideal K = 4005 × area &nbsp;·&nbsp; CFM = FPM × area</p>
+      <div class="field"><label for="r-fpm">Design inlet velocity</label>
+        <div class="row"><input id="r-fpm" type="number" inputmode="decimal" min="0" value="2000"><span class="unit">FPM</span></div></div>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Inlet</th><th>Area ft²</th><th>Ideal K</th><th>CFM @ <span id="r-fpmh">2000</span></th><th>VP in. w.c.</th></tr></thead>
+        <tbody id="r-body"></tbody>
+      </table></div>
+      <p class="hint">VP column is the true velocity pressure at that speed. Below about 0.03″ most VAV transducers lose accuracy, which is why minimums on large inlets drift.</p>
+    </div>
+  </section>
+
+  <footer>Formulas assume standard air (0.075 lb/ft³). Above ~2,000 ft elevation, derate the 1.08 sensible factor and the 4005 constant. Inputs are kept in this browser only.</footer>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const INLETS = [4,5,6,7,8,9,10,12,14,16,18,22,24];
+  const area = d => Math.PI * Math.pow(d/2,2) / 144;
+  const num = id => { const v = parseFloat($(id).value); return isFinite(v) ? v : NaN; };
+  const fmt = (v,d=0) => isFinite(v) ? v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}) : '–';
+  const pill = (el, cls, text) => { el.className = 'pill ' + cls; el.textContent = text; };
+
+  INLETS.forEach(d => { const o = document.createElement('option'); o.value = d; o.textContent = d; if (d===8) o.selected = true; $('a-inlet').appendChild(o); });
+
+  // persistence (per-viewer convenience only)
+  const KEY = 'vav-calc-v1';
+  const ids = ['a-inlet','a-dp','a-k','k-disp','k-meas','k-old','h-cfm','h-eat','h-lat','h-wdt','h-v','r-fpm'];
+  let state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch(e) { state = {}; }
+  ids.forEach(id => { if (state[id] != null) $(id).value = state[id]; });
+  let mode = state.mode === 'el' ? 'el' : 'hw';
+  let tab = state.tab || 'air';
+  const save = () => { try { const s = {mode, tab}; ids.forEach(id => s[id] = $(id).value); localStorage.setItem(KEY, JSON.stringify(s)); } catch(e) {} };
+
+  function calcAir(){
+    const d = num('a-inlet'), dp = num('a-dp'), k = num('a-k');
+    const A = area(d), idealK = 4005 * A;
+    const cfm = k * Math.sqrt(Math.max(dp,0));
+    const fpm = cfm / A;
+    $('a-cfm').textContent = fmt(cfm);
+    $('a-fpm').textContent = fmt(fpm) + ' FPM';
+    $('a-area').textContent = fmt(A,3) + ' ft²';
+    $('a-idealk').textContent = fmt(idealK);
+    const vp = Math.pow(fpm/4005,2);
+    if (!isFinite(cfm)) pill($('a-pill'),'warn','Enter ΔP and K');
+    else if (dp < 0.03) pill($('a-pill'),'bad','ΔP below ~0.03″, transducer unreliable');
+    else if (fpm > 3000) pill($('a-pill'),'warn','Over 3,000 FPM, expect noise');
+    else if (fpm < 400) pill($('a-pill'),'warn','Low inlet velocity, check minimum');
+    else pill($('a-pill'),'ok','Within normal control range');
+  }
+
+  function calcK(){
+    const disp = num('k-disp'), meas = num('k-meas'), old = num('k-old');
+    const ratio = meas / disp;
+    const knew = old * ratio;
+    const err = (disp - meas) / meas * 100;
+    $('k-new').textContent = fmt(knew);
+    $('k-err').textContent = isFinite(err) ? (err>0?'+':'') + fmt(err,1) + '%' : '–';
+    $('k-mult').textContent = fmt(ratio,3);
+    const dp = Math.pow(disp/old,2);
+    $('k-dp').textContent = fmt(dp,3) + '″';
+    const a = Math.abs(err);
+    if (!isFinite(err)) pill($('k-pill'),'warn','Enter both readings');
+    else if (a <= 5) pill($('k-pill'),'ok','Within ±5%, no change needed');
+    else if (a <= 10) pill($('k-pill'),'warn','Within ±10%, correct if spec is tighter');
+    else pill($('k-pill'),'bad','Over ±10%, correct and recheck at min');
+  }
+
+  function calcHeat(){
+    const cfm = num('h-cfm'), eat = num('h-eat'), lat = num('h-lat'), wdt = num('h-wdt');
+    const dt = lat - eat;
+    const btu = 1.08 * cfm * dt;
+    const kw = btu / 3412;
+    $('h-btu').textContent = fmt(btu);
+    $('h-dt').textContent = fmt(dt,1) + ' °F';
+    $('h-kw').textContent = fmt(kw,2) + ' kW';
+    if (mode === 'hw') {
+      $('h-lastlbl').textContent = 'Water flow';
+      $('h-last').textContent = fmt(btu / (500 * wdt), 2) + ' GPM';
+    } else {
+      const [v, ph] = $('h-v').value.split(',').map(Number);
+      const amps = ph === 3 ? (kw*1000)/(v*Math.sqrt(3)) : (kw*1000)/v;
+      $('h-lastlbl').textContent = 'Full-load amps';
+      $('h-last').textContent = fmt(amps,1) + ' A';
+    }
+    if (!isFinite(btu) || dt <= 0) pill($('h-pill'),'warn','Leaving air must be above entering');
+    else if (lat > 95) pill($('h-pill'),'warn','LAT over 95 °F, risk of stratification');
+    else if (dt > 40) pill($('h-pill'),'warn','Air ΔT over 40 °F, check coil rating');
+    else pill($('h-pill'),'ok','Typical reheat range');
+  }
+
+  function calcRef(){
+    const fpm = num('r-fpm');
+    $('r-fpmh').textContent = fmt(fpm);
+    const sel = num('a-inlet');
+    $('r-body').innerHTML = INLETS.map(d => {
+      const A = area(d);
+      return `<tr class="${d===sel?'sel':''}"><td>${d}″</td><td>${fmt(A,3)}</td><td>${fmt(4005*A)}</td><td>${fmt(fpm*A)}</td><td>${fmt(Math.pow(fpm/4005,2),3)}</td></tr>`;
+    }).join('');
+  }
+
+  function setMode(m){
+    mode = m;
+    $('h-hw').setAttribute('aria-pressed', m==='hw');
+    $('h-el').setAttribute('aria-pressed', m==='el');
+    $('h-wdt-field').hidden = m !== 'hw';
+    $('h-v-field').hidden = m !== 'el';
+    calcHeat(); save();
+  }
+
+  function setTab(t){
+    tab = t;
+    document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab===t));
+    document.querySelectorAll('[data-pane]').forEach(p => p.hidden = p.dataset.pane !== t);
+    save();
+  }
+
+  function all(){ calcAir(); calcK(); calcHeat(); calcRef(); save(); }
+
+  document.querySelectorAll('input,select').forEach(el => el.addEventListener('input', all));
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  $('a-ideal').addEventListener('click', () => { $('a-k').value = Math.round(4005*area(num('a-inlet'))); all(); });
+  $('h-hw').addEventListener('click', () => setMode('hw'));
+  $('h-el').addEventListener('click', () => setMode('el'));
+
+  setMode(mode); setTab(['air','k','heat','ref'].includes(tab)?tab:'air'); all();
+})();
+</script>
+
+</body>
+</html>
