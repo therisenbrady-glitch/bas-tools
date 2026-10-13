@@ -134,6 +134,11 @@ h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;mar
 .sbtns button[data-v="na"][aria-pressed="true"]{background:var(--na);color:var(--panel)}
 .note{grid-column:2/-1;margin-top:6px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--ink);font-size:13.5px;padding:7px 9px;width:100%;font-family:var(--f-body)}
 .pt[data-s="fail"] .note{border-color:var(--bad)}
+.devbar{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:8px 14px;border-top:1px solid var(--line);font-family:var(--f-mono);font-size:12px;color:var(--ink);overflow-wrap:anywhere}
+.devlbl{font-family:var(--f-body);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.scanlist{margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}
+.scanlist li{font-family:var(--f-mono);font-size:12.5px;background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:3px 8px}
+.scanhead{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0}
 .pabar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;border-top:1px solid var(--line);background:var(--sunk)}
 .pahint{font-size:12.5px;color:var(--muted)}
 .pabtn{border:1px solid var(--ok);background:transparent;color:var(--ok);font-weight:700;font-size:12.5px;letter-spacing:.02em;padding:6px 12px;border-radius:6px;cursor:pointer;white-space:nowrap}
@@ -218,6 +223,16 @@ footer{font-size:12px;color:var(--muted)}
       <button class="btn primary" type="submit">Add unit</button>
     </div>
   </form>
+
+  <section class="add" id="scanPanel" hidden aria-labelledby="scanTitle">
+    <h2 id="scanTitle">Scanned devices</h2>
+    <p class="hint" id="scanSummary"></p>
+    <div id="scanBody" style="display:flex;flex-direction:column;gap:12px"></div>
+    <div class="row-end">
+      <button class="btn" type="button" id="scanAddBtn" hidden>Add as new units</button>
+      <button class="btn primary" type="button" id="scanDone">Done</button>
+    </div>
+  </section>
 
   <section class="add" id="xlPanel" hidden aria-labelledby="xlTitle">
     <h2 id="xlTitle">Review import</h2>
@@ -318,7 +333,7 @@ footer{font-size:12px;color:var(--muted)}
   function writeUnit(u){
     u.at = Date.now();
     if (!db) { local.save(); return Promise.resolve(); }
-    const body = JSON.parse(JSON.stringify({tag:u.tag,type:u.type,loc:u.loc||'',model:u.model||'',example:!!u.example,points:u.points,at:u.at}));
+    const body = JSON.parse(JSON.stringify({tag:u.tag,type:u.type,loc:u.loc||'',model:u.model||'',dev:u.dev||null,example:!!u.example,points:u.points,at:u.at}));
     return queue(u.id, () => db.collection('units').doc(u.id).set(body)).catch(onWriteError);
   }
   function deleteUnit(id){
@@ -330,6 +345,13 @@ footer{font-size:12px;color:var(--muted)}
     if (!db) { local.save(); return; }
     queue('project', () => db.doc('meta/project').set({name: project.name})).catch(onWriteError);
   }
+
+  function cleanDev(d){
+    if (!d || typeof d !== 'object') return null;
+    const o = {did: d.did === '' || d.did == null ? '' : String(d.did), serial: String(d.serial||''), model: String(d.model||''), mac: String(d.mac||''), netmac: String(d.netmac||'')};
+    return (o.did || o.serial || o.mac || o.netmac) ? o : null;
+  }
+  const devLine = d => d ? [d.did !== '' ? 'ID ' + d.did : '', d.model, d.serial && 'S/N ' + d.serial, d.mac && 'BT ' + d.mac, d.netmac && 'MAC ' + d.netmac].filter(Boolean).join(' · ') : '';
 
   // ---------- render ----------
   function counts(u){
@@ -392,7 +414,8 @@ footer{font-size:12px;color:var(--muted)}
       const bulkN = u.points.filter(p => p.bulk && p.s === 'pass').length;
       const openN = u.points.filter(p => !p.s).length;
       const passAll = isOpen && canWrite && (bulkN || openN) ? `<div class="pabar"><span class="pahint">${bulkN ? `${bulkN} point${bulkN===1?'':'s'} passed in bulk` : `${openN} open point${openN===1?'':'s'}`}</span><button type="button" class="pabtn" data-passall="${u.id}" aria-pressed="${!!bulkN}">${bulkN ? 'Undo pass all' : 'Pass all points'}</button></div>` : '';
-      const pts = isOpen ? passAll + `<div class="points">${u.points.map((p,i) => {
+      const devbar = isOpen && u.dev ? `<div class="devbar"><span class="devlbl">Scanned</span>${esc(devLine(u.dev))}</div>` : '';
+      const pts = isOpen ? devbar + passAll + `<div class="points">${u.points.map((p,i) => {
         const s = p.s || '';
         const who = p.by && names[p.by] ? names[p.by] + ' · ' : '';
         const meta = s ? `<div class="pmeta">${esc(who)}${esc(fmtTime(p.at))}</div>` : '';
@@ -404,7 +427,7 @@ footer{font-size:12px;color:var(--muted)}
       return `<article class="unit${u.example?' example':''}">
         <button class="uhead" type="button" data-toggle="${u.id}" aria-expanded="${isOpen}">
           <span class="type">${TYPE_LABEL[u.type]||esc(u.type)}</span>
-          <span class="uname"><b>${esc(u.tag)}</b><span>${esc([u.loc, u.model].filter(Boolean).join(' · '))}</span></span>
+          <span class="uname"><b>${esc(u.tag)}</b><span>${esc([u.dev && u.dev.did !== '' ? 'ID ' + u.dev.did : '', u.loc, u.model].filter(Boolean).join(' · '))}</span></span>
           <span class="ustat"><span class="n">${c.pass}/${c.applicable} pass</span><span class="mini"><i style="width:${w(c.pass)};background:var(--ok)"></i><i style="width:${w(c.fail)};background:var(--bad)"></i><i style="width:${w(c.na)};background:var(--na)"></i></span>${flag}</span>
         </button>${pts}</article>`;
     }).join('');
@@ -502,7 +525,7 @@ footer{font-size:12px;color:var(--muted)}
   function slug(s){ return (s || 'job').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40) || 'job'; }
   $('exportBtn').addEventListener('click', async () => {
     if (!units.length) { toast('Nothing to export yet. Add a unit first.', true); return; }
-    const payload = {format:'point-checkout', version:1, exported: new Date().toISOString(), project, units: units.map(u => ({tag:u.tag,type:u.type,loc:u.loc,model:u.model||'',example:!!u.example,points:u.points}))};
+    const payload = {format:'point-checkout', version:1, exported: new Date().toISOString(), project, units: units.map(u => ({tag:u.tag,type:u.type,loc:u.loc,model:u.model||'',dev:u.dev||null,example:!!u.example,points:u.points}))};
     const text = JSON.stringify(payload, null, 2);
     const filename = `checkout-${slug(project.name)}-${new Date().toISOString().slice(0,10)}.json`;
     await saveFile(filename, text, 'application/json', `Exported ${units.length} units`);
@@ -566,14 +589,14 @@ footer{font-size:12px;color:var(--muted)}
       g.units.forEach(u => u.points.forEach(p => { const k = shortName(p.n); if (k && !cols.includes(k)) cols.push(k); }));
       rows.push([]);
       rows.push([`${g.t} (${g.units.length} unit${g.units.length === 1 ? '' : 's'})`]);
-      rows.push(['Unit', 'Location', 'Model', '% complete', 'Pass', 'Fail', 'N/A', 'Open', 'Fail notes', 'Last checked', ...cols]);
+      rows.push(['Unit', 'Location', 'Model', 'Device ID', 'Serial', '% complete', 'Pass', 'Fail', 'N/A', 'Open', 'Fail notes', 'Last checked', ...cols]);
       g.units.forEach(u => {
         const c = counts(u); tot.pass += c.pass; tot.fail += c.fail; tot.na += c.na; tot.open += c.open || 0;
         const byName = {}; u.points.forEach(p => { byName[shortName(p.n)] = p; });
         const notes = u.points.filter(p => p.s === 'fail').map(p => shortName(p.n) + (p.note ? ': ' + p.note : '')).join('; ');
         const last = u.points.reduce((m, p) => p.at && (!m || p.at > m.at) ? p : m, null);
         const lastTxt = last ? fmtAt(last.at) + (last.by && names[last.by] ? ' (' + names[last.by] + ')' : '') : '';
-        rows.push([u.tag, u.loc || '', u.model || '', c.applicable ? Math.round(c.pass / c.applicable * 100) + '%' : '', c.pass, c.fail, c.na, c.open || 0, notes, lastTxt,
+        rows.push([u.tag, u.loc || '', u.model || (u.dev && u.dev.model) || '', u.dev ? u.dev.did : '', u.dev ? u.dev.serial : '', c.applicable ? Math.round(c.pass / c.applicable * 100) + '%' : '', c.pass, c.fail, c.na, c.open || 0, notes, lastTxt,
           ...cols.map(k => byName[k] ? (CELL[byName[k].s || ''] ?? '') : '—')]);
       });
     });
@@ -595,14 +618,18 @@ footer{font-size:12px;color:var(--muted)}
     r.onload = () => {
       let data;
       try { data = JSON.parse(r.result); } catch(e) { toast('That file is not a checkout export.', true); return; }
+      if (data && data.format === 'device-list' && Array.isArray(data.devices)) {
+        handleScanList(data.devices.filter(d => d && d.name).map(d => ({name: String(d.name), model: String(d.model||''), loc: String(d.loc||''), did: d.did == null ? '' : String(d.did), serial: String(d.serial||''), mac: String(d.mac||''), netmac: String(d.netmac||'')})), f.name);
+        return;
+      }
       if (!data || data.format !== 'point-checkout' || !Array.isArray(data.units)) { toast('That file is not a checkout export.', true); return; }
       let added = 0, updated = 0;
       data.units.forEach(x => {
         if (!x || !x.tag) return;
         const pts = Array.isArray(x.points) ? x.points.map(p => ({n:String(p.n||''), s:['pass','fail','na'].includes(p.s)?p.s:'', note:p.note?String(p.note):'', by:p.by||null, at:p.at||null, bulk:!!p.bulk})).filter(p => p.n) : [];
         let u = units.find(y => y.tag.toLowerCase() === String(x.tag).toLowerCase());
-        if (u) { u.type = String(x.type||u.type); u.loc = String(x.loc||''); u.model = String(x.model||''); u.points = pts; u.example = !!x.example; updated++; }
-        else { u = {id:'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), tag:String(x.tag), type:String(x.type||'BLANK'), loc:String(x.loc||''), model:String(x.model||''), example:!!x.example, points:pts}; units.push(u); added++; }
+        if (u) { u.type = String(x.type||u.type); u.loc = String(x.loc||''); u.model = String(x.model||''); if (x.dev) u.dev = cleanDev(x.dev); u.points = pts; u.example = !!x.example; updated++; }
+        else { u = {id:'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), tag:String(x.tag), type:String(x.type||'BLANK'), loc:String(x.loc||''), model:String(x.model||''), dev:cleanDev(x.dev), example:!!x.example, points:pts}; units.push(u); added++; }
         writeUnit(u);
       });
       if (!project.name && data.project && data.project.name) { project.name = String(data.project.name); writeProject(); }
@@ -666,6 +693,12 @@ footer{font-size:12px;color:var(--muted)}
       nameI = find(h, /^(name|tag|unit|equipment|equip|device|controller name)$/i);
       typeI = find(h, /^(type|model|controller|controller type|device type)$/i);
       descI = find(h, /^(descr|description|location|loc|serves|room|area)$/i);
+      const idI = find(h, /^device ?id$/i), snI = find(h, /^serial( ?(no|number))?$/i);
+      if (idI >= 0 && snI >= 0) {
+        const btI = find(h, /^(bt ?mac|bluetooth ?mac)$/i), nmI = find(h, /^(network ?mac|mac)$/i);
+        const devs = rows.slice(start).filter(r => String(r[nameI] ?? '').trim()).map(r => ({name: String(r[nameI]).trim(), model: typeI >= 0 ? String(r[typeI] ?? '').trim() : '', loc: descI >= 0 ? String(r[descI] ?? '').trim() : '', did: String(r[idI] ?? '').trim(), serial: String(r[snI] ?? '').trim(), mac: btI >= 0 ? String(r[btI] ?? '').trim() : '', netmac: nmI >= 0 ? String(r[nmI] ?? '').trim() : ''}));
+        handleScanList(devs, fname); return;
+      }
     }
     const entries = [];
     rows.slice(start).forEach(r => {
@@ -674,6 +707,44 @@ footer{font-size:12px;color:var(--muted)}
     });
     previewFromEntries(entries, fname);
   }
+
+  // ---------- scanned device list (from the Device Scanner) ----------
+  // Matches each scanned device to a unit by name and attaches its device ID,
+  // serial and MACs. Works whether the scan list or the EBO import comes first.
+  const normTag = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let scanLeft = [];
+  async function handleScanList(devs, fname){
+    if (!devs.length) { toast('No devices in that file.', true); return; }
+    if (!canWrite) { toast('This link is view-only. Import is off.', true); return; }
+    const toEntry = d => ({name: d.name, model: d.model ? modelName(d.model) : 'No model listed', descr: d.loc || '', points: null, dev: cleanDev(d)});
+    const real = units.filter(u => !u.example);
+    if (!real.length) { $('scanPanel').hidden = true; previewFromEntries(devs.map(toEntry), fname); return; }
+    const byTag = new Map(); real.forEach(u => { byTag.set(normTag(u.tag), u); if (u.loc) byTag.set(normTag(u.loc + u.tag), u); });
+    const bySerial = new Map(); real.forEach(u => { if (u.dev && u.dev.serial) bySerial.set(u.dev.serial.toUpperCase(), u); });
+    const changed = new Set(), unmatched = [];
+    devs.forEach(d => {
+      const parts = splitName(d.name, d.loc);
+      const u = (d.serial && bySerial.get(d.serial.toUpperCase())) || byTag.get(normTag(d.name)) || byTag.get(normTag(parts.tag));
+      if (!u) { unmatched.push(d); return; }
+      u.dev = cleanDev(d); if (!u.loc && d.loc) u.loc = d.loc;
+      changed.add(u);
+    });
+    const missing = real.filter(u => !u.dev).sort((a,b) => a.tag.localeCompare(b.tag, undefined, {numeric:true}));
+    scanLeft = unmatched.map(toEntry);
+    $('scanSummary').textContent = `${fname}: matched ${changed.size} of ${devs.length} scanned device${devs.length===1?'':'s'} to units on the list. Their device ID, serial and MACs now show on each unit.`;
+    const chip = t => `<li>${esc(t)}</li>`;
+    $('scanBody').innerHTML =
+      (unmatched.length ? `<div><p class="scanhead">Scanned but not on the list · ${unmatched.length}</p><ul class="scanlist">${unmatched.map(d => chip(d.name + (d.did ? ' (ID ' + d.did + ')' : ''))).join('')}</ul><p class="hint" style="margin-top:6px">Usually a name typed differently in the scanner, or a controller that isn't in the EBO export yet. Fix the name in the scanner and import again, or add them as new units.</p></div>` : '')
+      + (missing.length ? `<div><p class="scanhead">On the list but not scanned · ${missing.length}</p><ul class="scanlist">${missing.slice(0, 150).map(u => chip(u.tag)).join('')}${missing.length > 150 ? chip('+' + (missing.length - 150) + ' more') : ''}</ul></div>` : '')
+      + (!unmatched.length && !missing.length ? '<p class="hint">Every scanned device matched a unit, and every unit has a scan.</p>' : '');
+    $('scanAddBtn').hidden = !unmatched.length; $('scanAddBtn').textContent = `Add ${unmatched.length} as new unit${unmatched.length===1?'':'s'}`;
+    $('xlPanel').hidden = true; $('addForm').hidden = true; $('scanPanel').hidden = false;
+    render(); $('scanPanel').scrollIntoView({block:'start'});
+    let n = 0; for (const u of changed) { n++; toast(`Saving ${n} of ${changed.size}…`, false, true); await writeWithRetry(u); }
+    toast(`Matched ${changed.size} device${changed.size===1?'':'s'}${unmatched.length ? `, ${unmatched.length} not on the list` : ''}`);
+  }
+  $('scanDone').addEventListener('click', () => { $('scanPanel').hidden = true; scanLeft = []; });
+  $('scanAddBtn').addEventListener('click', () => { const e = scanLeft; $('scanPanel').hidden = true; scanLeft = []; if (e.length) previewFromEntries(e, 'Scanned devices'); });
 
   // ---------- XML (EBO export or similar) ----------
   const CTRL_RE = /(^|\.)udt\.|\.udt$|(^|[^a-z])(mp[cvx]|rp[cv]|as-?[pb]|mpx|b3|b4|ab|kmc|bcx|bcmd|uc\d|symbio|sc\+?)\d{0,4}[a-z]?($|[^a-z])|controller|bacnet\.device|\.device$/i;
@@ -760,7 +831,7 @@ footer{font-size:12px;color:var(--muted)}
       const g = groups.get(en.model);
       const pts = en.points && en.points.length ? en.points : null; if (pts) withPts++;
       const gt = guessType(en.name + ' ' + String(en.descr || ''));
-      g.rows.push({tag, loc, points: pts, guess: gt});
+      g.rows.push({tag, loc, points: pts, guess: gt, dev: en.dev || null});
       if (gt) g.votes[gt] = (g.votes[gt] || 0) + 1;
     });
     if (!total) { toast('No units found. The file needs a list of unit or controller names.', true); return; }
@@ -808,16 +879,30 @@ footer{font-size:12px;color:var(--muted)}
     catch(e) { toast(`Import stopped: ${(e && (e.code || e.message)) || e}`, true); }
   });
   async function runImport(){
-    const have = new Set(units.map(u => u.tag.toLowerCase()));
-    const fresh = []; let skipped = 0;
+    const have = new Map(units.map(u => [normTag(u.tag), u]));
+    const fresh = [], refreshed = []; let skipped = 0;
     xl.groups.forEach(g => { if (!g.on) return; g.rows.forEach(r => { if (r.off) return;
-      const k = r.tag.toLowerCase(); if (have.has(k)) { skipped++; return; } have.add(k);
       const useFile = g.type === 'FILE';
+      const k = normTag(r.tag), ex = have.get(k);
+      if (ex) {
+        // A unit created from the scan list (template points, nothing checked yet) takes
+        // the real points from the EBO export and keeps its scanned details.
+        if (useFile && r.points && !ex.points.some(p => p.s)) {
+          ex.points = r.points.map(n => ({n, s:''})); ex.type = r.guess || g.guess || ex.type;
+          if (!ex.loc && r.loc) ex.loc = r.loc;
+          if (g.model !== 'All rows' && g.model !== 'No model listed') ex.model = g.model;
+          if (!ex.dev && r.dev) ex.dev = r.dev;
+          refreshed.push(ex);
+        } else skipped++;
+        return;
+      }
+      have.set(k, true);
       const names = useFile ? (r.points || TEMPLATES[g.guess] || []) : TEMPLATES[g.type];
-      fresh.push({id: 'u' + Date.now().toString(36) + fresh.length.toString(36) + Math.random().toString(36).slice(2,5), tag: r.tag, type: useFile ? (r.guess || g.guess) : g.type, loc: r.loc, model: g.model === 'All rows' || g.model === 'No model listed' ? '' : g.model, points: names.map(n => ({n, s:''}))});
+      fresh.push({id: 'u' + Date.now().toString(36) + fresh.length.toString(36) + Math.random().toString(36).slice(2,5), tag: r.tag, type: useFile ? (r.guess || g.guess) : g.type, loc: r.loc, model: g.model === 'All rows' || g.model === 'No model listed' ? '' : g.model, dev: r.dev || null, points: names.map(n => ({n, s:''}))});
     }); });
     xl = null; $('xlPanel').hidden = true;
-    if (!fresh.length) { toast(skipped ? `All ${skipped} units are already on the list.` : 'No groups were selected.', true); return; }
+    for (const u of refreshed) await writeWithRetry(u);
+    if (!fresh.length) { render(); toast(refreshed.length ? `Loaded points for ${refreshed.length} scanned unit${refreshed.length===1?'':'s'}${skipped ? `, skipped ${skipped} already on the list` : ''}` : skipped ? `All ${skipped} units are already on the list.` : 'No groups were selected.', !refreshed.length); return; }
     units.push(...fresh); render();
     window.scrollTo({top: $('units').offsetTop - 80});
     let ok = 0, failed = 0;
@@ -826,7 +911,7 @@ footer{font-size:12px;color:var(--muted)}
       if (await writeWithRetry(u)) ok++; else failed++;
     }
     if (failed) toast(`Saved ${ok} of ${fresh.length}. ${failed} did not save. Run Import again with the same file to add the rest.`, true);
-    else toast(`Added ${ok} unit${ok===1?'':'s'}${skipped ? `, skipped ${skipped} already on the list` : ''}`);
+    else toast(`Added ${ok} unit${ok===1?'':'s'}${refreshed.length ? `, loaded points for ${refreshed.length} scanned` : ''}${skipped ? `, skipped ${skipped} already on the list` : ''}`);
   }
 
   function fallbackCopy(text, done){
@@ -858,7 +943,7 @@ footer{font-size:12px;color:var(--muted)}
     $('mode').textContent = canWrite ? 'Shared · live' : 'Shared · view only';
     units = []; project = {name:''}; render();
     db.collection('units').onSnapshot(snap => {
-      units = snap.docs.map(doc => { const x = doc.data() || {}; return {id: doc.id, tag: String(x.tag||doc.id), type: String(x.type||'BLANK'), loc: String(x.loc||''), model: String(x.model||''), example: !!x.example, at: x.at, points: Array.isArray(x.points) ? x.points.map(p => ({n:String(p.n||''), s: ['pass','fail','na'].includes(p.s)?p.s:'', note: p.note?String(p.note):'', by: p.by||null, at: p.at||null, bulk: !!p.bulk})) : []}; });
+      units = snap.docs.map(doc => { const x = doc.data() || {}; return {id: doc.id, tag: String(x.tag||doc.id), type: String(x.type||'BLANK'), loc: String(x.loc||''), model: String(x.model||''), dev: cleanDev(x.dev), example: !!x.example, at: x.at, points: Array.isArray(x.points) ? x.points.map(p => ({n:String(p.n||''), s: ['pass','fail','na'].includes(p.s)?p.s:'', note: p.note?String(p.note):'', by: p.by||null, at: p.at||null, bulk: !!p.bulk})) : []}; });
       render(); resolveNames();
     }, () => { $('mode').textContent = 'Offline · reload to reconnect'; });
     db.doc('meta/project').onSnapshot(s => { project = {name: (s.exists && s.data().name) || ''}; render(); }, () => {});

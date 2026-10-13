@@ -1,6 +1,6 @@
 # Device Scanner
 
-Builds the master device list for a job site. Scan the code on each controller's label, give it a name, and it gets the next BACnet device ID automatically. Export the list straight into the **Point Checkout Tracker**.
+Builds the master device list for a job site during install. Scan the code on each controller's label, give it a name, and it gets the next BACnet device ID automatically. Export the list straight into the **Point Checkout Tracker**.
 
 It's one HTML file (`devicescanner.html`). The code reader is built in, so it works offline.
 
@@ -34,7 +34,7 @@ Tap any device in the list to edit or delete it.
 ## Getting the list out
 | Button | Saves |
 |---|---|
-| **Export for checkout** | A CSV with columns `NAME, TYPE, DESCR, DEVICE ID, SERIAL, BT MAC, NETWORK MAC, SCANNED`. In the checkout tool, tap **Import file** and pick it: units come in grouped by model, and you choose the point list for each group. It also opens in Excel. |
+| **Export for checkout** | A CSV with columns `NAME, TYPE, DESCR, DEVICE ID, SERIAL, BT MAC, NETWORK MAC, SCANNED`. In the checkout tool, tap **Import file** and pick it. If the job is already loaded from the EBO XML, each device is matched to its unit by name, and you get a list of anything that didn't match. If the checkout list is empty, the devices become units. It also opens in Excel. |
 | **Export job** | A `.json` file of this device list, to hand off or continue on another device. |
 | **Import job** | Loads a job file. Devices with the same serial (or MAC, or name) are updated, and the rest are added. |
 
@@ -55,3 +55,6 @@ S/N: TD253550311RP-C-12A-F-24VMAC: 00:50:06:29:E5:AABT: F0:FD:45:73:E5:9F
 The scanner splits that into Serial `TD253550311`, Model `RP-C-12A-F-24V`, Network MAC `00:50:06:29:E5:AA`, and Bluetooth MAC `F0:FD:45:73:E5:9F`. The handwritten location on the label isn't in the code, so type it into **Location / serves**.
 
 The reader (zxing-cpp, built in) handles light-on-dark Data Matrix codes like these, as well as QR, Aztec, PDF417, Code 128, and Code 39. For other labels it picks out fields from `key: value` text, URLs with query values, JSON, and GS1 serial fields. Anything it can't sort out stays in the scanned text for you to copy into the right field.
+
+## Naming tip
+Name devices the same way they're named in EBO (for example `VAV-7`, or `Room 113` for the unit ventilators). The checkout tool matches scanned devices to units by name, ignoring spaces, dashes, and case.

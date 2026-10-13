@@ -23,7 +23,7 @@ A point-to-point commissioning checklist for BAS jobs. Load a controller list (o
 
 The buttons at the top are in two rows: **Import file** and **Add unit** start work, and the row below (**Copy punch list**, **Save checkout CSV**, **Export job**) gets results out.
 
-Tap **Import file** and pick a file. Three kinds are accepted:
+Tap **Import file** and pick a file. Four kinds are accepted:
 
 ### 1. EBO XML export (recommended)
 Export the network or controller folders from WorkStation as `.xml`.
@@ -55,7 +55,20 @@ For a sheet with one row per controller. The importer looks for these column hea
 
 A spreadsheet has no points in it, so each group gets a standard template (see below).
 
-### 3. Job file (`.json`)
+### 3. Device Scanner list (`devices-….csv` or `.json`)
+The file made with **Export for checkout** (or **Export job**) in the Device Scanner. Scanning happens at install and checkout comes later, so this works in either order:
+
+- **Units already on the list** (for example from the EBO XML): each scanned device is matched to a unit by name. The match ignores spaces, dashes, and case, so `vav 12` matches `VAV-12`. Its device ID, model, serial, and both MACs are attached. The ID shows in the unit's header, and the full details show in a **Scanned** line when the unit is open.
+- **Empty list:** the scanned devices become units through the normal review step, grouped by model, with template points.
+- **EBO XML imported after a scan list:** units that came from the scan, with nothing checked yet, take the real points from the export and keep their scanned details.
+
+A **Scanned devices** panel then shows what matched, plus two lists to check before closeout:
+- **Scanned but not on the list**: usually a name typed differently in the scanner. Fix it there and import again, or tap **Add as new units**.
+- **On the list but not scanned**: controllers nobody scanned yet.
+
+The checkout CSV includes **Device ID** and **Serial** columns.
+
+### 4. Job file (`.json`)
 A file made with **Export job**. It restores everything, including statuses and notes.
 
 ### The review step
