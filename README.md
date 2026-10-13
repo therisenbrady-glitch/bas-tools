@@ -1,7 +1,9 @@
 # bas-tools
 Handful of useful tools for our BAS work
 
-**Open on any phone or computer:**
+**Start here (one link for everything):** https://therisenbrady-glitch.github.io/bas-tools/
+
+Direct links:
 - Checkout tracker: https://therisenbrady-glitch.github.io/bas-tools/point-checkout/checkouttool.html
 - Device scanner: https://therisenbrady-glitch.github.io/bas-tools/device-scanner/devicescanner.html
 - VAV calculator: https://therisenbrady-glitch.github.io/bas-tools/vav-calculator/
