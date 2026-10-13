@@ -31,6 +31,7 @@
   --bg:#10171d; --panel:#18222a; --ink:#e3eaef; --muted:#93a3af; --line:#2b3944; --sunk:#131c23;
   --steel:#9cb8cc; --accent:#f0a22e; --accent-ink:#1b1305; --tile:#2a3a46; --logo-l:none; --logo-d:block; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
 a{color:inherit}
@@ -70,6 +71,36 @@ h1{font-family:var(--f-display);font-weight:700;font-size:44px;line-height:.95;m
 footer{font-size:12px;color:var(--muted)}
 @media (max-width:420px){h1{font-size:38px}.tname{font-size:22px}}
 @media (prefers-reduced-motion:reduce){.tool{transition:none}}
+
+.tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px;gap:4px;position:sticky;top:env(safe-area-inset-top,0px);z-index:3}
+.tabs button{font-family:var(--f-display);font-weight:600;font-size:17px;letter-spacing:.04em;text-transform:uppercase;border:0;background:transparent;color:var(--muted);padding:9px 6px;border-radius:5px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--steel);color:var(--panel)}
+.tabs button:focus-visible,.mchips button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pane{display:flex;flex-direction:column;gap:18px}
+.mchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.mchips::-webkit-scrollbar{display:none}
+.mchips button{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-family:var(--f-body);font-weight:600;font-size:13px;padding:7px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.mchips button[aria-pressed="true"]{background:var(--steel);border-color:var(--steel);color:var(--panel)}
+.manual{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 18px 18px;min-height:200px}
+.manual h1{font-size:34px;margin:16px 0 4px}
+.manual h2{font-family:var(--f-display);font-weight:700;font-size:23px;margin:26px 0 6px;padding-top:12px;border-top:1px solid var(--line)}
+.manual h3{font-family:var(--f-display);font-weight:600;font-size:19px;margin:18px 0 4px}
+.manual p,.manual li{font-size:14.5px;line-height:1.55;max-width:68ch}
+.manual ul,.manual ol{padding-left:22px}
+.manual li{margin:3px 0}
+.manual code{font-family:var(--f-mono);font-size:12.5px;background:var(--sunk);border:1px solid var(--line);border-radius:4px;padding:1px 5px;overflow-wrap:anywhere}
+.manual pre{background:var(--sunk);border:1px solid var(--line);border-radius:6px;padding:10px 12px;overflow-x:auto}
+.manual pre code{border:0;padding:0;background:none;white-space:pre}
+.manual blockquote{margin:12px 0;padding:8px 12px;border-left:3px solid var(--accent);background:var(--sunk);border-radius:0 6px 6px 0}
+.manual blockquote p{margin:0}
+.manual .tw{overflow-x:auto;margin:10px 0}
+.manual table{border-collapse:collapse;font-size:13.5px;min-width:100%}
+.manual th,.manual td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+.manual th{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.manual a{color:var(--steel);font-weight:600}
+.mstatus{color:var(--muted);font-size:14px;padding:16px 0}
+.mopen{display:flex;justify-content:flex-end}
+.mopen a{font-size:13px;font-weight:600;color:var(--accent-ink);background:var(--accent);border-radius:6px;padding:7px 14px;text-decoration:none}
 </style>
 </head>
 <body>
@@ -79,6 +110,13 @@ footer{font-size:12px;color:var(--muted)}
     <h1>Field Tools</h1>
     <p class="lede">Commissioning tools for the BAS team. They work on a phone or laptop, and your data stays on your device.</p>
   </header>
+
+  <div class="tabs" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" id="tabTools" aria-controls="paneTools" aria-selected="true">Tools</button>
+    <button type="button" role="tab" id="tabManuals" aria-controls="paneManuals" aria-selected="false">Manuals</button>
+  </div>
+
+  <div class="pane" id="paneTools" role="tabpanel" aria-labelledby="tabTools">
 
   <div class="flow" aria-label="Typical job order"><b>Install</b><i>→</i><b>Commissioning &amp; closeout</b></div>
 
@@ -113,11 +151,89 @@ footer{font-size:12px;color:var(--muted)}
     <ul>
       <li><strong>iPhone:</strong> open this page in Safari and tap Share → <strong>Add to Home Screen</strong>. Do the same inside each tool you use so it opens like an app, and so Safari doesn't clear your saved jobs.</li>
       <li>Jobs save in the browser on your device. Use <strong>Export job</strong> to back one up or hand it to someone else.</li>
-      <li>Typical flow: scan at install, then at checkout import the EBO XML and the scanner's <strong>Export for checkout</strong> file into the tracker.</li>
+      <li>Typical flow: scan at install, then at checkout import the EBO XML and the scanner's <strong>Export for checkout</strong> file into the tracker. The <a href="#manuals" id="wfLink">Job workflow</a> manual walks through it step by step.</li>
     </ul>
   </section>
+  </div>
+
+  <div class="pane" id="paneManuals" role="tabpanel" aria-labelledby="tabManuals" hidden>
+    <div class="mchips" role="group" aria-label="Manual">
+      <button type="button" data-m="workflow" aria-pressed="true">Job workflow</button>
+      <button type="button" data-m="scanner" aria-pressed="false">Device Scanner</button>
+      <button type="button" data-m="checkout" aria-pressed="false">Checkout Tracker</button>
+      <button type="button" data-m="vav" aria-pressed="false">VAV Calculator</button>
+    </div>
+    <article class="manual" id="manual" aria-live="polite"><p class="mstatus">Loading…</p></article>
+    <div class="mopen" id="mopen"></div>
+  </div>
 
   <footer>Combustion Service &amp; Equipment Co. · BAS team · <a href="https://github.com/therisenbrady-glitch/bas-tools">Source on GitHub</a></footer>
 </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  // Manuals are the READMEs in the repo, so the page and GitHub never disagree.
+  const MANUALS = {
+    workflow: {file: 'docs/workflow.md'},
+    scanner:  {file: 'device-scanner/README.md', open: 'device-scanner/devicescanner.html', name: 'Device Scanner'},
+    checkout: {file: 'point-checkout/README.md', open: 'point-checkout/checkouttool.html', name: 'Point Checkout Tracker'},
+    vav:      {file: 'vav-calculator/README.md', open: 'vav-calculator/', name: 'VAV Field Calculator'}
+  };
+  const cache = {};
+  let current = 'workflow';
+  function setTab(t, push){
+    const m = t === 'manuals';
+    $('tabTools').setAttribute('aria-selected', !m); $('tabManuals').setAttribute('aria-selected', m);
+    $('paneTools').hidden = m; $('paneManuals').hidden = !m;
+    if (m) showManual(current);
+    if (push) { try { history.replaceState(null, '', m ? '#' + (current === 'workflow' ? 'manuals' : 'manual-' + current) : '#'); } catch(e){} }
+  }
+  function render(md, key){
+    const base = MANUALS[key].file.replace(/[^/]*$/, '');
+    let html;
+    if (window.marked) html = marked.parse(md, {gfm: true});
+    else html = '<pre>' + md.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</pre>';
+    const box = $('manual'); box.innerHTML = html;
+    box.querySelectorAll('table').forEach(t => { const w = document.createElement('div'); w.className = 'tw'; t.parentNode.insertBefore(w, t); w.appendChild(t); });
+    box.querySelectorAll('a[href]').forEach(a => {
+      const h = a.getAttribute('href');
+      if (/^(https?:|mailto:|#)/.test(h)) { if (/^https?:/.test(h)) { a.target = '_blank'; a.rel = 'noopener'; } return; }
+      const key2 = Object.keys(MANUALS).find(k => (base + h).replace(/\/\.\//g,'/').endsWith(MANUALS[k].file));
+      if (key2) { a.href = '#manual-' + key2; a.addEventListener('click', e => { e.preventDefault(); showManual(key2); }); }
+      else a.href = base + h;
+    });
+    const mm = MANUALS[key];
+    $('mopen').innerHTML = mm.open ? `<a href="${mm.open}">Open ${mm.name}</a>` : '';
+  }
+  async function showManual(key){
+    current = key;
+    document.querySelectorAll('.mchips button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === key));
+    try { history.replaceState(null, '', key === 'workflow' ? '#manuals' : '#manual-' + key); } catch(e){}
+    if (cache[key]) { render(cache[key], key); return; }
+    $('manual').innerHTML = '<p class="mstatus">Loading…</p>'; $('mopen').innerHTML = '';
+    try {
+      const r = await fetch(MANUALS[key].file, {cache: 'no-cache'});
+      if (!r.ok) throw new Error(r.status);
+      cache[key] = await r.text();
+      if (current === key) render(cache[key], key);
+    } catch(e) {
+      $('manual').innerHTML = `<p class="mstatus">This manual couldn't load. Open it on <a href="https://github.com/therisenbrady-glitch/bas-tools/blob/main/${MANUALS[key].file}">GitHub</a> instead.</p>`;
+    }
+  }
+  $('tabTools').addEventListener('click', () => setTab('tools', true));
+  $('tabManuals').addEventListener('click', () => setTab('manuals', true));
+  document.querySelector('.mchips').addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (b) showManual(b.dataset.m); });
+  document.querySelectorAll('.links a[href$="README.md"]').forEach(a => {
+    const key = Object.keys(MANUALS).find(k => a.getAttribute('href').endsWith(MANUALS[k].file));
+    if (key) { a.href = '#manual-' + key; a.addEventListener('click', e => { e.preventDefault(); current = key; setTab('manuals', false); window.scrollTo(0, 0); }); }
+  });
+  const h = (location.hash || '').slice(1);
+  if (h === 'manuals') setTab('manuals');
+  else if (h.startsWith('manual-') && MANUALS[h.slice(7)]) { current = h.slice(7); setTab('manuals'); }
+  window.addEventListener('hashchange', () => { const h2 = (location.hash || '').slice(1); if (h2 === 'manuals') { current = 'workflow'; setTab('manuals'); } else if (h2.startsWith('manual-') && MANUALS[h2.slice(7)]) { current = h2.slice(7); setTab('manuals'); } else if (!h2) setTab('tools'); });
+  const wf = $('wfLink'); if (wf) wf.addEventListener('click', e => { e.preventDefault(); current = 'workflow'; setTab('manuals', true); window.scrollTo(0, 0); });
+})();
+</script>
 </body>
 </html>
