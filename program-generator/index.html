@@ -124,6 +124,21 @@ tr.err select{border-color:var(--bad)}
 details.code{border:1px solid var(--line);border-radius:7px;background:var(--panel)}
 details.code summary{padding:10px 12px;font-size:13.5px;font-weight:600;cursor:pointer}
 details.code pre{margin:0;padding:12px;border-top:1px solid var(--line);font-family:var(--f-mono);font-size:12px;line-height:1.45;overflow:auto;max-height:420px;background:var(--sunk)}
+.addbox{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+.addbox h3{margin:0 0 10px;font-family:var(--f-display);font-size:17px;font-weight:600;letter-spacing:.02em}
+.addgrid{display:grid;grid-template-columns:1.1fr 1.6fr 1.2fr;gap:10px}
+.addgrid .wide{grid-column:1/-1}
+@media (max-width:560px){.addgrid{grid-template-columns:1fr 1fr}.addgrid .nm2{grid-column:1/-1}}
+.custlist{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.custlist li{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px;border:1px solid var(--line);border-radius:6px;padding:6px 10px;background:var(--bg)}
+.custlist li b{font-family:var(--f-mono);font-size:13px}
+.custlist li span.d{color:var(--muted);flex:1;min-width:120px}
+.mine{font-family:var(--f-body);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--steel);margin-left:6px}
+.seg{display:inline-flex;width:max-content;max-width:100%;align-self:flex-start;border:1px solid #33444f;border-radius:6px;overflow:hidden;margin:4px 0 2px}
+.seg button{background:transparent;border:0;color:var(--readout-ink);padding:7px 12px;font-weight:600;font-size:13px}
+.seg button + button{border-left:1px solid #33444f}
+.seg button[aria-pressed="true"]{background:#33444f}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .progtabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px 0;border-top:1px solid var(--line)}
 .progtabs button{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:5px;padding:4px 8px;font-family:var(--f-mono);font-size:11.5px}
 .progtabs button[aria-pressed="true"]{background:var(--steel);border-color:var(--steel);color:var(--panel)}
@@ -183,6 +198,25 @@ footer{font-size:12px;color:var(--muted)}
       <tbody id="ioBody"></tbody>
     </table></div>
     <div class="btns"><button type="button" class="link" id="reassign">Reassign terminals automatically</button></div>
+    <div class="addbox" id="addBox">
+      <h3>Add a point</h3>
+      <p class="hint">Anything the unit has that the options don't cover. Hardware points get a terminal above; values go in Parameters. Each unit type keeps its own list.</p>
+      <div class="addgrid">
+        <div class="field nm2"><label for="apName">Name</label><div class="row"><input id="apName" type="text" placeholder="HwSTmp" autocomplete="off" maxlength="32" style="font-family:var(--f-mono)"></div></div>
+        <div class="field nm2"><label for="apDescr">Description</label><div class="row"><input id="apDescr" type="text" placeholder="Hot Water Supply Temp" autocomplete="off"></div></div>
+        <div class="field"><label for="apKind">Type</label><div class="row"><select id="apKind">
+          <option value="ai">AI, 10k thermistor</option><option value="vi">AI, 0-10 V transmitter</option><option value="di">DI, contact</option>
+          <option value="do">DO, relay</option><option value="ao">AO, 0-10 V</option><option value="av">Analog value</option><option value="bv">Binary value</option></select></div></div>
+        <div class="field" id="apUnitF"><label for="apUnit">Units</label><div class="row"><select id="apUnit">
+          <option value="F">°F</option><option value="dF">Δ°F</option><option value="%">%</option><option value="rh">%RH</option><option value="inwc">in. w.c.</option><option value="psi">psi</option>
+          <option value="ppm">ppm</option><option value="cfm">cfm</option><option value="s">seconds</option><option value="min">minutes</option><option value="none">none</option></select></div></div>
+        <div class="field" id="apLoF"><label for="apLo">0 V reads</label><div class="row"><input id="apLo" type="number" inputmode="decimal" step="any" value="0"></div></div>
+        <div class="field" id="apHiF"><label for="apHi">10 V reads</label><div class="row"><input id="apHi" type="number" inputmode="decimal" step="any" value="100"></div></div>
+        <div class="field" id="apDefF"><label for="apDef">Relinquish default</label><div class="row" id="apDefRow"></div></div>
+      </div>
+      <div class="btns" style="margin-top:10px"><button type="button" class="btn" id="apAdd">Add point</button></div>
+      <ul class="custlist" id="custList"></ul>
+    </div>
   </section>
 
   <section class="panel" id="p5">
@@ -207,6 +241,7 @@ footer{font-size:12px;color:var(--muted)}
       <div><span class="lbl">Alarms</span><b id="rAlms">–</b></div>
       <div><span class="lbl">Trends</span><b id="rTrends">–</b></div>
     </div>
+    <div class="seg" id="expSeg" role="group" aria-label="What to export"><button type="button" data-x="full" aria-pressed="true">Programs + points</button><button type="button" data-x="points" aria-pressed="false">Points only</button></div>
     <div class="btns"><button type="button" class="btn pri" id="saveXml" disabled>Save import file</button><button type="button" class="btn" id="saveTxt" disabled>Save README</button></div>
   </div>
 
@@ -2419,265 +2454,649 @@ Enabled:
 #endif
 `;
 
-// ---------- Exhaust fan template: 1-4 exhaust fans on one MP-C / RP-C ----------
-// From the team's Airport exhaust fan programs (schedule, room temp with an
-// off delay, damper end switch). One control and one alarm program per fan.
-const EF = {
-  label: 'Exhaust fan',
-  title: 'Exhaust fans (1 to 4 on one controller)',
-  model: /^bacnet\.mpx\.udt\.(MPC|RPC)/, modelName: 'an MP-C or RP-C controller',
+// ---------- Unit ventilator template: classroom UV on an RP-C or MP-C ----------
+// From the team's Bower Hill unit ventilator programs (51 identical RP-C-12A
+// units): discharge air temp reset from the room, HW valve with face & bypass
+// low-temp mode, chilled water valve, economizer with discharge low limit,
+// night heat, morning warm-up / cool-down and a dehumidify mode from the AS-P.
+// Default terminals (term) are the Bower Hill RP-C-12A wiring.
+// Occupancy, room temp and fan alarm programs are shared with the CV AHU.
+const UV = {
+  label: 'Unit Vent',
+  title: 'Unit ventilator (discharge air reset from room temp)',
+  model: /^bacnet\.mpx\.udt\.(RPC|MPC)/, modelName: 'an RP-C or MP-C controller',
+  modeVar: 'UvHvacMd',
+  modes: [
+    ['FRZ',        'LOW LIMIT TRIP - FAN OFF'],
+    ['UNOCC_OFF',  'UNOCC OFF'],
+    ['NIGHT_HEAT', 'UNOCC NIGHT HEAT'],
+    ['WARMUP',     'MORNING WARM-UP'],
+    ['COOLDOWN',   'MORNING COOL-DOWN'],
+    ['DEHUM',      'DEHUMIDIFY'],
+    ['OCC',        'OCCUPIED']
+  ],
   options: [
-    {id: 'n', label: 'Number of fans', type: 'select', def: '1', choices: [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']]},
-    {id: 'ctl', label: 'Fans run', type: 'select', def: 'sched', choices: [['sched', 'On the schedule'], ['temp', 'On room temp (thermostatic)'], ['both', 'On the schedule, or on room temp'], ['ahu', 'With an air handler (status from the AS-P)']]},
+    {id: 'heat', label: 'Heating', type: 'select', def: 'hwfb', choices: [['hwfb', 'Hot water valve + face & bypass damper'], ['hw', 'Hot water valve'], ['none', 'None']]},
+    {id: 'cool', label: 'Cooling', type: 'select', def: 'chw', choices: [['chw', 'Chilled water valve'], ['none', 'None']]},
+    {id: 'oa', label: 'Outside air', type: 'select', def: 'econ', choices: [['econ', 'Economizer damper'], ['min', 'OA damper at minimum position'], ['none', 'No OA damper']]},
+    {id: 'oat', label: 'Outside air temp', type: 'select', def: 'network', choices: [['network', 'Network value (written from the AS-P)'], ['local', 'Sensor wired to this controller']]},
+    {id: 'room', label: 'Room sensor', type: 'select', def: 'sb', choices: [['sb', 'SmartX sensor on the Sensor Bus'], ['wired', 'Thermistor wired to this controller']]},
+    {id: 'spt', label: 'Setpoint adjust from the room sensor', type: 'check', def: true, needs: o => o.room === 'sb'},
+    {id: 'ovr', label: 'Override button on the room sensor', type: 'check', def: true, needs: o => o.room === 'sb'},
     {id: 'sts', label: 'Fan status (current switch)', type: 'check', def: true},
-    {id: 'dpr', label: 'Motorized damper with end switch (fan waits for it)', type: 'check', def: false}
+    {id: 'frz', label: 'Low limit switch (stops the fan)', type: 'check', def: true},
+    {id: 'nht', label: 'Night heat on room temp', type: 'check', def: true, needs: o => o.heat !== 'none'},
+    {id: 'opt', label: 'Morning warm-up / cool-down (time to occupancy from the AS-P)', type: 'check', def: true, needs: o => o.heat !== 'none' || o.cool !== 'none'},
+    {id: 'dehum', label: 'Dehumidify mode from the AS-P', type: 'check', def: true, needs: o => o.cool !== 'none'}
   ],
   flags(o){
     const F = {};
-    F.N = Math.max(1, Math.min(4, +o.n || 1));
-    F.SCHED = o.ctl === 'sched' || o.ctl === 'both'; F.TEMP = o.ctl === 'temp' || o.ctl === 'both'; F.AHU = o.ctl === 'ahu';
-    F.STS = !!o.sts; F.DPR = !!o.dpr; F.ALM = F.STS || F.DPR;
+    F.HW = o.heat === 'hw' || o.heat === 'hwfb'; F.FB = o.heat === 'hwfb'; F.HTG = F.HW;
+    F.CLG = o.cool === 'chw';
+    F.ECON = o.oa === 'econ'; F.OAMOD = o.oa === 'econ' || o.oa === 'min';
+    F.OATNET = o.oat === 'network'; F.OAT = F.ECON || F.FB;
+    F.SB = o.room === 'sb'; F.SPT = F.SB && !!o.spt; F.OVR = F.SB && !!o.ovr;
+    F.STS = !!o.sts; F.FRZ = !!o.frz;
+    F.NHT = F.HW && !!o.nht;
+    F.OPT = (F.HW || F.CLG) && !!o.opt; F.WU = F.OPT && F.HW; F.CD = F.OPT && F.CLG;
+    F.UNOCSPT = F.NHT || F.WU;
+    F.DEHUM = F.CLG && !!o.dehum;
+    F.RA = false;  // Prog_RoomTemp: no return air sensor to fall back on
     return F;
   },
-  points(o, F){
-    const p = [];
-    for (let i = 1; i <= F.N; i++) {
-      p.push({name: `EaFan${i}RmTmp`, descr: `Exhaust Fan ${i} Room Temp`, io: 'ai', cond: 'TEMP'});
-      p.push({name: `EaFan${i}Sts`, descr: `Exhaust Fan ${i} Status`, io: 'di', text: 'onoff', cond: 'STS'});
-      p.push({name: `EaFan${i}DprSts`, descr: `Exhaust Fan ${i} Damper End Switch`, io: 'di', text: 'onoff', cond: 'DPR'});
-      p.push({name: `EaFan${i}Cmd`, descr: `Exhaust Fan ${i} Command`, io: 'do'});
-      p.push({name: `EaFan${i}DprCmd`, descr: `Exhaust Fan ${i} Damper Command`, io: 'do', cond: 'DPR'});
-    }
-    return p;
-  },
-  values(o, F){
-    const v = [
-      {folder: 'Occupancy', name: 'OccCmdTs', descr: 'Schedule', kind: 'occ', cond: 'SCHED'},
-      {folder: 'Inputs', name: 'AhuSts', descr: 'Air Handler Run Status', kind: 'bv', cond: 'AHU'}
-    ];
-    for (let i = 1; i <= F.N; i++) {
-      v.push({folder: 'Numerics', name: `EaFan${i}Call`, descr: `Exhaust Fan ${i} Called For`, kind: 'bv'});
-      v.push({folder: 'Numerics', name: `EaFan${i}Alm`, descr: `Exhaust Fan ${i} Alarm`, kind: 'alm', cond: 'ALM'});
-      v.push({folder: 'Parameters', name: `EaFan${i}RmTmpSpt`, descr: `Exhaust Fan ${i} Room Setpoint`, kind: 'av', unit: 'F', def: 80, param: true, cond: 'TEMP'});
-      v.push({folder: 'Parameters', name: `EaFan${i}AlmDly`, descr: `Exhaust Fan ${i} Alarm Delay`, kind: 'av', unit: 's', def: 60, param: true, cond: 'ALM'});
-    }
-    v.push({folder: 'Parameters', name: 'EaFanRmTmpDif', descr: 'Room Temp Off Differential', kind: 'av', unit: 'dF', def: 2, param: true, cond: 'TEMP'});
-    v.push({folder: 'Parameters', name: 'EaFanOffDly', descr: 'Room Temp Off Delay', kind: 'av', unit: 's', def: 300, param: true, cond: 'TEMP'});
-    return v;
-  },
-  alarms(o, F){ const a = []; for (let i = 1; i <= F.N; i++) a.push({name: `EaFan${i}Alm`, descr: `Exhaust Fan ${i} Alarm`, src: `Numerics/EaFan${i}Alm`, cond: 'ALM'}); return a; },
-  trends(o, F){ const t = []; for (let i = 1; i <= F.N; i++) t.push(`EaFan${i}Cmd`, `EaFan${i}Sts`, `EaFan${i}RmTmp`); return t; },
+  points: [
+    {name: 'OaTmp',    descr: 'Outside Air Temp',       io: 'ai', cond: 'OAT&!OATNET'},
+    {name: 'SaTmp',    descr: 'Supply Air Temp',        term: 'Ub 1', io: 'ai'},
+    {name: 'RmTmp',    descr: 'Room Temp',              io: 'ai', cond: '!SB'},
+    {name: 'SaFanSts', descr: 'Supply Air Fan Status',  term: 'Ub 2', io: 'di', text: 'onoff', cond: 'STS'},
+    {name: 'TmpLlmt',  descr: 'Low Temp',               term: 'Ub 3', io: 'di', text: 'alarm', cond: 'FRZ'},
+    {name: 'SaFanCmd', descr: 'Supply Air Fan Command', term: 'DO 1', io: 'do'},
+    {name: 'HwVlvPos', descr: 'Hot Water Valve Command', term: 'Ub 5', io: 'ao', sig: '10-2', cond: 'HW'},
+    {name: 'FbDprPos', descr: 'Face/Bypass Damper Position', term: 'Ub 7', io: 'ao', sig: '2-10', cond: 'FB'},
+    {name: 'ClgVlvPos', descr: 'Chilled Water Valve Command', term: 'Ub 6', io: 'ao', sig: '2-10', cond: 'CLG'},
+    {name: 'OaDprPos', descr: 'Outside Air Damper Command', term: 'Ub 4', io: 'ao', sig: '2-10', cond: 'OAMOD'}
+  ],
+  values: [
+    {folder: 'Inputs', name: 'OaTmp', descr: 'Outside Air Temp (written from the AS-P)', kind: 'av', unit: 'F', cond: 'OAT&OATNET'},
+    {folder: 'Inputs', name: 'RmTmp', descr: 'Room Temp', kind: 'av', unit: 'F', cond: 'SB', sensor: 'Temperature'},
+    {folder: 'Inputs', name: 'HtgEna', descr: 'Heating Enabled (written from the AS-P)', kind: 'bv', def: 1, cond: 'HW'},
+    {folder: 'Inputs', name: 'ClgEna', descr: 'Cooling Enabled (written from the AS-P)', kind: 'bv', def: 1, cond: 'CLG'},
+    {folder: 'Inputs', name: 'DehumMode', descr: 'Dehumidify Mode (written from the AS-P)', kind: 'bv', def: 0, cond: 'DEHUM'},
+    {folder: 'Inputs', name: 'TimeToStart', descr: 'Minutes To Occupancy (written from the AS-P)', kind: 'av', unit: 'min', cond: 'OPT'},
+
+    {folder: 'Numerics', name: 'UvHvacMd', descr: 'Unit Ventilator Mode', kind: 'msv', states: 'modes'},
+    {folder: 'Numerics', name: 'HvacSts', descr: 'Unit Ventilator Mode Text', kind: 'csv'},
+    {folder: 'Numerics', name: 'RmTmpCtl', descr: 'Room Temp In Use', kind: 'av', unit: 'F'},
+    {folder: 'Numerics', name: 'RmTmpAlm', descr: 'Room Sensor Failure', kind: 'alm'},
+    {folder: 'Numerics', name: 'RmTmpSptAct', descr: 'Room Setpoint In Use', kind: 'av', unit: 'F', cond: 'SPT'},
+    {folder: 'Numerics', name: 'DaTmpSpt', descr: 'Discharge Air Setpoint', kind: 'av', unit: 'F'},
+    {folder: 'Numerics', name: 'HtgLoad', descr: 'Heating Load', kind: 'av', unit: '%', cond: 'HW'},
+    {folder: 'Numerics', name: 'ClgLoad', descr: 'Cooling Load', kind: 'av', unit: '%', cond: 'CLG|ECON'},
+    {folder: 'Numerics', name: 'OaDprEna', descr: 'Outside Air Allowed', kind: 'bv', cond: 'OAMOD'},
+    {folder: 'Numerics', name: 'EconEna', descr: 'Economizer Enable', kind: 'bv', cond: 'ECON'},
+    {folder: 'Numerics', name: 'SaLlmt', descr: 'Supply Air Low Limit Allowance', kind: 'av', unit: '%', cond: 'OAMOD'},
+    {folder: 'Numerics', name: 'SaFanAlm', descr: 'Supply Air Fan Alarm', kind: 'alm', cond: 'STS'},
+
+    {folder: 'Occupancy', name: 'OccCmdTs', descr: 'Schedule', kind: 'occ'},
+    {folder: 'Occupancy', name: 'RmOccOvr', descr: 'Occupancy Override', kind: 'occ', cond: 'OVR', sensor: 'Display:OccupancyOverride'},
+    {folder: 'Occupancy', name: 'RmOccOvrRst', descr: 'Override Reset', kind: 'occ', cond: 'OVR'},
+    {folder: 'Occupancy', name: 'OccOvr', descr: 'Override Active', kind: 'occ', cond: 'OVR'},
+    {folder: 'Occupancy', name: 'OccOvrTml', descr: 'Time Left', kind: 'av', unit: 'min', cond: 'OVR'},
+    {folder: 'Occupancy', name: 'OccCmd', descr: 'Occupancy Command', kind: 'occ'},
+    {folder: 'Occupancy', name: 'OvrTm', descr: 'Override Duration', kind: 'av', unit: 'min', def: 120, param: true, cond: 'OVR'},
+
+    {folder: 'Parameters', name: 'RmTmpSpt', descr: 'Room Temp Setpoint (Thermostat)', kind: 'av', unit: 'F', def: 70, cond: 'SPT', sensor: 'Display:SetPoint'},
+    {folder: 'Parameters', name: 'RmTmpSpt', descr: 'Room Temp Setpoint', kind: 'av', unit: 'F', def: 70, param: true, cond: '!SPT'},
+    {folder: 'Parameters', name: 'RmTmpSptDft', descr: 'Room Setpoint Default', kind: 'av', unit: 'F', def: 70, param: true, cond: 'SPT'},
+    {folder: 'Parameters', name: 'RmTmpSptLlmt', descr: 'Room Setpoint Low Limit', kind: 'av', unit: 'F', def: 66, param: true, cond: 'SPT'},
+    {folder: 'Parameters', name: 'RmTmpSptHlmt', descr: 'Room Setpoint High Limit', kind: 'av', unit: 'F', def: 74, param: true, cond: 'SPT'},
+    {folder: 'Parameters', name: 'DaTmpSptLlmt', descr: 'Discharge Setpoint, Room Satisfied', kind: 'av', unit: 'F', def: 55, param: true},
+    {folder: 'Parameters', name: 'DaTmpSptHlmt', descr: 'Discharge Setpoint, Room 5 F Cold', kind: 'av', unit: 'F', def: 120, param: true},
+    {folder: 'Parameters', name: 'DaTmpSptUnoc', descr: 'Discharge Setpoint, Night Heat/Warm-Up', kind: 'av', unit: 'F', def: 120, param: true, cond: 'UNOCSPT'},
+    {folder: 'Parameters', name: 'DaTmpSptCd', descr: 'Discharge Setpoint, Cool-Down', kind: 'av', unit: 'F', def: 55, param: true, cond: 'CD'},
+    {folder: 'Parameters', name: 'RmTmpSptSb', descr: 'Night Heat Setpoint', kind: 'av', unit: 'F', def: 62, param: true, cond: 'NHT'},
+    {folder: 'Parameters', name: 'RmTmpSptSbDif', descr: 'Night Heat Differential', kind: 'av', unit: 'dF', def: 3, param: true, cond: 'NHT'},
+    {folder: 'Parameters', name: 'MaxPrestartTime', descr: 'Warm-Up/Cool-Down Max Lead Time', kind: 'av', unit: 'min', def: 120, param: true, cond: 'OPT'},
+    {folder: 'Parameters', name: 'FbDprOaEnaSpt', descr: 'Face/Bypass Low-Temp Mode Below OAT', kind: 'av', unit: 'F', def: 40, param: true, cond: 'FB'},
+    {folder: 'Parameters', name: 'EconEnaSpt', descr: 'Economizer Enable Below OAT', kind: 'av', unit: 'F', def: 70, param: true, cond: 'ECON'},
+    {folder: 'Parameters', name: 'OaDprPosMin', descr: 'OA Damper Minimum Position', kind: 'av', unit: '%', def: 15, param: true, cond: 'OAMOD'},
+    {folder: 'Parameters', name: 'SaTmpLlmt', descr: 'Supply Air Low Limit', kind: 'av', unit: 'F', def: 54, param: true, cond: 'OAMOD'},
+    {folder: 'Parameters', name: 'SaFanAlmDly', descr: 'Supply Air Fan Alarm Delay', kind: 'av', unit: 's', def: 60, param: true, cond: 'STS'},
+    {folder: 'Parameters', name: 'RmTmpLlmt', descr: 'Lowest Believable Room Temp', kind: 'av', unit: 'F', def: 40, param: true},
+    {folder: 'Parameters', name: 'RmTmpHlmt', descr: 'Highest Believable Room Temp', kind: 'av', unit: 'F', def: 100, param: true}
+  ],
+  alarms: [
+    {name: 'SaFanAlm', descr: 'Supply Air Fan Alarm', src: 'Numerics/SaFanAlm', cond: 'STS'},
+    {name: 'TmpLlmt', descr: 'Low Temp Alarm', src: 'Inputs/TmpLlmt', cond: 'FRZ'},
+    {name: 'RmTmpAlm', descr: 'Room Sensor Failure Alarm', src: 'Numerics/RmTmpAlm'}
+  ],
+  trends: ['SaTmp', 'RmTmpCtl', 'DaTmpSpt', 'OaTmp', 'HwVlvPos', 'FbDprPos', 'ClgVlvPos', 'OaDprPos', 'SaFanCmd', 'SaFanSts', 'UvHvacMd'],
   programs(o, F){
-    const call = F.SCHED && F.TEMP ? 'OccCmdTs = On Or TmpCall = On' : F.SCHED ? 'OccCmdTs = On' : F.TEMP ? 'TmpCall = On' : 'AhuSts = On';
-    const nocall = F.SCHED && F.TEMP ? 'OccCmdTs = Off And TmpCall = Off' : F.SCHED ? 'OccCmdTs = Off' : F.TEMP ? 'TmpCall = Off' : 'AhuSts = Off';
-    const p = [];
-    for (let i = 1; i <= F.N; i++) {
-      p.push({name: `Prog_EaFan${i}Control`, descr: `Exhaust Fan ${i} Control Program`, src: 'ctl', vars: {N: i, CALL: call, NOCALL: nocall}});
-      p.push({name: `Prog_EaFan${i}Alarm`, descr: `Exhaust Fan ${i} Alarm Program`, src: 'alm', vars: {N: i}, cond: 'ALM'});
-    }
-    return p;
+    const v = {RMSPT: F.SPT ? 'RmTmpSptAct' : 'RmTmpSpt', FAN: F.STS ? 'SaFanSts' : 'SaFanCmd'};
+    return [
+      {name: 'Prog_Occupancy', descr: 'Occupancy Program', src: 'occ'},
+      {name: 'Prog_RoomTemp', descr: 'Room Temp Program', src: 'roomtemp'},
+      {name: 'Prog_RoomSetpoint', descr: 'Room Setpoint Program', src: 'spt', cond: 'SPT'},
+      {name: 'Prog_UvControl', descr: 'Unit Ventilator Control Program', src: 'uv', vars: v},
+      {name: 'Prog_UvHeatCool', descr: 'Heating and Cooling Program', src: 'hc', vars: v, cond: 'HW|CLG'},
+      {name: 'Prog_OaDamper', descr: 'Outside Air Damper Program', src: 'oa', vars: v, cond: 'OAMOD'},
+      {name: 'Prog_SaFanAlarm', descr: 'Supply Fan Alarm Program', src: 'safan', cond: 'STS'}
+    ];
   },
   extraSteps(P){
-    const s = [];
-    if (P.F.SCHED) s.push('Bind OccCmdTs (Occupancy folder) to the schedule.');
-    if (P.F.AHU) s.push('Write or bind Inputs/AhuSts to the air handler\'s fan status (On = running).');
+    const s = ['Bind OccCmdTs (Occupancy folder) to the schedule.'];
+    const net = [];
+    if (P.F.OAT && P.F.OATNET) net.push('OaTmp');
+    if (P.F.HW) net.push('HtgEna');
+    if (P.F.CLG) net.push('ClgEna');
+    if (P.F.DEHUM) net.push('DehumMode');
+    if (P.F.OPT) net.push('TimeToStart');
+    if (net.length) s.push(`Write ${net.join(', ')} (Inputs folder) from the AS-P. HtgEna and ClgEna default to On and DehumMode to Off until something writes them.`);
+    if (P.F.OVR) s.push(`On "${P.sensor}" (Sensor Bus), bind Display > Occupancy Override to Prog_Occupancy.RmOccOvrRst so the button unlatches.`);
     return s;
   },
   importSteps(P){
     return [`In WorkStation, right-click ${P.ctrl.name}/Application and choose Import. Pick the "Complete - import.xml" file.`,
-      'Programs arrive uncompiled. Open and save each program.'].concat(this.extraSteps(P));
+      `Programs arrive uncompiled. Open and save the functions (${P.newFns.join(', ') || 'none new'}) first, then each program.`].concat(this.extraSteps(P));
   },
   assumptions(P){
-    const s = ['One control program per fan so each fan can be put in manual on its own.'];
-    if (P.F.TEMP) s.push('Room temp: fan starts above EaFan#RmTmpSpt, stops EaFanRmTmpDif below it after EaFanOffDly (Airport used 1 F and 5 minutes).');
-    if (P.F.DPR) s.push('The damper opens first; the fan starts once the end switch closes, and stops if it opens.');
-    if (P.F.ALM) s.push(`EaFan#Alm: called for, with no ${P.F.STS ? 'fan status' : 'damper end switch'} for EaFan#AlmDly seconds. Auto-clears.`);
+    const s = ['Setpoint defaults are the Bower Hill unit ventilator values.',
+      'Discharge setpoint resets from the room: DaTmpSptLlmt with the room 1.5 F above setpoint, DaTmpSptHlmt with it 5 F below, both shifted by (setpoint - 70), as the Bower Hill UVs.',
+      'Discharge loop: Func_PID on SaTmp, KP 0.001 / KI 0.0001 (Bower Hill values). Heating 0-100 % over loop 45-0 %, cooling 0-100 % over loop 50-100 %. Tune on site.',
+      'Override now runs the unit occupied (outside air and occupied setpoint). The Bower Hill programs ran the fan but stayed unoccupied.'];
+    if (P.F.FB) s.push('Face & bypass: FbDprPos 100 = full FACE (through the coil), as Bower Hill. Below FbDprOaEnaSpt the valve goes full open and the damper modulates. With the fan off the valve and face go full open.');
+    else if (P.F.HW) s.push('With the fan off the HW valve goes full open, as Bower Hill.');
+    if (P.F.HW) s.push('HwVlvPos is set up 10-2 V (normally open valve) and the dampers and CHW valve 2-10 V, as Bower Hill. Change the signal in step 4 if the actuators differ.');
+    if (P.F.FRZ) s.push('Low limit switch: On = tripped. The program stops the fan and reports; keep it hardwired too.');
+    if (P.F.OAMOD) s.push('OA damper opens 2 minutes after the fan proves, occupied or dehumidifying only. Supply low limit loop is the team limit loop (KP 0.05 / KI 0.0004, starts at 100 %); Bower Hill used KP 0.001 / KI 0.0001.');
+    if (P.F.ECON) s.push('Economizer: enabled below EconEnaSpt (1 F differential). The damper follows the cooling load, so the CHW valve and economizer open together, as Bower Hill.');
+    if (P.F.OPT) s.push('Warm-up / cool-down starts when TimeToStart is between 0 and MaxPrestartTime and the room is 4 F off setpoint; it ends 1 F past setpoint or at occupancy. TimeToStart of 0 (not written) does nothing.');
+    if (P.F.DEHUM) s.push('Dehumidify (from the AS-P): fan on, CHW valve full open, HW valve shut' + (P.F.FB ? ', face & bypass on the heating load (as Bower Hill; confirm this is the reheat you want).' : '.'));
     return s;
   },
   src: {}
 };
 
-EF.src.ctl = `' ===========================================================================
-' Prog_EaFan{N}Control  -  {UNIT} exhaust fan {N}
-#if SCHED&TEMP
-' Runs while the schedule is occupied, or while the room is above
-' EaFan{N}RmTmpSpt. Stops once both are satisfied (room EaFanRmTmpDif below
-' the setpoint), after EaFanOffDly seconds.
-#elif SCHED
-' Runs while the schedule is occupied.
-#elif TEMP
-' Runs while the room is above EaFan{N}RmTmpSpt. Stops once it is
-' EaFanRmTmpDif below it, after EaFanOffDly seconds.
-#else
-' Runs while the air handler runs (AhuSts).
-#endif
-#if DPR
-' The damper opens first; the fan starts once its end switch closes and
-' stops again if the end switch opens.
-#endif
-' From the team's Airport exhaust fan programs.
+UV.src.occ = AHU.src.occ;
+UV.src.roomtemp = AHU.src.roomtemp;
+UV.src.safan = fanAlarm('Sa', 'Sa').replace('Prog_AhuControl', 'Prog_UvControl');
+
+UV.src.spt = `' ===========================================================================
+' Prog_RoomSetpoint  -  {UNIT} room setpoint from the room sensor
+' Takes the setpoint set on the room sensor (RmTmpSpt) and keeps it within
+' RmTmpSptLlmt..RmTmpSptHlmt. If the sensor gives no usable setpoint
+' (outside 40..100 F), RmTmpSptDft is used instead.
 ' Names follow EBO 3 SEBA Naming Convention.
 ' ===========================================================================
 
-#if SCHED
-Numeric Input  OccCmdTs           ' bind to the EBO schedule (On = occupied)
-#endif
-#if AHU
-Numeric Input  AhuSts             ' air handler status, On = running
-#endif
-#if TEMP
-Numeric Input  EaFan{N}RmTmp      ' room temp, deg F
-Numeric Input  EaFan{N}RmTmpSpt   ' fan on above this, deg F (value object)
-Numeric Input  EaFanRmTmpDif      ' off this far below the setpoint, deg F (value object)
-Numeric Input  EaFanOffDly        ' room temp off delay, seconds (value object)
-#endif
-#if DPR
-Numeric Input  EaFan{N}DprSts     ' damper end switch, On = open
-Numeric Output EaFan{N}DprCmd     ' damper open/close
-#endif
-Numeric Output EaFan{N}Cmd        ' fan start/stop
-Numeric Output EaFan{N}Call       ' fan called for, to Prog_EaFan{N}Alarm
-#if TEMP
+Numeric Input  RmTmpSpt      ' setpoint from the room sensor, deg F
+Numeric Input  RmTmpSptDft   ' setpoint used if the sensor gives none, deg F (value object)
+Numeric Input  RmTmpSptLlmt  ' lowest setpoint the sensor may ask for, deg F (value object)
+Numeric Input  RmTmpSptHlmt  ' highest setpoint the sensor may ask for, deg F (value object)
+Numeric Output RmTmpSptAct   ' setpoint in use, to Prog_UvControl
 
 ' ---- Local state -----------------------------------------------------------
-Numeric TmpCall                   ' room temp call, with differential
+Numeric Spt
+
+Main:
+  Spt = RmTmpSpt
+  If Spt < 40 Or Spt > 100 Then
+    Spt = RmTmpSptDft
+  Endif
+  If Spt < 40 Or Spt > 100 Then
+    Spt = 70
+  Endif
+  If RmTmpSptHlmt > RmTmpSptLlmt Then
+    Spt = Maximum(RmTmpSptLlmt, Minimum(RmTmpSptHlmt, Spt))
+  Endif
+  RmTmpSptAct = Spt
+`;
+
+UV.src.uv = `' ===========================================================================
+' Prog_UvControl  -  {UNIT} unit ventilator mode, fan and discharge setpoint
+' Picks the mode, runs the fan and sets DaTmpSpt for Prog_UvHeatCool.
+'   Occupied: fan runs. DaTmpSpt resets from the room: DaTmpSptLlmt with the
+'   room 1.5 F above setpoint up to DaTmpSptHlmt with it 5 F below, both
+'   shifted by (setpoint - 70).
+#if NHT
+'   Night heat: unoccupied, the fan runs at DaTmpSptUnoc while the room is
+'   below RmTmpSptSb (RmTmpSptSbDif differential).
 #endif
+#if OPT
+'   Morning warm-up / cool-down: with TimeToStart (from the AS-P) inside
+'   MaxPrestartTime and the room 4 F off setpoint, the fan starts early and
+'   runs until the room is 1 F past setpoint or the unit is occupied.
+#endif
+#if DEHUM
+'   Dehumidify: DehumMode (from the AS-P) runs the fan; Prog_UvHeatCool
+'   opens the chilled water valve.
+#endif
+#if FRZ
+'   Low limit tripped (TmpLlmt On): fan off until it resets.
+#endif
+' From the team's Bower Hill unit ventilator programs.
+' Names follow EBO 3 SEBA Naming Convention.
+' ===========================================================================
+
+Numeric Input  OccCmd          ' from Prog_Occupancy, On = occupied
+Numeric Input  RmTmpCtl        ' room temp in use, from Prog_RoomTemp, deg F
+Numeric Input  {RMSPT}     ' room setpoint, deg F
+Numeric Input  DaTmpSptLlmt    ' discharge setpoint, room satisfied, deg F (value object)
+Numeric Input  DaTmpSptHlmt    ' discharge setpoint, room 5 F cold, deg F (value object)
+#if UNOCSPT
+Numeric Input  DaTmpSptUnoc    ' discharge setpoint for night heat and warm-up, deg F (value object)
+#endif
+#if CD
+Numeric Input  DaTmpSptCd      ' discharge setpoint for cool-down, deg F (value object)
+#endif
+#if NHT
+Numeric Input  RmTmpSptSb      ' night heat setpoint, deg F (value object)
+Numeric Input  RmTmpSptSbDif   ' night heat differential, deg F (value object)
+#endif
+#if OPT
+Numeric Input  TimeToStart     ' minutes until occupied, from the AS-P
+Numeric Input  MaxPrestartTime ' longest warm-up / cool-down lead, minutes (value object)
+#endif
+#if DEHUM
+Numeric Input  DehumMode       ' from the AS-P, On = dehumidify
+#endif
+#if FRZ
+Numeric Input  TmpLlmt         ' low limit switch, On = tripped
+#endif
+Numeric Output SaFanCmd        ' fan start/stop
+Numeric Output DaTmpSpt        ' discharge air setpoint, to Prog_UvHeatCool, deg F
+#if OAMOD
+Numeric Output OaDprEna        ' On = outside air allowed, to Prog_OaDamper
+#endif
+Numeric Output UvHvacMd        ' mode number
+String  Output HvacSts         ' mode text
+Function Func_Ratio            ' bind to Functions/Func_Ratio
+
+' ---- Local state -----------------------------------------------------------
+Numeric Ofs                    ' setpoint - 70
 
 Init:
-#if TEMP
-  TmpCall = Off
-#endif
-  Goto FanOff
+  Goto Unoc
 
-FanOff:
-  EaFan{N}Call = Off
-  EaFan{N}Cmd = Off
-#if DPR
-  EaFan{N}DprCmd = Off
+Unoc:
+  @MODE UNOCC_OFF
+  SaFanCmd = Off
+#if OAMOD
+  OaDprEna = Off
 #endif
-#if TEMP
-  If EaFan{N}RmTmp > EaFan{N}RmTmpSpt Then
-    TmpCall = On
-  Endif
-#endif
-  If {CALL} Then
-#if DPR
-    Goto DprOpen
-#else
-    Goto FanOn
-#endif
-  Endif
-#if DPR
-
-' Damper opening; the fan waits for the end switch.
-DprOpen:
-  EaFan{N}Call = On
-  EaFan{N}DprCmd = On
-  EaFan{N}Cmd = Off
-#if TEMP
-  If EaFan{N}RmTmp > EaFan{N}RmTmpSpt Then
-    TmpCall = On
-  Endif
-  If EaFan{N}RmTmp < EaFan{N}RmTmpSpt - EaFanRmTmpDif Then
-    TmpCall = Off
+  DaTmpSpt = DaTmpSptLlmt
+#if FRZ
+  If TmpLlmt = On Then
+    Goto Frz
   Endif
 #endif
-  If {NOCALL} Then
-    Goto FanOff
+  If OccCmd = On Then
+    Goto Occ
   Endif
-  If EaFan{N}DprSts = On Then
-    Goto FanOn
+#if DEHUM
+  If DehumMode = On Then
+    Goto Dehum
+  Endif
+#endif
+#if OPT
+  If TimeToStart > 0 And TimeToStart <= MaxPrestartTime Then
+#if WU
+    If RmTmpCtl < {RMSPT} - 4 Then
+      Goto WarmUp
+    Endif
+#endif
+#if CD
+    If RmTmpCtl > {RMSPT} + 4 Then
+      Goto CoolDn
+    Endif
+#endif
+  Endif
+#endif
+#if NHT
+  If RmTmpCtl < RmTmpSptSb - RmTmpSptSbDif / 2 Then
+    Goto NightHt
   Endif
 #endif
 
-FanOn:
-  EaFan{N}Call = On
-#if DPR
-  EaFan{N}DprCmd = On
+Occ:
+  @MODE OCC
+  SaFanCmd = On
+#if OAMOD
+  OaDprEna = On
 #endif
-  EaFan{N}Cmd = On
-#if TEMP
-  If EaFan{N}RmTmp > EaFan{N}RmTmpSpt Then
-    TmpCall = On
-  Endif
-  If EaFan{N}RmTmp < EaFan{N}RmTmpSpt - EaFanRmTmpDif Then
-    TmpCall = Off
-  Endif
-#endif
-  If {NOCALL} Then
-#if TEMP
-    Goto OffDly
-#else
-    Goto FanOff
-#endif
-  Endif
-#if DPR
-  If EaFan{N}DprSts = Off Then
-    Goto DprOpen
+  Ofs = {RMSPT} - 70
+  DaTmpSpt = Func_Ratio(RmTmpCtl - {RMSPT}, 1.5, -5, DaTmpSptLlmt + Ofs, DaTmpSptHlmt + Ofs)
+#if FRZ
+  If TmpLlmt = On Then
+    Goto Frz
   Endif
 #endif
-#if TEMP
+#if DEHUM
+  If DehumMode = On Then
+    Goto Dehum
+  Endif
+#endif
+  If OccCmd = Off Then
+    Goto Unoc
+  Endif
+#if DEHUM
 
-' Satisfied: keep running EaFanOffDly seconds, then stop.
-OffDly:
-  If EaFan{N}RmTmp > EaFan{N}RmTmpSpt Then
-    TmpCall = On
+' Occupied or not, the fan runs and the CHW valve opens (Prog_UvHeatCool).
+Dehum:
+  @MODE DEHUM
+  SaFanCmd = On
+#if OAMOD
+  OaDprEna = On
+#endif
+  Ofs = {RMSPT} - 70
+  DaTmpSpt = Func_Ratio(RmTmpCtl - {RMSPT}, 1.5, -5, DaTmpSptLlmt + Ofs, DaTmpSptHlmt + Ofs)
+#if FRZ
+  If TmpLlmt = On Then
+    Goto Frz
   Endif
-  If {CALL} Then
-    Goto FanOn
+#endif
+  If DehumMode = Off Then
+    Goto Unoc
   Endif
-  If TS >= EaFanOffDly Then
-    Goto FanOff
+#endif
+#if WU
+
+WarmUp:
+  @MODE WARMUP
+  SaFanCmd = On
+#if OAMOD
+  OaDprEna = Off
+#endif
+  DaTmpSpt = DaTmpSptUnoc
+#if FRZ
+  If TmpLlmt = On Then
+    Goto Frz
+  Endif
+#endif
+  If OccCmd = On Or RmTmpCtl > {RMSPT} + 1 Then
+    Goto Unoc
+  Endif
+#endif
+#if CD
+
+CoolDn:
+  @MODE COOLDOWN
+  SaFanCmd = On
+#if OAMOD
+  OaDprEna = Off
+#endif
+  DaTmpSpt = DaTmpSptCd
+#if FRZ
+  If TmpLlmt = On Then
+    Goto Frz
+  Endif
+#endif
+  If OccCmd = On Or RmTmpCtl < {RMSPT} - 1 Then
+    Goto Unoc
+  Endif
+#endif
+#if NHT
+
+NightHt:
+  @MODE NIGHT_HEAT
+  SaFanCmd = On
+#if OAMOD
+  OaDprEna = Off
+#endif
+  DaTmpSpt = DaTmpSptUnoc
+#if FRZ
+  If TmpLlmt = On Then
+    Goto Frz
+  Endif
+#endif
+  If OccCmd = On Or RmTmpCtl > RmTmpSptSb + RmTmpSptSbDif / 2 Then
+    Goto Unoc
+  Endif
+#endif
+#if FRZ
+
+Frz:
+  @MODE FRZ
+  SaFanCmd = Off
+#if OAMOD
+  OaDprEna = Off
+#endif
+  DaTmpSpt = DaTmpSptLlmt
+  If TmpLlmt = Off Then
+    Goto Unoc
   Endif
 #endif
 `;
 
-EF.src.alm = `' ===========================================================================
-' Prog_EaFan{N}Alarm  -  {UNIT} exhaust fan {N} failure alarm
-#if STS
-' Raises EaFan{N}Alm when the fan is called for and there has been no fan
-#else
-' Raises EaFan{N}Alm when the fan is called for and the damper end switch
+UV.src.hc = `' ===========================================================================
+' Prog_UvHeatCool  -  {UNIT} discharge air loop, valves and face & bypass
+' One loop on supply air temp against DaTmpSpt (from Prog_UvControl):
+'   HtgLoad 0-100 % over loop 45-0 %, ClgLoad 0-100 % over loop 50-100 %.
+#if HW
+'   HwVlvPos   0-100 %   100 = full flow to the coil. HtgEna (from the AS-P)
+'   must be On for heating.
 #endif
-' status for EaFan{N}AlmDly seconds. Clears when it returns or the call ends.
+#if FB
+'   FbDprPos   0-100 %   100 = full FACE (through the coil), 0 = full bypass.
+'   Below FbDprOaEnaSpt OAT the valve stays full open and the damper
+'   modulates instead.
+#endif
+#if CLG
+'   ClgVlvPos  0-100 %   100 = full flow. ClgEna (from the AS-P) must be On.
+#endif
+#if HW
+' Fan off: HW valve full open to protect the coil.
+#endif
+' From the team's Bower Hill unit ventilator programs.
 ' Names follow EBO 3 SEBA Naming Convention.
 ' ===========================================================================
 
-Numeric Input  EaFan{N}Call       ' from Prog_EaFan{N}Control
-#if STS
-Numeric Input  EaFan{N}Sts        ' current switch, On = running
-#else
-Numeric Input  EaFan{N}DprSts     ' damper end switch, On = open
+Numeric Input  SaTmp           ' supply air temp, deg F
+Numeric Input  DaTmpSpt        ' discharge setpoint, from Prog_UvControl, deg F
+Numeric Input  {FAN}        ' fan running (On)
+#if HW
+Numeric Input  HtgEna          ' from the AS-P, On = heating allowed
+Numeric Output HwVlvPos        ' hot water valve, 0-100 %
+Numeric Output HtgLoad         ' heating load, 0-100 %
 #endif
-Numeric Output EaFan{N}Alm        ' fan failure alarm
-Numeric Input  EaFan{N}AlmDly     ' alarm delay, seconds (value object)
+#if FB
+Numeric Input  OaTmp           ' outside air temp, deg F
+Numeric Input  FbDprOaEnaSpt   ' low-temp mode below this OAT, deg F (value object)
+Numeric Output FbDprPos        ' face & bypass damper, 100 = full face
+#endif
+#if CLG
+Numeric Input  ClgEna          ' from the AS-P, On = cooling allowed
+Numeric Output ClgVlvPos       ' chilled water valve, 0-100 %
+#endif
+#if CLG|ECON
+Numeric Output ClgLoad         ' cooling load, 0-100 %, also to Prog_OaDamper
+#endif
+#if DEHUM
+Numeric Input  DehumMode       ' from the AS-P, On = dehumidify
+#endif
+Function Func_PID              ' bind to Functions/Func_PID
+Function Func_Ratio            ' bind to Functions/Func_Ratio
 
-Standard:
-  EaFan{N}Alm = Off
-#if STS
-  If EaFan{N}Call = On And EaFan{N}Sts = Off Then
-#else
-  If EaFan{N}Call = On And EaFan{N}DprSts = Off Then
+' ---- Local state -----------------------------------------------------------
+Numeric DaLoop                 ' discharge loop, 0-100 %
+Numeric DaLErr
+Numeric DaIntg
+#if FB
+Numeric LowTmp                 ' On = low-temp (face & bypass) mode
 #endif
-    Goto NoSts
+
+Init:
+  Goto FanOff
+
+FanOff:
+  DaLErr = 0
+  DaIntg = 0
+#if HW
+  HtgLoad = 0
+  HwVlvPos = 100
+#endif
+#if FB
+  FbDprPos = 100
+#endif
+#if CLG|ECON
+  ClgLoad = 0
+#endif
+#if CLG
+  ClgVlvPos = 0
+#endif
+  If {FAN} = On Then
+    Goto Run
   Endif
 
-' Called for with no status. TS counts from when this started.
-NoSts:
-  If TS >= EaFan{N}AlmDly Then
-    EaFan{N}Alm = On
-  Endif
-#if STS
-  If EaFan{N}Call = Off Or EaFan{N}Sts = On Then
-#else
-  If EaFan{N}Call = Off Or EaFan{N}DprSts = On Then
+Run:
+  DaLoop = Func_PID(SaTmp, DaTmpSpt, 0.001, 0.0001, 0, 0, 1, DaLErr, DaIntg)
+#if HW
+  HtgLoad = Func_Ratio(DaLoop, 45, 0, 0, 100)
 #endif
-    Goto Standard
+#if CLG|ECON
+  ClgLoad = Func_Ratio(DaLoop, 50, 100, 0, 100)
+#endif
+#if FB
+  If OaTmp < FbDprOaEnaSpt - 1.5 Then
+    LowTmp = On
+  Endif
+  If OaTmp > FbDprOaEnaSpt + 1.5 Then
+    LowTmp = Off
+  Endif
+#endif
+#if HW
+  If HtgEna = On Then
+#if FB
+    If LowTmp = On Then
+      HwVlvPos = 100
+      FbDprPos = HtgLoad
+    Else
+      HwVlvPos = HtgLoad
+      FbDprPos = 100
+    Endif
+#else
+    HwVlvPos = HtgLoad
+#endif
+  Else
+    HwVlvPos = 0
+#if FB&DEHUM
+    If DehumMode = On Then
+      FbDprPos = HtgLoad
+    Else
+      FbDprPos = 100
+    Endif
+#elif FB
+    FbDprPos = 100
+#endif
+  Endif
+#endif
+#if CLG
+  If ClgEna = On Then
+#if DEHUM
+    If DehumMode = On Then
+      ClgVlvPos = 100
+    Else
+      ClgVlvPos = ClgLoad
+    Endif
+#else
+    ClgVlvPos = ClgLoad
+#endif
+  Else
+    ClgVlvPos = 0
+  Endif
+#endif
+  If {FAN} = Off Then
+    Goto FanOff
+  Endif
+`;
+
+UV.src.oa = `' ===========================================================================
+' Prog_OaDamper  -  {UNIT} outside air damper
+' Opens 2 minutes after the fan proves, while Prog_UvControl allows outside
+' air (occupied or dehumidifying). Closed in warm-up, cool-down, night heat
+' and with the fan off.
+#if ECON
+' Economizer below EconEnaSpt OAT: the damper follows the cooling load, never
+' below OaDprPosMin. Otherwise it holds OaDprPosMin.
+#else
+' Holds OaDprPosMin.
+#endif
+' A supply air low limit loop (SaLlmt) closes it back so SaTmp stays above
+' SaTmpLlmt.
+' From the team's Bower Hill unit ventilator programs.
+' Names follow EBO 3 SEBA Naming Convention.
+' ===========================================================================
+
+Numeric Input  OaDprEna        ' from Prog_UvControl, On = outside air allowed
+Numeric Input  {FAN}        ' fan running (On)
+Numeric Input  SaTmp           ' supply air temp, deg F
+Numeric Input  SaTmpLlmt       ' supply air low limit, deg F (value object)
+Numeric Input  OaDprPosMin     ' minimum outside air, % (value object)
+#if ECON
+Numeric Input  OaTmp           ' outside air temp, deg F
+Numeric Input  EconEnaSpt      ' economizer enabled below this OAT, deg F (value object)
+Numeric Input  ClgLoad         ' cooling load, from Prog_UvHeatCool, %
+Numeric Output EconEna         ' On = economizer enabled
+#endif
+Numeric Output OaDprPos        ' outside air damper, 0-100 %
+Numeric Output SaLlmt          ' supply low limit allowance, 0-100 %
+Function Func_PID              ' bind to Functions/Func_PID
+
+' ---- Local state -----------------------------------------------------------
+Numeric SaLErr
+Numeric SaIntg
+
+Closed:
+  OaDprPos = 0
+  SaLlmt = 100
+  SaLErr = 0
+  SaIntg = 0
+#if ECON
+  If OaTmp < EconEnaSpt - 0.5 Then
+    EconEna = On
+  Endif
+  If OaTmp > EconEnaSpt + 0.5 Then
+    EconEna = Off
+  Endif
+#endif
+  If OaDprEna = On And {FAN} = On Then
+    Goto Dly
+  Endif
+
+' Fan proven; wait 2 minutes before opening.
+Dly:
+  OaDprPos = 0
+  If OaDprEna = Off Or {FAN} = Off Then
+    Goto Closed
+  Endif
+  If TM >= 2 Then
+    Goto Open
+  Endif
+
+Open:
+  SaLlmt = Func_PID(SaTmp, SaTmpLlmt, 0.05, 0.0004, 0, 1, 1, SaLErr, SaIntg)
+#if ECON
+  If OaTmp < EconEnaSpt - 0.5 Then
+    EconEna = On
+  Endif
+  If OaTmp > EconEnaSpt + 0.5 Then
+    EconEna = Off
+  Endif
+  If EconEna = On Then
+    OaDprPos = Minimum(SaLlmt, Maximum(ClgLoad, OaDprPosMin))
+  Else
+    OaDprPos = Minimum(SaLlmt, OaDprPosMin)
+  Endif
+#else
+  OaDprPos = Minimum(SaLlmt, OaDprPosMin)
+#endif
+  If OaDprEna = Off Or {FAN} = Off Then
+    Goto Closed
   Endif
 `;
 
 // ---------- engine: controller parsing, IO assignment, program and XML building ----------
-const UNITS = {F: '0x280003', dF: '0x290002', '%': '0x200001', s: '0x2E0007', min: '0x2E0006', inwc: '0x230005', ppm: '0x200002', cfm: '0x1C0001', none: '0x10001'};
+const UNITS = {F: '0x280003', dF: '0x290002', '%': '0x200001', s: '0x2E0007', min: '0x2E0006', inwc: '0x230005', ppm: '0x200002', cfm: '0x1C0001', psi: '0x230003', rh: '0x170001', none: '0x10001'};
 // Lists in a template may be arrays or functions of (options, flags), for repeated equipment.
 const LIST = (x, o, F) => typeof x === 'function' ? x(o, F) : (x || []);
 // Path of target (relative to Application) as seen from an object in folder `from`.
@@ -2835,6 +3254,8 @@ function assignIO(points, ctrl, keep){
   const take = t => { free.delete(t); return t; };
   const res = {};
   points.forEach(p => { if (keep && keep[p.name] && free.has(keep[p.name]) && termCaps(keep[p.name])[p.io]) res[p.name] = take(keep[p.name]); });
+  // the terminal the template's source job used, when it is free
+  points.forEach(p => { if (!res[p.name] && p.term && free.has(p.term) && termCaps(p.term)[p.io]) res[p.name] = take(p.term); });
   const pick = (io) => {
     const ts = [...free].filter(t => termCaps(t)[io]);
     if (io === 'ao') {
@@ -2890,12 +3311,48 @@ function fixOpts(tpl, o){
   });
   return o;
 }
+// Points and values the tech adds by hand on the page (opts.custom):
+// {name, descr, kind: ai|vi|di|do|ao|av|bv, unit, def, lo, hi}
+const HW_KINDS = ['ai', 'vi', 'di', 'do', 'ao'];
+const NAME_OK = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
+function customPoints(opts){
+  return (opts.custom || []).filter(c => c && NAME_OK.test(c.name || '') && HW_KINDS.includes(c.kind)).map(c => {
+    const p = {name: c.name, descr: c.descr || c.name, io: c.kind, custom: true, text: 'onoff'};
+    if (c.kind === 'vi') { p.unit = c.unit || 'none'; p.range = [isFinite(+c.lo) && c.lo !== '' ? +c.lo : 0, isFinite(+c.hi) && c.hi !== '' ? +c.hi : 100]; }
+    if ((c.kind === 'ao' || c.kind === 'do') && c.def !== '' && c.def != null && isFinite(+c.def)) p.def = +c.def;
+    return p;
+  });
+}
+function customValues(opts){
+  return (opts.custom || []).filter(c => c && NAME_OK.test(c.name || '') && (c.kind === 'av' || c.kind === 'bv')).map(c => {
+    const v = {folder: 'Parameters', name: c.name, descr: c.descr || c.name, kind: c.kind, custom: true};
+    if (c.kind === 'av') { v.unit = c.unit || 'none'; v.def = c.def !== '' && c.def != null && isFinite(+c.def) ? +c.def : 0; v.param = true; }
+    else v.def = +c.def ? 1 : 0;
+    return v;
+  });
+}
+// Every field point the unit needs: the template's, then the hand-added ones.
+function allPoints(tpl, opts, F){ return LIST(tpl.points, opts, F).filter(p => cond(p.cond, F)).concat(customPoints(opts)); }
+
 function plan(tpl, opts, ctrl, io, sig, edits){
   opts = fixOpts(tpl, opts);
   const F = tpl.flags(opts);
   const root = tpl.root || null;  // one folder for everything (add-ons to a stock application)
-  const points = LIST(tpl.points, opts, F).filter(p => cond(p.cond, F));
-  const values = LIST(tpl.values, opts, F).filter(v => cond(v.cond, F)).map(v => {
+  const pointsOnly = !!opts.pointsOnly;  // objects only; the Programs folder stays empty
+  const tplPoints = LIST(tpl.points, opts, F).filter(p => cond(p.cond, F));
+  const tplValues = LIST(tpl.values, opts, F).filter(v => cond(v.cond, F));
+  const taken = new Set(tplPoints.map(p => p.name).concat(tplValues.map(v => v.name)));
+  const customIssues = [], seenCustom = new Set();
+  (opts.custom || []).forEach(c => {
+    if (!c) return;
+    if (!NAME_OK.test(c.name || '')) customIssues.push(`Added point "${c.name || ''}": use letters and digits, starting with a letter (32 at most)`);
+    else if (taken.has(c.name)) customIssues.push(`Added point ${c.name} has the same name as one the unit already makes`);
+    else if (seenCustom.has(c.name)) customIssues.push(`Added point ${c.name} is listed twice`);
+    seenCustom.add(c.name);
+  });
+  const dupOk = c => !taken.has(c.name);
+  const points = tplPoints.concat(customPoints(opts).filter(dupOk).filter((p, i, a) => a.findIndex(q => q.name === p.name) === i));
+  const values = tplValues.concat(customValues(opts).filter(dupOk).filter((v, i, a) => a.findIndex(q => q.name === v.name) === i)).map(v => {
     const d = Object.assign({}, v);
     if (d.defNoDx != null && !F.DX) d.def = d.defNoDx;
     d.isParam = d.param === true || (typeof d.param === 'string' && cond(d.param, F));
@@ -2904,8 +3361,9 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   });
   const unit = (opts.unit || tpl.label).trim() || tpl.label;
   // programs: preprocess, number the modes that appear, then expand
-  const progs = LIST(tpl.programs, opts, F).filter(p => cond(p.cond, F)).map(p => Object.assign({}, p, buildProgram(tpl, tpl.src[p.src], F, typeof p.vars === 'function' ? p.vars(F, opts) : p.vars)));
-  const used = new Set(); progs.forEach(p => p.used.forEach(k => used.add(k)));
+  const progsAll = LIST(tpl.programs, opts, F).filter(p => cond(p.cond, F)).map(p => Object.assign({}, p, buildProgram(tpl, tpl.src[p.src], F, typeof p.vars === 'function' ? p.vars(F, opts) : p.vars)));
+  const used = new Set(); progsAll.forEach(p => p.used.forEach(k => used.add(k)));  // mode numbers stay the same in a points-only file
+  const progs = pointsOnly ? [] : progsAll;
   const modeMap = {}; let n = 0;
   (tpl.modes || []).forEach(([k, text]) => { if (used.has(k)) modeMap[k] = {n: ++n, text}; });
   progs.forEach(p => {
@@ -2917,7 +3375,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   const reg = {};
   const ptUnit = p => p.io === 'ai' ? 'F' : p.io === 'ao' ? '%' : p.io === 'vi' ? p.unit || 'none' : 'none';
   points.forEach(p => { reg[p.name] = {kind: 'point', folder: root || (/^(ai|vi|di)$/.test(p.io) ? 'Inputs' : 'Outputs'), p, unit: ptUnit(p)}; });
-  const issues = [];
+  const issues = customIssues.slice();
   values.forEach(v => {
     if (v.ext) {
       // an object of the controller's stock application: bind to it, never create it
@@ -2941,8 +3399,9 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   }));
   progs.forEach(p => p.decl.ins.forEach(i => { if (!reg[i.name]) issues.push(`${p.name}.${i.name} has nothing to bind to`); }));
   const exRoot = root && ctrl.paths ? ctrl.paths : null;
-  const alarms = LIST(tpl.alarms, opts, F).filter(a => cond(a.cond, F) && !ex[a.name]);
-  const trends = LIST(tpl.trends, opts, F).filter(t => reg[t] && reg[t].kind !== 'ext' && !ex[t + 'Tlog']);
+  // points only: alarms only on hardware inputs (nothing writes the calculated ones)
+  const alarms = LIST(tpl.alarms, opts, F).filter(a => cond(a.cond, F) && !ex[a.name] && (!pointsOnly || (reg[a.src.split('/')[1]] || {}).kind === 'point'));
+  const trends = LIST(tpl.trends, opts, F).concat(points.filter(p => p.custom).map(p => p.name)).filter(t => reg[t] && reg[t].kind !== 'ext' && !ex[t + 'Tlog']);
   // functions the programs call
   const fnFolder = root || 'Functions';
   const fns = [...new Set([].concat(...progs.map(p => p.decl.fns)))];
@@ -2969,7 +3428,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   const progFolder = root || 'Programs';
   const clashes = root ? [] : progs.map(p => p.name).filter(n => ex[n]);
   const reused = Object.keys(reg).filter(n => reg[n].reused && reg[n].kind !== 'ext').concat(fns.filter(f => ex[f]));
-  return {F, root, points, values, progs, modeMap, states, reg, writer, alarms, trends, issues, ioIssues, io, sig: sig || {}, sensor, clashes, reused, manual, pidFolder, fns, fnAt, newFns, progFolder, opts, ctrl, unit, tpl};
+  return {F, root, pointsOnly, points, values, progs, modeMap, states, reg, writer, alarms, trends, issues, ioIssues, io, sig: sig || {}, sensor, clashes, reused, manual, pidFolder, fns, fnAt, newFns, progFolder, opts, ctrl, unit, tpl};
 }
 
 // ---------- XML ----------
@@ -3010,17 +3469,18 @@ function objXml(P, name, enums){
       const e = ENUM.onoff; enums.add('onoff');
       pi('<PI Name="ActiveText" Value="On" />'); pi('<PI Name="InactiveText" Value="Off" />');
       PRIOS.forEach(pr => { if (pr === 'Priority9' && w) piRef(`Name="Priority9" Type="${e.name}"`, w); else pi(`<PI Name="${pr}" Type="${e.name}" />`); });
-      pi(`<PI Name="RelinquishDefault" Type="${e.name}" />`);
+      pi(`<PI Name="RelinquishDefault" Type="${e.name}"${p.def != null ? ` Value="${p.def ? 1 : 0}"` : ''} />`);
       lines.push(`${I}  <PI Name="Terminal">`, `${I}    ${term}`, `${I}  </PI>`);
       pi(`<PI Name="Value" Type="${e.name}" />`);
     } else {
-      const s = P.sig[p.name] || '0-10';
+      const s = P.sig[p.name] || p.sig || '0-10';
       const [eb, et, gb, gt] = {'0-10': [0, 10, 0, 100], '2-10': [2, 10, 0, 100], '10-0': [0, 10, 100, 0], '10-2': [2, 10, 100, 0]}[s];
       pi('<PI Name="COVIncrement" Unit="0x200001" Value="0.100000001" />');
       pi(`<PI Name="ElecBottomOfScale" Value="${eb}" />`); pi(`<PI Name="ElecTopOfScale" Value="${et}" />`);
       pi(`<PI Name="EngBottomOfScale" Unit="0x200001" Value="${gb}" />`); pi(`<PI Name="EngTopOfScale" Unit="0x200001" Value="${gt}" />`);
       pi('<PI Name="MaxPresValue" Unit="0x200001" Value="3.40282347e+38" />'); pi('<PI Name="MinPresValue" Unit="0x200001" Value="-3.40282347e+38" />');
       if (w) piRef('Name="Priority9"', w);
+      if (p.def != null) pi(`<PI Name="RelinquishDefault" Unit="0x200001" Value="${p.def}" />`);
       lines.push(`${I}  <PI Name="Terminal">`, `${I}    ${term}`, `${I}  </PI>`);
       pi('<PI Name="Value" Unit="0x200001" />');
     }
@@ -3045,8 +3505,9 @@ function objXml(P, name, enums){
     lines.push(`${I}<OI DESCR="${xa(v.descr)}" NAME="${v.name}" TYPE="bacnet.mpx.value.DigitalValue">`);
     pi(`<PI Name="ActiveText" Value="${e ? e.text[0] : ''}" />`); pi(`<PI Name="InactiveText" Value="${e ? e.text[1] : ''}" />`);
     PRIOS.forEach(pr => { if (pr === 'Priority9' && sensorRef) piRef('Name="Priority9"', sensorRef); else pi(`<PI Name="${pr}" Type="${T}" />`); });
-    pi(`<PI Name="RelinquishDefault" Type="${T}" />`);
-    if (w) piRef(`Name="Value" Type="${T}"`, w); else pi(`<PI Name="Value" Type="${T}" />`);
+    const bd = v.def != null && !w ? ` Value="${v.def ? 1 : 0}"` : '';
+    pi(`<PI Name="RelinquishDefault" Type="${T}"${bd} />`);
+    if (w) piRef(`Name="Value" Type="${T}"`, w); else pi(`<PI Name="Value" Type="${T}"${bd} />`);
   } else if (v.kind === 'msv') {
     const st = P.states[v.states], T = enums.multi(v.name, st);
     lines.push(`${I}<OI DESCR="${xa(v.descr)}" NAME="${v.name}" TYPE="bacnet.mpx.value.MultistateValue">`);
@@ -3131,7 +3592,7 @@ async function buildXml(T, P){
   [...enumSet].forEach(k => { const e = ENUM[k]; types.push(enumXml(e.name, e.base, e.states)); });
   multis.forEach(m => types.push(enumXml(m.real, 'system.pt.PositiveInt32', m.st.map((s, i) => [s, i + 1]))));
   types.push(...fnTypes, ...progTypes);
-  const folder = (name, items, descr) => items.length ? [`  <OI ${descr ? `DESCR="${xa(descr)}" ` : ''}NAME="${xa(name)}" TYPE="system.base.Folder">`, ...items, '  </OI>'].join('\n') : null;
+  const folder = (name, items, descr, keep) => items.length || keep ? [`  <OI ${descr ? `DESCR="${xa(descr)}" ` : ''}NAME="${xa(name)}" TYPE="system.base.Folder">`, ...items, '  </OI>'].join('\n') : null;
   const trendItems = trendObjs.concat(P.trends.length ? [chart] : []);
   let body;
   if (P.root) {
@@ -3142,7 +3603,7 @@ async function buildXml(T, P){
     body = [
       folder('Alarms', alarmObjs), folder('Functions', fnObjs),
       folder('Inputs', folders.Inputs), folder('Numerics', folders.Numerics), folder('Occupancy', folders.Occupancy),
-      folder('Outputs', folders.Outputs), folder('Parameters', folders.Parameters), folder('Programs', progObjs),
+      folder('Outputs', folders.Outputs), folder('Parameters', folders.Parameters), folder('Programs', progObjs, null, P.pointsOnly),
       folder('Trends', trendItems)
     ].filter(Boolean).join('\n');
   }
@@ -3152,9 +3613,9 @@ async function buildXml(T, P){
 }
 
 // ---------- README ----------
-const UNIT_TXT = {F: 'F', dF: 'F', '%': '%', s: 's', min: 'min', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', none: ''};
+const UNIT_TXT = {F: 'F', dF: 'F', '%': '%', s: 's', min: 'min', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', psi: 'psi', rh: '%RH', none: ''};
 function ioLabel(p, P){
-  if (p.io === 'ao') return 'AO ' + (P.sig[p.name] || '0-10') + 'V';
+  if (p.io === 'ao') return 'AO ' + (P.sig[p.name] || p.sig || '0-10') + 'V';
   if (p.io === 'vi') return 'AI 0-10V';
   return {ai: 'AI 10k', di: 'DI', do: 'DO'}[p.io];
 }
@@ -3166,6 +3627,7 @@ function readme(P, tpl){
   L.push(`Controller: ${P.ctrl.name} (${P.ctrl.model})   Server: ${P.ctrl.server}`);
   L.push(`Unit type: ${tpl.title}`);
   L.push(`Built ${today} by the BAS Field Tools program generator. Not compiled or run in EBO yet.`);
+  if (P.pointsOnly) L.push('POINTS ONLY: points, values, alarms and trends. The Programs folder is empty; nothing writes the calculated values until programs are added.');
   L.push('='.repeat(73), '');
   L.push('OPTIONS');
   tpl.options.forEach(op => {
@@ -3176,7 +3638,7 @@ function readme(P, tpl){
   if (P.F.SB) L.push(`  Room sensor on the Sensor Bus: "${P.sensor}"`);
   L.push('');
   L.push('IMPORT STEPS');
-  const steps = tpl.importSteps ? tpl.importSteps(P) : [
+  const steps = P.pointsOnly ? [`In WorkStation, right-click ${P.ctrl.name}/Application${P.root ? '/' + P.root.split('/').slice(0, -1).join('/') : ''} and choose Import. Pick the "Complete - import.xml" file.`.replace('Application/ and', 'Application and')] : tpl.importSteps ? tpl.importSteps(P) : [
     `In WorkStation, right-click ${P.ctrl.name}/Application and choose Import. Pick the "Complete - import.xml" file. Folders, points, programs, alarms and trends come in together, with the program inputs already bound.`,
     `Programs arrive uncompiled. Open and save ${P.fns.length ? P.fns.join(', ') + ' first, then' : ''} each program.`,
     'Bind OccCmdTs (Occupancy folder) to the unit\'s schedule.'
@@ -3197,12 +3659,13 @@ function readme(P, tpl){
       + (p.io === 'di' && p.text === 'alarm' ? ' (On = tripped)' : p.io === 'di' && p.text === 'dirty' ? ' (Closed = dirty)' : '')));
   L.push('');
   L.push(`PROGRAMS (${P.ctrl.name}/Application/${P.progFolder})`);
+  if (P.pointsOnly) L.push('  None (points-only export).');
   P.progs.forEach(p => L.push('  ' + pad(p.name, 26) + p.descr));
   P.fns.forEach(f => L.push('  ' + pad(f, 26) + (FUNCS[f] ? FUNCS[f].descr : 'team function') + ', in ' + P.fnAt[f]));
   L.push('');
   L.push('SETPOINTS (value objects bound to program inputs, with defaults)');
   P.values.filter(v => v.isParam).forEach(v => L.push('  ' + pad(v.name, 20) + pad((v.def != null ? v.def : '') + ' ' + UNIT_TXT[v.unit || 'none'], 14) + v.descr));
-  if (P.F.SPT) L.push('  RmTmpSptHtg and RmTmpSptClg follow the room sensor setpoint (Prog_RoomSetpoint).');
+  if (P.F.SPT && P.reg.RmTmpSptHtg) L.push('  RmTmpSptHtg and RmTmpSptClg follow the room sensor setpoint (Prog_RoomSetpoint).');
   L.push('');
   if (Object.keys(P.modeMap).length) {
     L.push(`MODES (${tpl.modeVar || 'AhuHvacMd'} / ${tpl.modeText || 'HvacSts'})`);
@@ -3244,12 +3707,12 @@ function readme(P, tpl){
       sensors: ['SmartX Sensor Device'], usedTerms: {'AO 1': 1, 'DO 1': 1, 'DO 2': 1, 'DO 3': 1, 'UI 1': 1, 'UI 2': 1},
       existing: {RmTmp99: 'Components', RmTmpSpt99: 'Components', Rht99: 'Components', Fan99: 'Components', Flow99: 'Components'},
       paths: {'Components/RmTmp99/Values/RmTmp': 1, 'Components/RmTmpSpt99/Values/RmTmpHspt': 1}})},
-    {id: 'ef', label: 'Exhaust fan', tpl: EF, sample: () => mpc('EF-1', 'MPC18B', UB10)},
-    {id: 'rtu', label: 'RTU'}, {id: 'fcu', label: 'FCU'}, {id: 'uv', label: 'Unit Vent'}, {id: 'blr', label: 'Boiler'}
+    {id: 'uv', label: 'Unit Vent', tpl: UV, sample: () => Object.assign(mpc('UV-1', 'RPC12A', ['DO 1','DO 2','DO 3','DO 4','Ub 1','Ub 2','Ub 3','Ub 4','Ub 5','Ub 6','Ub 7','Ub 8']), {sensors: ['SmartX Sensor Device']})},
+    {id: 'rtu', label: 'RTU'}, {id: 'fcu', label: 'FCU'}, {id: 'blr', label: 'Boiler'}
   ];
   const IOLBL = {ai: 'AI 10k', vi: 'AI 0-10 V', di: 'DI', do: 'DO', ao: 'AO'};
-  const UNITLBL = {F: '°F', dF: '°F', '%': '%', s: 's', min: 'min', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', none: ''};
-  const fresh = () => ({ctrl: null, sample: false, type: 'ahu', unit: '', optsBy: {}, ioBy: {}, sigBy: {}, editsBy: {}, trendMin: 5, prog: 0});
+  const UNITLBL = {F: '°F', dF: '°F', '%': '%', s: 's', min: 'min', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', psi: 'psi', rh: '%RH', none: ''};
+  const fresh = () => ({ctrl: null, sample: false, type: 'ahu', unit: '', optsBy: {}, ioBy: {}, sigBy: {}, editsBy: {}, customBy: {}, pointsOnly: false, trendMin: 5, prog: 0});
   let S = fresh();
   let P = null, downloads = null;
 
@@ -3259,6 +3722,7 @@ function readme(P, tpl){
   // Options, terminals, signals and setpoint edits are kept per unit type.
   const by = k => { S[k] = S[k] || {}; return S[k][S.type] = S[k][S.type] || {}; };
   const O = () => by('optsBy'), IO = () => by('ioBy'), SIG = () => by('sigBy'), ED = () => by('editsBy');
+  const CU = () => { S.customBy = S.customBy || {}; return S.customBy[S.type] = S.customBy[S.type] || []; };
   function load(){
     try {
       const x = JSON.parse(localStorage.getItem(KEY) || 'null');
@@ -3360,8 +3824,8 @@ function readme(P, tpl){
       const opts = c.terms.filter(x => termCaps(x)[p.io] && !(c.usedTerms || {})[x]);
       const dup = t && taken[t].length > 1;
       let cell = `<select data-io="${p.name}" aria-label="${p.name} terminal"><option value="">–</option>${opts.map(x => `<option ${x === t ? 'selected' : ''}>${x}</option>`).join('')}</select>`;
-      if (p.io === 'ao') cell += ` <select data-sig="${p.name}" aria-label="${p.name} signal">${['0-10', '2-10', '10-0', '10-2'].map(s => `<option value="${s}" ${(SIG()[p.name] || '0-10') === s ? 'selected' : ''}>${s} V</option>`).join('')}</select>`;
-      return `<tr class="${!t || dup || bad.has(p.name) ? 'err' : ''}"><td class="nm">${p.name}</td><td class="ds">${esc(p.descr)}</td><td><span class="tag">${IOLBL[p.io]}</span></td><td>${cell}</td></tr>`;
+      if (p.io === 'ao') cell += ` <select data-sig="${p.name}" aria-label="${p.name} signal">${['0-10', '2-10', '10-0', '10-2'].map(s => `<option value="${s}" ${(SIG()[p.name] || p.sig || '0-10') === s ? 'selected' : ''}>${s} V</option>`).join('')}</select>`;
+      return `<tr class="${!t || dup || bad.has(p.name) ? 'err' : ''}"><td class="nm">${p.name}${p.custom ? '<span class="mine">added</span>' : ''}</td><td class="ds">${esc(p.descr)}</td><td><span class="tag">${IOLBL[p.io]}</span></td><td>${cell}</td></tr>`;
     }).join('');
     const free = c.terms.filter(x => !(c.usedTerms || {})[x]).length;
     const kinds = [...new Set(c.terms.map(x => termKey(x)[0]))];
@@ -3381,6 +3845,52 @@ function readme(P, tpl){
   });
   $('reassign').addEventListener('click', () => { S.ioBy[S.type] = {}; recompute(); toast('Terminals reassigned'); });
 
+  // ---------- step 4b: points added by hand ----------
+  const KIND_LBL = {ai: 'AI 10k', vi: 'AI 0-10 V', di: 'DI', do: 'DO', ao: 'AO', av: 'Analog value', bv: 'Binary value'};
+  function renderAddForm(){
+    const k = $('apKind').value;
+    $('apUnitF').hidden = !(k === 'vi' || k === 'av');
+    $('apLoF').hidden = $('apHiF').hidden = k !== 'vi';
+    $('apDefF').hidden = !(k === 'ao' || k === 'do' || k === 'av' || k === 'bv');
+    const cur = $('apDefRow').dataset.k;
+    if (cur !== k) {
+      $('apDefRow').dataset.k = k;
+      $('apDefRow').innerHTML = (k === 'do' || k === 'bv')
+        ? '<select id="apDef"><option value="">None</option><option value="0">Off</option><option value="1">On</option></select>'
+        : `<input id="apDef" type="number" inputmode="decimal" step="any" placeholder="${k === 'ao' ? 'none' : '0'}"><span class="u" style="display:flex;align-items:center;padding:0 10px">${k === 'ao' ? '%' : ''}</span>`;
+    }
+  }
+  function renderCustom(){
+    const list = CU();
+    $('custList').innerHTML = list.map((c, i) => {
+      const def = c.def === '' || c.def == null ? '' : (c.kind === 'do' || c.kind === 'bv') ? (+c.def ? 'default On' : 'default Off') : `default ${c.def}${c.kind === 'ao' ? ' %' : c.kind === 'av' ? ' ' + (UNITLBL[c.unit] || '') : ''}`;
+      const rng = c.kind === 'vi' ? `${c.lo}-${c.hi} ${UNITLBL[c.unit] || ''}` : '';
+      return `<li><b>${esc(c.name)}</b><span class="tag">${KIND_LBL[c.kind]}</span><span class="d">${esc(c.descr || '')}${rng ? ' · ' + esc(rng) : ''}${def ? ' · ' + esc(def) : ''}</span><button type="button" class="link" data-rm="${i}">Remove</button></li>`;
+    }).join('');
+  }
+  $('apKind').addEventListener('change', renderAddForm);
+  $('apAdd').addEventListener('click', () => {
+    const name = $('apName').value.trim(), kind = $('apKind').value;
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(name)) { toast('Name: letters and digits, starting with a letter (SEBA style, like HwSTmp).', true); $('apName').focus(); return; }
+    if (CU().some(c => c.name === name) || (P && P.reg[name] && !P.reg[name].p?.custom && !(P.reg[name].v || {}).custom)) { toast(`${name} is already on this unit.`, true); $('apName').focus(); return; }
+    const c = {name, descr: $('apDescr').value.trim() || name, kind};
+    if (kind === 'vi' || kind === 'av') c.unit = $('apUnit').value;
+    if (kind === 'vi') { c.lo = $('apLo').value || '0'; c.hi = $('apHi').value || '100'; }
+    if ($('apDef') && !$('apDefF').hidden) c.def = $('apDef').value;
+    CU().push(c);
+    $('apName').value = ''; $('apDescr').value = ''; if ($('apDef')) $('apDef').value = '';
+    renderCustom(); recompute(); toast(`Added ${name}`);
+  });
+  $('custList').addEventListener('click', e => {
+    const b = e.target.closest('button[data-rm]'); if (!b) return;
+    const c = CU().splice(+b.dataset.rm, 1)[0];
+    renderCustom(); recompute(); if (c) toast(`Removed ${c.name}`);
+  });
+  $('expSeg').addEventListener('click', e => {
+    const b = e.target.closest('button[data-x]'); if (!b) return;
+    S.pointsOnly = b.dataset.x === 'points'; recompute();
+  });
+
   // ---------- step 5 ----------
   function renderSpts(){
     if (!P) { $('sptBody').innerHTML = ''; return; }
@@ -3396,10 +3906,10 @@ function readme(P, tpl){
   function recompute(keepSpts){
     const t = tpl();
     if (!S.ctrl) { P = null; renderIO(); renderSpts(); renderReadout(); save(); return; }
-    const opts = fixOpts(t, Object.assign({}, O(), {unit: S.unit, trendMin: S.trendMin}));
+    const opts = fixOpts(t, Object.assign({}, O(), {unit: S.unit, trendMin: S.trendMin, custom: CU(), pointsOnly: !!S.pointsOnly}));
     const F = t.flags(opts);
     const ex = t.root ? {} : (S.ctrl.existing || {});
-    const pts = LIST(t.points, opts, F).filter(p => cond(p.cond, F) && !ex[p.name]);
+    const pts = allPoints(t, opts, F).filter(p => !ex[p.name]);
     // keep terminals the user picked, fill the rest
     const io = assignIO(pts, S.ctrl, IO());
     pts.forEach(p => { if (IO()[p.name] && S.ctrl.terms.includes(IO()[p.name])) io[p.name] = IO()[p.name]; });
@@ -3418,9 +3928,10 @@ function readme(P, tpl){
       $('rPills').innerHTML = ''; $('saveXml').disabled = $('saveTxt').disabled = true; return;
     }
     $('rLbl').textContent = `${S.ctrl.name} · ${S.ctrl.model}`;
-    $('rTitle').textContent = `${P.unit} Complete - import.xml`;
+    $('rTitle').textContent = `${P.unit} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml`;
     $('rPts').textContent = P.points.length;
     $('rProgs').textContent = P.progs.length;
+    [...$('expSeg').children].forEach(b => b.setAttribute('aria-pressed', String((b.dataset.x === 'points') === !!S.pointsOnly)));
     $('rSpts').textContent = P.values.filter(v => v.isParam).length;
     $('rAlms').textContent = P.alarms.length;
     $('rTrends').textContent = P.trends.length;
@@ -3428,9 +3939,10 @@ function readme(P, tpl){
     P.issues.forEach(s => pills.push(['bad', s]));
     if (P.clashes.length) pills.push(['bad', `${P.clashes.join(', ')} already in this controller. Rename or delete ${P.clashes.length > 1 ? 'them' : 'it'} before importing.`]);
     if (P.reused.length) pills.push(['warn', `Keeping ${P.reused.length} object${P.reused.length > 1 ? 's' : ''} the controller already has; the programs bind to them.${P.manual.length ? ` ${P.manual.length} need a binding by hand (see README).` : ''}`]);
+    if (P.pointsOnly) pills.push(['warn', 'Points only: the Programs folder is empty and nothing writes the calculated values yet.']);
     if (S.sample) pills.push(['warn', 'Sample controller. Open the real export before saving.']);
     if (P.F.SB && !S.ctrl.sensors.length && !S.sample) pills.push(['warn', 'No room sensor on this controller\'s Sensor Bus yet. Add it before importing, or the room values stay unbound.']);
-    if (!pills.length) pills.push(['ok', 'Ready to save']);
+    if (!pills.some(p => !(p[0] === 'warn' && p[1].startsWith('Points only')))) pills.push(['ok', 'Ready to save']);
     $('rPills').innerHTML = pills.map(([k, s]) => `<span class="pill ${k}">${esc(s)}</span>`).join('');
     const blocked = S.sample || P.ioIssues.length || P.issues.length || P.clashes.length;
     $('saveXml').disabled = !!blocked; $('saveTxt').disabled = S.sample;
@@ -3438,6 +3950,7 @@ function readme(P, tpl){
 
   function renderCode(){
     if (!P) { $('progTabs').innerHTML = ''; $('progPre').textContent = ''; return; }
+    if (!P.progs.length) { $('progTabs').innerHTML = ''; $('progPre').textContent = P.pointsOnly ? 'Points only: no programs in this file.' : 'No programs.'; return; }
     if (S.prog >= P.progs.length) S.prog = 0;
     $('progTabs').innerHTML = P.progs.map((p, i) => `<button type="button" data-i="${i}" aria-pressed="${i === S.prog}">${p.name}</button>`).join('');
     $('progPre').textContent = P.progs[S.prog].code;
@@ -3469,7 +3982,7 @@ function readme(P, tpl){
   $('saveXml').addEventListener('click', async () => {
     if (!P) return;
     $('saveXml').disabled = true;
-    try { const xml = await buildXml(T, P); await saveFile(`${fname(P.unit)} Complete - import.xml`, xml, 'application/xml', `Saved ${P.progs.length} programs and ${P.points.length} points`); }
+    try { const xml = await buildXml(T, P); await saveFile(`${fname(P.unit)} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml`, xml, 'application/xml', P.pointsOnly ? `Saved ${P.points.length} points, no programs` : `Saved ${P.progs.length} programs and ${P.points.length} points`); }
     catch(e) { toast('Could not build the file: ' + e.message, true); }
     renderReadout();
   });
@@ -3495,7 +4008,7 @@ function readme(P, tpl){
     render(); toast('Cleared');
   });
 
-  function render(){ renderCtrl(); renderTypes(); renderOpts(); $('trendMin').value = S.trendMin; recompute(); }
+  function render(){ renderCtrl(); renderTypes(); renderOpts(); renderAddForm(); renderCustom(); $('trendMin').value = S.trendMin; recompute(); }
   load(); render();
   (async () => { try { if (window.claude && window.claude.use) downloads = await claude.use('downloads'); } catch(e) {} })();
 })();
