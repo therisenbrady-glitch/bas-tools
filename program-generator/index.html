@@ -2362,9 +2362,9 @@ const VAV = {
   trends: ['RadVlvPos', 'RadCmd', 'RadEna'],
   programs: [{name: 'Prog_RadControl', descr: 'Perimeter Radiation Program', src: 'rad'}],
   importSteps(P){
-    const s = [`In WorkStation, right-click ${P.ctrl.name}/Application/Components and choose Import. Pick the "Complete - import.xml" file. It adds one folder, PerimRad, and changes nothing in the stock VAV application.`,
+    const s = [`In WorkStation, right-click ${P.ctrl.name}/Application/Components and choose Import. Pick the "Complete - import.xml" file. It adds one component folder, PerimRad, laid out like the stock ones (Points, Values, Parameters, Programs, Functions, Trends), and changes nothing in the stock VAV application.`,
       'Programs arrive uncompiled. Open and save Func_PID first, then Prog_RadControl.'];
-    if (P.F.OAENA) s.push('Write PerimRad/OaTmp from the AS-P (or bind it to the building OAT).');
+    if (P.F.OAENA) s.push('Write PerimRad/Values/OaTmp from the AS-P (or bind it to the building OAT).');
     return s;
   },
   assumptions(P){
@@ -2406,7 +2406,7 @@ Numeric Input  RadTmpDif      ' on this far below the setpoint, deg F (value obj
 Numeric Output RadEna         ' On = radiation enabled
 #if MOD
 Numeric Output RadVlvPos      ' radiation valve, 0-100 %
-Function Func_PID             ' bind to PerimRad/Func_PID
+Function Func_PID             ' bind to PerimRad/Functions/Func_PID
 
 ' ---- Local state -----------------------------------------------------------
 Numeric RadLErr
@@ -3337,7 +3337,9 @@ function allPoints(tpl, opts, F){ return LIST(tpl.points, opts, F).filter(p => c
 function plan(tpl, opts, ctrl, io, sig, edits){
   opts = fixOpts(tpl, opts);
   const F = tpl.flags(opts);
-  const root = tpl.root || null;  // one folder for everything (add-ons to a stock application)
+  const root = tpl.root || null;  // one component folder (add-ons to a stock application)
+  // Inside it, the stock component layout: Points, Values, Parameters, Programs, Functions, Alarms, Trends.
+  const sub = name => root + '/' + name;
   const pointsOnly = !!opts.pointsOnly;  // objects only; the Programs folder stays empty
   const tplPoints = LIST(tpl.points, opts, F).filter(p => cond(p.cond, F));
   const tplValues = LIST(tpl.values, opts, F).filter(v => cond(v.cond, F));
@@ -3374,7 +3376,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   // object registry by name
   const reg = {};
   const ptUnit = p => p.io === 'ai' ? 'F' : p.io === 'ao' ? '%' : p.io === 'vi' ? p.unit || 'none' : 'none';
-  points.forEach(p => { reg[p.name] = {kind: 'point', folder: root || (/^(ai|vi|di)$/.test(p.io) ? 'Inputs' : 'Outputs'), p, unit: ptUnit(p)}; });
+  points.forEach(p => { reg[p.name] = {kind: 'point', folder: root ? sub('Points') : (/^(ai|vi|di)$/.test(p.io) ? 'Inputs' : 'Outputs'), p, unit: ptUnit(p)}; });
   const issues = customIssues.slice();
   values.forEach(v => {
     if (v.ext) {
@@ -3384,7 +3386,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
       if (ctrl.paths && !ctrl.paths[v.ext]) issues.push(`${v.ext} is not in this controller's application`);
       return;
     }
-    reg[v.name] = {kind: 'value', folder: root || v.folder, v, unit: v.unit || 'none'};
+    reg[v.name] = {kind: 'value', folder: root ? sub(v.param || v.folder === 'Parameters' ? 'Parameters' : 'Values') : v.folder, v, unit: v.unit || 'none'};
   });
   // Objects the controller already has are reused: not re-created, programs bind to them where they are.
   const ex = root ? {} : (ctrl.existing || {});
@@ -3403,7 +3405,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   const alarms = LIST(tpl.alarms, opts, F).filter(a => cond(a.cond, F) && !ex[a.name] && (!pointsOnly || (reg[a.src.split('/')[1]] || {}).kind === 'point'));
   const trends = LIST(tpl.trends, opts, F).concat(points.filter(p => p.custom).map(p => p.name)).filter(t => reg[t] && reg[t].kind !== 'ext' && !ex[t + 'Tlog']);
   // functions the programs call
-  const fnFolder = root || 'Functions';
+  const fnFolder = root ? sub('Functions') : 'Functions';
   const fns = [...new Set([].concat(...progs.map(p => p.decl.fns)))];
   const fnAt = {};
   fns.forEach(f => { fnAt[f] = ex[f] || fnFolder; });
@@ -3425,7 +3427,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   if (tpl.model && !tpl.model.test(ctrl.type || '') && !ctrl.sample) issues.unshift(`${tpl.label} needs ${tpl.modelName}; this export is ${ctrl.model}`);
   if (root && exRoot && exRoot[root]) issues.push(`${root} already exists in this controller. Rename or delete it before importing.`);
   const sensor = (ctrl.sensors && ctrl.sensors[0]) || 'SpaceLogic Sensor Device';
-  const progFolder = root || 'Programs';
+  const progFolder = root ? sub('Programs') : 'Programs';
   const clashes = root ? [] : progs.map(p => p.name).filter(n => ex[n]);
   const reused = Object.keys(reg).filter(n => reg[n].reused && reg[n].kind !== 'ext').concat(fns.filter(f => ex[f]));
   return {F, root, pointsOnly, points, values, progs, modeMap, states, reg, writer, alarms, trends, issues, ioIssues, io, sig: sig || {}, sensor, clashes, reused, manual, pidFolder, fns, fnAt, newFns, progFolder, opts, ctrl, unit, tpl};
@@ -3533,7 +3535,7 @@ function varXml(T, name, unitHex, kind){
 async function buildXml(T, P){
   const unitHex = n => { const r = P.reg[n]; return r ? UNITS[r.unit] || UNITS.none : UNITS.none; };
   const base = `${P.ctrl.server}/${P.ctrl.name}/Application`;
-  const F_ = (folder) => P.root || folder;
+  const F_ = (folder) => P.root ? P.root + '/' + folder : folder;
   // enums
   const enumSet = new Set(), multis = [];
   enumSet.multi = (name, st) => { const k = name + ':' + st.join(';'); let e = multis.find(m => m.k === k); if (!e) { e = {k, st}; multis.push(e); } return e.name || (e.name = '@@ENUM' + multis.indexOf(e) + '@@'); };
@@ -3596,9 +3598,12 @@ async function buildXml(T, P){
   const trendItems = trendObjs.concat(P.trends.length ? [chart] : []);
   let body;
   if (P.root) {
-    // one folder: functions, objects, programs, alarms, trends
-    const leaf = P.root.split('/').pop();
-    body = folder(leaf, [].concat(fnObjs, ...Object.values(folders), progObjs, alarmObjs, trendItems), P.tpl && P.tpl.rootDescr);
+    // one component folder laid out like the stock ones
+    const leaf = P.root.split('/').pop(), at = n => folders[P.root + '/' + n] || [];
+    const kids = [folder('Points', at('Points')), folder('Values', at('Values')), folder('Parameters', at('Parameters')),
+      folder('Programs', progObjs, null, P.pointsOnly), folder('Functions', fnObjs), folder('Alarms', alarmObjs), folder('Trends', trendItems)]
+      .filter(Boolean).map(x => x.replace(/^/gm, '  '));
+    body = folder(leaf, kids, P.tpl && P.tpl.rootDescr);
   } else {
     body = [
       folder('Alarms', alarmObjs), folder('Functions', fnObjs),
@@ -3780,7 +3785,7 @@ function readme(P, tpl){
   function renderTypes(){
     $('types').innerHTML = TYPES.map(t => `<button type="button" data-t="${t.id}" aria-pressed="${t.id === S.type}" ${t.tpl ? '' : 'disabled'}>${t.label}${t.tpl ? '' : '<small>soon</small>'}</button>`).join('');
     const t = tpl();
-    $('typeHint').textContent = `${t.title}. Needs ${t.modelName}${t.root ? `; everything imports into one new folder, Application/${t.root}` : ''}. The greyed-out types are added once there is a finished, field-proven program set to build them from.`;
+    $('typeHint').textContent = `${t.title}. Needs ${t.modelName}${t.root ? `; everything imports into one new component folder, Application/${t.root}, with the stock Points, Values, Parameters and Programs subfolders` : ''}. The greyed-out types are added once there is a finished, field-proven program set to build them from.`;
     $('sampleBtn').textContent = `Look around with a sample ${prettyModel(typ().sample().model)}`;
     if (document.activeElement !== $('unitName')) $('unitName').value = S.unit;
   }

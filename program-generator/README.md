@@ -51,7 +51,7 @@ Some choices only appear when they make sense (a return fan VFD that tracks supp
 | Outside air temp | Sensor wired to this controller · From the network |
 | Checkboxes | Return air CO2 raises the minimum OA · Night heat on room temp · OA isolation damper · Freezestat · Smoke detectors · Dirty filter switch · Condensate switch locks out cooling · Return air temp sensor |
 
-**VAV box**: imports into `Application/Components` as one new folder, `PerimRad`, and leaves the stock VAV application alone. It reads the stock room temp (`RmTmp99`) and heating setpoint (`RmTmpSpt99/RmTmpHspt`).
+**VAV box**: imports into `Application/Components` as one new component, `PerimRad`, laid out like the stock ones (`Points`, `Values`, `Parameters`, `Programs`, `Functions`, `Alarms`, `Trends` subfolders), and leaves the stock VAV application alone. It reads the stock room temp (`RmTmp99`) and heating setpoint (`RmTmpSpt99/RmTmpHspt`).
 | Option | Choices |
 |---|---|
 | Perimeter radiation | Modulating valve (0-10 V) · On/off valve or relay |
@@ -113,7 +113,7 @@ Test a new option mix on a spare or offline controller first. The generator has 
 | Folder | Contents |
 |---|---|
 | Inputs / Outputs | Hardware points on their terminals. Room sensor values are bound from the Sensor Bus device. |
-| Components/PerimRad | VAV box only: everything (points, values, function, program, trends) in this one folder |
+| Components/PerimRad | VAV box only: one component with the stock subfolders (Points, Values, Parameters, Programs, Functions, Trends) |
 | Parameters | Setpoints as value objects with relinquish defaults |
 | Numerics | Values the programs calculate (loads, mode, mode text) |
 | Programs | Only the ones the options need (empty with Points only). CV AHU: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_AhuControl, Prog_ControlLoops, Prog_CoolingControl, fan alarms. VAV AHU adds Prog_DischargeSetpoint and Prog_ReliefFan. Unit Vent: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_UvControl, Prog_UvHeatCool, Prog_OaDamper, Prog_SaFanAlarm. VAV box: Prog_RadControl. |
