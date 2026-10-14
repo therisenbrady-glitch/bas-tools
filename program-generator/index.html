@@ -125,6 +125,10 @@ details.code{border:1px solid var(--line);border-radius:7px;background:var(--pan
 details.code summary{padding:10px 12px;font-size:13.5px;font-weight:600;cursor:pointer}
 details.code pre{margin:0;padding:12px;border-top:1px solid var(--line);font-family:var(--f-mono);font-size:12px;line-height:1.45;overflow:auto;max-height:420px;background:var(--sunk)}
 .addbox{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+.modlist{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.modlist li{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.modlist input{width:64px;font-family:var(--f-mono)}
+.modlist select{min-width:0;flex:1 1 180px;max-width:260px}
 .addbox h3{margin:0 0 10px;font-family:var(--f-display);font-size:17px;font-weight:600;letter-spacing:.02em}
 .addgrid{display:grid;grid-template-columns:1.1fr 1.6fr 1.2fr;gap:10px}
 .addgrid .wide{grid-column:1/-1}
@@ -172,6 +176,13 @@ footer{font-size:12px;color:var(--muted)}
     <div id="ctrlInfo" hidden>
       <dl class="ctrl" id="ctrlDl"></dl>
       <div class="btns" style="margin-top:10px"><button type="button" class="btn" id="openBtn2">Open a different export</button></div>
+    </div>
+    <div id="aspBox" hidden>
+      <p class="hint">Boiler plants run on an AS-P with SmartX IO modules, so there's no export to open. Name the server and list the modules on its IO Bus; points get a module channel in step 4.</p>
+      <div class="field" style="max-width:340px"><label for="aspServer">AS-P server</label><div class="row"><input id="aspServer" type="text" placeholder="/AS-P" autocomplete="off" style="font-family:var(--f-mono)"></div></div>
+      <div class="field"><label>IO modules (slot and type)</label></div>
+      <ul class="modlist" id="modList"></ul>
+      <div class="btns" style="margin-top:8px"><button type="button" class="btn" id="modAdd">Add module</button><button type="button" class="link" id="modReset">Use the Bower Hill HWS layout</button></div>
     </div>
     <input type="file" id="fileIn" accept=".xml,text/xml,application/xml" hidden>
   </section>
@@ -226,7 +237,7 @@ footer{font-size:12px;color:var(--muted)}
       <thead><tr><th>Value</th><th class="ds">Description</th><th>Default</th></tr></thead>
       <tbody id="sptBody"></tbody>
     </table></div>
-    <div class="field" style="max-width:220px"><label for="trendMin">Analog trend interval</label>
+    <div class="field" id="trendMinF" style="max-width:220px"><label for="trendMin">Analog trend interval</label>
       <div class="row"><input id="trendMin" type="number" inputmode="numeric" min="1" max="60" value="5" style="font-family:var(--f-mono)"><span class="u" style="display:flex;align-items:center;padding:0 10px;border-left:1px solid var(--line)">min</span></div></div>
   </section>
 
@@ -341,6 +352,16 @@ Endif
 `}
 };
 
+// SmartX / AS-P Script object type templates, copied from a team AS-P import (EBO 7.1.2.171)
+const TA = {
+"fn": "    <ObjectType Name            = \"@@TYPE@@\"\n                DisplayName     = \"Script Function\"\n                Description     = \"Script Function\"\n                Base            = \"script.Function\"\n                Icon            = \"ScriptFunction.gif\"\n                Abstract        = \"0\"\n                Implements      = \"\"\n                DefaultProperty = \"\"\n                Version         = \"1\"\n                >\n      <PropertyTab Name = \"BASIC\">\n        <PropertyGroup Name = \"StatusInformation\">\n          <Parameter Name                  = \"File\"\n                     DisplayName           = \"File\"\n                     Description           = \"Script Function file\"\n                     Visibility            = \"Hidden\"\n                     Optional              = \"0\"\n                     ReadOnly              = \"1\"\n                     Static                = \"1\"\n                     RTWriteable           = \"0\"\n                     Unique                = \"No\"\n                     Copy                  = \"0\"\n                     Nullable              = \"0\"\n                     >\n              <Type Configurable = \"No\" Value = \"system.pt.String\"/>\n              <Unit Configurable = \"No\" Value = \"0x10001\"/>\n              <InitValue Value=\"@@FILE@@\"/>\n          </Parameter>\n          <Parameter Name                  = \"Complete\"\n                     DisplayName           = \"Compilation valid\"\n                     Description           = \"Tells if the function is complete and that it can be run by the server\"\n                     Visibility            = \"Summary\"\n                     Optional              = \"0\"\n                     ReadOnly              = \"1\"\n                     Static                = \"1\"\n                     RTWriteable           = \"0\"\n                     Unique                = \"No\"\n                     Copy                  = \"0\"\n                     Nullable              = \"0\"\n                     >\n              <Type Configurable = \"No\" Value = \"system.pt.Boolean\"/>\n              <Unit Configurable = \"No\" Value = \"0x10001\"/>\n              <InitValue Value=\"0\"/>\n          </Parameter>\n          <Parameter Name                  = \"CompilerVersion\"\n                     DisplayName           = \"Compiler version\"\n                     Description           = \"Compiler version\"\n                     Visibility            = \"Normal\"\n                     Optional              = \"0\"\n                     ReadOnly              = \"1\"\n                     Static                = \"1\"\n                     RTWriteable           = \"0\"\n                     Unique                = \"No\"\n                     Copy                  = \"0\"\n                     Nullable              = \"0\"\n                     >\n              <Type Configurable = \"No\" Value = \"system.pt.String\"/>\n              <Unit Configurable = \"No\" Value = \"0x10001\"/>\n              <InitValue Value=\"1\"/>\n          </Parameter>\n        </PropertyGroup>\n      </PropertyTab>\n\n\n    </ObjectType>",
+"progHead": "    <ObjectType Name            = \"@@TYPE@@\"\n                DisplayName     = \"Script Program\"\n                Description     = \"Script Program\"\n                Base            = \"script.Program\"\n                Icon            = \"ScriptProgram.gif\"\n                Abstract        = \"0\"\n                Implements      = \"\"\n                DefaultProperty = \"\"\n                Version         = \"1\"\n                >\n      <PropertyTab Name = \"BASIC\">\n        <PropertyGroup Name = \"STATUS\">\n          <Parameter Name                  = \"Complete\"\n                     DisplayName           = \"Compilation valid\"\n                     Description           = \"Tells if the program is complete and that it can be run by the server\"\n                     Visibility            = \"Summary\"\n                     Optional              = \"0\"\n                     ReadOnly              = \"1\"\n                     Static                = \"1\"\n                     RTWriteable           = \"0\"\n                     Unique                = \"No\"\n                     Copy                  = \"0\"\n                     Nullable              = \"0\"\n                     >\n              <Type Configurable = \"No\" Value = \"system.pt.Boolean\"/>\n              <Unit Configurable = \"No\" Value = \"0x10001\"/>\n              <InitValue Value=\"0\"/>\n          </Parameter>\n          <Parameter Name                  = \"CompilerVersion\"\n                     DisplayName           = \"Compiler version\"\n                     Description           = \"Compiler version\"\n                     Visibility            = \"Normal\"\n                     Optional              = \"0\"\n                     ReadOnly              = \"1\"\n                     Static                = \"1\"\n                     RTWriteable           = \"0\"\n                     Unique                = \"No\"\n                     Copy                  = \"0\"\n                     Nullable              = \"0\"\n                     >\n              <Type Configurable = \"No\" Value = \"system.pt.String\"/>\n              <Unit Configurable = \"No\" Value = \"0x10001\"/>\n              <InitValue Value=\"1\"/>\n          </Parameter>\n        </PropertyGroup>\n        <PropertyGroup Name = \"CONFIGURATION\">\n          <Parameter Name                  = \"File\"\n                     DisplayName           = \"File\"\n                     Description           = \"Script Program file\"\n                     Visibility            = \"Hidden\"\n                     Optional              = \"0\"\n                     ReadOnly              = \"1\"\n                     Static                = \"1\"\n                     RTWriteable           = \"0\"\n                     Unique                = \"No\"\n                     Copy                  = \"0\"\n                     Nullable              = \"0\"\n                     >\n              <Type Configurable = \"No\" Value = \"system.pt.String\"/>\n              <Unit Configurable = \"No\" Value = \"0x10001\"/>\n              <InitValue Value=\"@@FILE@@\"/>\n          </Parameter>\n        </PropertyGroup>\n      </PropertyTab>",
+"vin": "          <Variable Name                  = \"@@NAME@@\"\n                    DisplayName           = \"@@NAME@@\"\n                    Description           = \"\"\n                    Visibility            = \"Normal\"\n                    Optional              = \"0\"\n                    VariableReference     = \"Application\"\n                    ReadOnly              = \"0\"\n                    Static                = \"0\"\n                    Scope                 = \"Sys\"\n                    Copy                  = \"1\"\n                    Nullable              = \"1\"\n                    ObjectFilter          = \"\"\n                    >\n              <Type Configurable = \"No\" Value = \"system.pt.Float\"/>\n              <Unit Configurable = \"No\" Value = \"@@UNIT@@\"/>\n              <InitReference/>\n              <Runtime Nullable = \"1\">\n                <ReadOnly    Configurable = \"No\" Value = \"0\"/>\n                <RetainLevel Configurable = \"No\" Value = \"No\"/>\n                <Forceable   Configurable = \"No\" Value = \"1\"/>\n                <InitValue Null=\"1\"/>\n              </Runtime>\n          </Variable>",
+"vout": "          <Variable Name                  = \"@@NAME@@\"\n                    DisplayName           = \"@@NAME@@\"\n                    Description           = \"\"\n                    Visibility            = \"Normal\"\n                    Optional              = \"0\"\n                    VariableReference     = \"No\"\n                    ReadOnly              = \"0\"\n                    Static                = \"0\"\n                    Scope                 = \"Srv\"\n                    Copy                  = \"1\"\n                    Nullable              = \"1\"\n                    ObjectFilter          = \"\"\n                    >\n              <Type Configurable = \"No\" Value = \"system.pt.Float\"/>\n              <Unit Configurable = \"No\" Value = \"@@UNIT@@\"/>\n              <InitReference/>\n              <Runtime Nullable = \"1\">\n                <ReadOnly    Configurable = \"No\" Value = \"1\"/>\n                <RetainLevel Configurable = \"No\" Value = \"No\"/>\n                <Forceable   Configurable = \"No\" Value = \"1\"/>\n                <InitValue Null=\"1\"/>\n              </Runtime>\n          </Variable>",
+"fref": "          <ObjectReference Name                  = \"@@NAME@@\"\n                           DisplayName           = \"@@NAME@@\"\n                           Description           = \"@@NAME@@\"\n                           Visibility            = \"Normal\"\n                           Optional              = \"0\"\n                           ReadOnly              = \"0\"\n                           Static                = \"0\"\n                           RTWriteable           = \"0\"\n                           Scope                 = \"Srv\"\n                           Copy                  = \"1\"\n                           Nullable              = \"1\"\n                           >\n              <Type Configurable = \"No\" Value = \"script.Function\"/>\n              <InitReference/>\n          </ObjectReference>",
+"menu": "<ObjectType Name            = \"@@TYPE@@\"\n                DisplayName     = \"\"\n                Description     = \"\"\n                Base            = \"tgml.MenuItem\"\n                Icon            = \"\"\n                Abstract        = \"0\"\n                Implements      = \"\"\n                DefaultProperty = \"\"\n                Version         = \"1\"\n                >\n      <PropertyTab Name = \"BASIC\">\n        <PropertyGroup Name = \"Menu\">\n          <ObjectReference Name                  = \"MI0\"\n                           DisplayName           = \"MI0\"\n                           Description           = \"\"\n                           Visibility            = \"Hidden\"\n                           Optional              = \"0\"\n                           ReadOnly              = \"0\"\n                           Static                = \"0\"\n                           RTWriteable           = \"0\"\n                           Scope                 = \"Sys\"\n                           Copy                  = \"1\"\n                           Nullable              = \"1\"\n                           ParameterFlags        = \"12\"\n                           >\n              <Type Configurable = \"No\" Value = \"system.Object\"/>\n              <InitReference/>\n          </ObjectReference>\n          <Parameter Name                  = \"MI0_Icon\"\n                     DisplayName           = \"MI0_Icon\"\n                     Description           = \"\"\n                     Visibility            = \"Hidden\"\n                     Optional              = \"0\"\n                     ReadOnly              = \"0\"\n                     Static                = \"1\"\n                     RTWriteable           = \"0\"\n                     Unique                = \"No\"\n                     Copy                  = \"0\"\n                     Nullable              = \"1\"\n                     ParameterFlags        = \"24\"\n                     >\n              <Type Configurable = \"No\" Value = \"system.pt.String\"/>\n              <Unit Configurable = \"No\" Value = \"0x10001\"/>\n              <InitValue DataType=\"6\" Value=\"TrendChart.gif\"/>\n          </Parameter>\n          <Parameter Name                  = \"MI0_IsMenu\"\n                     DisplayName           = \"MI0_IsMenu\"\n                     Description           = \"\"\n                     Visibility            = \"Hidden\"\n                     Optional              = \"0\"\n                     ReadOnly              = \"0\"\n                     Static                = \"0\"\n                     RTWriteable           = \"0\"\n                     Unique                = \"No\"\n                     Copy                  = \"1\"\n                     Nullable              = \"1\"\n                     ParameterFlags        = \"12\"\n                     >\n              <Type Configurable = \"No\" Value = \"system.pt.Boolean\"/>\n              <Unit Configurable = \"No\" Value = \"0x10001\"/>\n              <InitValue DataType=\"1\" Value=\"0\"/>\n          </Parameter>\n          <ObjectReference Name                  = \"MI1\"\n                           DisplayName           = \"MI1\"\n                           Description           = \"\"\n                           Visibility            = \"Hidden\"\n                           Optional              = \"0\"\n                           ReadOnly              = \"0\"\n                           Static                = \"0\"\n                           RTWriteable           = \"0\"\n                           Scope                 = \"Sys\"\n                           Copy                  = \"1\"\n                           Nullable              = \"1\"\n                           ParameterFlags        = \"12\"\n                           >\n              <Type Configurable = \"No\" Value = \"system.Object\"/>\n              <InitReference/>\n          </ObjectReference>\n          <Parameter Name                  = \"MI1_Icon\"\n                     DisplayName           = \"MI1_Icon\"\n                     Description           = \"\"\n                     Visibility            = \"Hidden\"\n                     Optional              = \"0\"\n                     ReadOnly              = \"0\"\n                     Static                = \"1\"\n                     RTWriteable           = \"0\"\n                     Unique                = \"No\"\n                     Copy                  = \"0\"\n                     Nullable              = \"1\"\n                     ParameterFlags        = \"24\"\n                     >\n              <Type Configurable = \"No\" Value = \"system.pt.String\"/>\n              <Unit Configurable = \"No\" Value = \"0x10001\"/>\n              <InitValue DataType=\"6\" Value=\"MultipleTrendLogList.gif\"/>\n          </Parameter>\n          <Parameter Name                  = \"MI1_IsMenu\"\n                     DisplayName           = \"MI1_IsMenu\"\n                     Description           = \"\"\n                     Visibility            = \"Hidden\"\n                     Optional              = \"0\"\n                     ReadOnly              = \"0\"\n                     Static                = \"0\"\n                     RTWriteable           = \"0\"\n                     Unique                = \"No\"\n                     Copy                  = \"1\"\n                     Nullable              = \"1\"\n                     ParameterFlags        = \"12\"\n                     >\n              <Type Configurable = \"No\" Value = \"system.pt.Boolean\"/>\n              <Unit Configurable = \"No\" Value = \"0x10001\"/>\n              <InitValue DataType=\"1\" Value=\"0\"/>\n          </Parameter>\n        </PropertyGroup>\n      </PropertyTab>\n\n\n    </ObjectType>"
+};
+
 // ---------- AHU template: single-zone AHU on an MP-C, controlled on space temperature ----------
 // Programs are the team's Bower Hill AHU-B/C/D programs made generic. Lines between
 // #if FLAG / #elif / #else / #endif are kept only when the unit has that option.
@@ -358,7 +379,8 @@ const AHU = {
   assumptions(P){
     const s = ['Setpoint defaults above are the team\'s Bower Hill starting values.',
       'Loop gains are written into Prog_ControlLoops: space loops KP 0.1 / KI 0.0002, limit loops KP 0.05 / KI 0.0004. Tune on site.'];
-    if (P.F.FRZ) s.push('The freezestat is hardwired into the fan safety circuit; the program only reports and positions.');
+    if (P.F.FRZ) s.push('The freezestat is hardwired into the fan safety circuit; the program only reports and positions.' + (P.F.CHW ? ' A trip opens the HW valve full and closes the CHW valve.' : ''));
+    if (P.F.CHW) s.push('Chilled water: the cooling loop (Prog_ControlLoops, KP 0.1 / KI 0.0002) modulates ClgVlvPos on space temp against ClgTmpSpt in occupied cooling mode and night setup. Chilled water availability is left to the plant (no OAT lockout here).');
     return s;
   },
   modes: [
@@ -367,6 +389,7 @@ const AHU = {
     ['UNOCC_COOL',   'UNOCC COOL'],
     ['UNOCC_OFF',    'UNOCC OFF'],
     ['OCC_COOL',     'OCC COOL (DX)'],
+    ['OCC_CHW',      'OCC COOL (CHW)'],
     ['OCC_LOCK',     'OCC - ECON LOCKED OUT'],
     ['OCC_CCFB',     'OCC HEAT - COOL CALL, F&B MODE'],
     ['OCC_ECON',     'OCC HEAT - ECONOMIZER'],
@@ -380,7 +403,7 @@ const AHU = {
   // Options shown on the page. Flags derived from them are in flags() below.
   options: [
     {id: 'heat', label: 'Heating', type: 'select', def: 'hw', choices: [['none', 'None'], ['hw', 'Hot water valve'], ['hwfb', 'Hot water valve + face & bypass damper']]},
-    {id: 'cool', label: 'Cooling', type: 'select', def: 'dx2', choices: [['none', 'None'], ['dx1', 'DX, 1 stage'], ['dx2', 'DX, 2 stages']]},
+    {id: 'cool', label: 'Cooling', type: 'select', def: 'dx2', choices: [['none', 'None'], ['dx1', 'DX, 1 stage'], ['dx2', 'DX, 2 stages'], ['chw', 'Chilled water valve']]},
     {id: 'oa', label: 'Outside air', type: 'select', def: 'econ', choices: [['econ', 'Economizer (OA/RA dampers, mixed air sensor)'], ['min', 'Modulating OA damper, fixed minimum'], ['twopos', 'Two-position OA damper'], ['none', 'No OA damper']]},
     {id: 'rf', label: 'Return fan', type: 'check', def: false},
     {id: 'frz', label: 'Freezestat (low limit)', type: 'check', def: true},
@@ -399,11 +422,13 @@ const AHU = {
     F.HTG = F.HW;
     F.DX = o.cool === 'dx1' || o.cool === 'dx2';
     F.DX2 = o.cool === 'dx2';
+    F.CHW = o.cool === 'chw';
+    F.CLG = F.DX || F.CHW;
     F.ECON = o.oa === 'econ';
     F.OAMOD = o.oa === 'econ' || o.oa === 'min';
     F.OA2P = o.oa === 'twopos';
-    F.CMD = F.DX || F.ECON;          // OAT changeover to an occupied cooling mode
-    F.LOOPS = F.HTG || F.ECON;       // Prog_ControlLoops needed
+    F.CMD = F.CLG || F.ECON;         // OAT changeover to an occupied cooling mode
+    F.LOOPS = F.HTG || F.ECON || F.CHW; // Prog_ControlLoops needed
     F.RF = !!o.rf; F.FRZ = !!o.frz; F.FLT = !!o.flt; F.RA = !!o.ra;
     F.SB = o.room === 'sb';
     F.SPT = F.SB && !!o.spt;
@@ -430,7 +455,8 @@ const AHU = {
     {name: 'Dx2Cmd',   descr: 'Cooling Stage 2 Command', io: 'do', cond: 'DX2'},
     {name: 'OaDprPos', descr: 'Outside Air Damper Command', io: 'ao', cond: 'OAMOD'},
     {name: 'HwVlvPos', descr: 'Hot Water Valve Command', io: 'ao', cond: 'HW'},
-    {name: 'FbDprPos', descr: 'Face/Bypass Damper Position', io: 'ao', cond: 'FB'}
+    {name: 'FbDprPos', descr: 'Face/Bypass Damper Position', io: 'ao', cond: 'FB'},
+    {name: 'ClgVlvPos', descr: 'Chilled Water Valve Command', io: 'ao', cond: 'CHW'}
   ],
 
   // Value objects. kind: av (analog), bv (Off/On), alm (Normal/Alarm), occ (binary, no text),
@@ -444,7 +470,9 @@ const AHU = {
     {folder: 'Numerics', name: 'RmTmpCtl', descr: 'Room Temp In Use', kind: 'av', unit: 'F'},
     {folder: 'Numerics', name: 'RmTmpAlm', descr: 'Room Sensor Failure', kind: 'alm'},
     {folder: 'Numerics', name: 'ClgCmd', descr: 'Cooling Command', kind: 'bv', cond: 'DX'},
-    {folder: 'Numerics', name: 'ClgTmpSpt', descr: 'Active Cooling Setpoint', kind: 'av', unit: 'F', cond: 'DX'},
+    {folder: 'Numerics', name: 'ClgTmpSpt', descr: 'Active Cooling Setpoint', kind: 'av', unit: 'F', cond: 'CLG'},
+    {folder: 'Numerics', name: 'ClgEna', descr: 'Cooling Loop Enable', kind: 'bv', cond: 'CHW'},
+    {folder: 'Numerics', name: 'ClgLoad', descr: 'Cooling Load', kind: 'av', unit: '%', cond: 'CHW'},
     {folder: 'Numerics', name: 'DxStg', descr: 'Cooling Stage Status', kind: 'msv', states: 'dx', cond: 'DX'},
     {folder: 'Numerics', name: 'AhuHtgEna', descr: 'Heating Enable', kind: 'bv', cond: 'HTG'},
     {folder: 'Numerics', name: 'EconEna', descr: 'Economizer Enable', kind: 'bv', cond: 'ECON'},
@@ -475,8 +503,8 @@ const AHU = {
     {folder: 'Parameters', name: 'RmTmpSptDif', descr: 'Heat/Cool Call Differential', kind: 'av', unit: 'dF', def: 1, param: true, cond: 'CMD'},
     {folder: 'Parameters', name: 'RmTmpSptSb', descr: 'Night Setback Heating Setpoint', kind: 'av', unit: 'F', def: 60, param: true, cond: 'HTG'},
     {folder: 'Parameters', name: 'RmTmpSptSbDif', descr: 'Night Setback Differential', kind: 'av', unit: 'dF', def: 2, param: true, cond: 'HTG'},
-    {folder: 'Parameters', name: 'RmTmpSptSu', descr: 'Night Setup Cooling Setpoint', kind: 'av', unit: 'F', def: 85, param: true, cond: 'DX'},
-    {folder: 'Parameters', name: 'RmTmpSptSuDif', descr: 'Night Setup Differential', kind: 'av', unit: 'dF', def: 2, param: true, cond: 'DX'},
+    {folder: 'Parameters', name: 'RmTmpSptSu', descr: 'Night Setup Cooling Setpoint', kind: 'av', unit: 'F', def: 85, param: true, cond: 'CLG'},
+    {folder: 'Parameters', name: 'RmTmpSptSuDif', descr: 'Night Setup Differential', kind: 'av', unit: 'dF', def: 2, param: true, cond: 'CLG'},
     {folder: 'Parameters', name: 'OaDprPosMin', descr: 'OA Damper Minimum Position', kind: 'av', unit: '%', def: 20, param: true, cond: 'OAMOD'},
     {folder: 'Parameters', name: 'ClgMdOaTmpSpt', descr: 'OAT Cooling Mode Limit', kind: 'av', unit: 'F', def: 55, defNoDx: 65, param: true, cond: 'CMD'},
     {folder: 'Parameters', name: 'ClgMdOaTmpDif', descr: 'OA Temp Changeover Differential', kind: 'av', unit: 'dF', def: 2, param: true, cond: 'CMD'},
@@ -505,7 +533,7 @@ const AHU = {
   ],
 
   // Key points only: analog on an interval, digital on change.
-  trends: ['OaTmp', 'SaTmp', 'MaTmp', 'RaTmp', 'RmTmpCtl', 'HwVlvPos', 'FbDprPos', 'OaDprPos', 'SaFanSts', 'RaFanSts', 'OaDprCmd', 'Dx1Cmd', 'Dx2Cmd', 'AhuHvacMd'],
+  trends: ['OaTmp', 'SaTmp', 'MaTmp', 'RaTmp', 'RmTmpCtl', 'HwVlvPos', 'FbDprPos', 'OaDprPos', 'SaFanSts', 'RaFanSts', 'OaDprCmd', 'Dx1Cmd', 'Dx2Cmd', 'ClgVlvPos', 'AhuHvacMd'],
 
   programs: [
     {name: 'Prog_Occupancy', descr: 'Occupancy Program', src: 'occ'},
@@ -535,6 +563,9 @@ AHU.src.ahu = `' ===============================================================
 #if FB
 '   FbDprPos   0-100 %   0 = full FACE, 100 = full BYPASS
 #endif
+#if CHW
+'   ClgVlvPos  0-100 %   100 = full flow to the coil
+#endif
 ' Built by the BAS Field Tools program generator from the team's AHU
 ' programs. Names follow EBO 3 SEBA Naming Convention.
 ' ===========================================================================
@@ -554,6 +585,9 @@ Numeric Input  SaHlmt           ' from Prog_ControlLoops: most heating the suppl
 Numeric Input  EconLoad         ' from Prog_ControlLoops: economizer, 0-100 %
 Numeric Input  MaLmt            ' from Prog_ControlLoops: most OA the mixed air low limit allows
 Numeric Input  SaLlmt           ' from Prog_ControlLoops: most OA the supply air low limit allows
+#endif
+#if CHW
+Numeric Input  ClgLoad          ' from Prog_ControlLoops: space cooling, 0-100 %
 #endif
 
 Numeric Output SaFanCmd         ' supply fan start/stop
@@ -576,6 +610,11 @@ Numeric Output FbDprPos         ' face & bypass damper, 0-100 %
 Numeric Output ClgCmd           ' DX cooling request, to Prog_CoolingControl
 Numeric Output ClgTmpSpt        ' active cooling setpoint, to Prog_CoolingControl
 #endif
+#if CHW
+Numeric Output ClgVlvPos        ' chilled water valve, 0-100 %
+Numeric Output ClgEna           ' cooling loop enable, to Prog_ControlLoops
+Numeric Output ClgTmpSpt        ' active cooling setpoint, to Prog_ControlLoops
+#endif
 #if HTG
 Numeric Output AhuHtgEna        ' heating loop enable, to Prog_ControlLoops
 #endif
@@ -595,7 +634,7 @@ Numeric Input  ClgMdOaTmpDif    ' drop below ClgMdOaTmpSpt by this to leave cool
 Numeric Input  RmTmpSptSb       ' night setback heating setpoint (value object)
 Numeric Input  RmTmpSptSbDif    ' night setback differential (value object)
 #endif
-#if DX
+#if CLG
 Numeric Input  RmTmpSptSu       ' night setup cooling setpoint (value object)
 Numeric Input  RmTmpSptSuDif    ' night setup differential (value object)
 #endif
@@ -619,7 +658,7 @@ Numeric FbDprMd        ' On = HW 100 %, F&B modulating (OAT driven)
 Numeric SbHtgCall      ' night setback heating cycle
 Numeric HtgDmd         ' heating loop output after the supply air high limit
 #endif
-#if DX
+#if CLG
 Numeric SuClgCall      ' night setup cooling cycle
 #endif
 #if ECON
@@ -637,7 +676,7 @@ Init:
 #if HTG
   SbHtgCall = Off
 #endif
-#if DX
+#if CLG
   SuClgCall = Off
 #endif
   Goto Main
@@ -670,9 +709,9 @@ Main:
     ClgCall = Off
   Endif
 #endif
-#if DX
+#if CLG
 
-  ' ---- Active cooling setpoint, used for DX staging -------------------------
+  ' ---- Active cooling setpoint, used for cooling ----------------------------
   If OccCmd = On Then
     ClgTmpSpt = RmTmpSptClg
   Else
@@ -700,6 +739,10 @@ Main:
 #endif
 #if DX
     ClgCmd = Off
+#endif
+#if CHW
+    ClgEna = Off
+    ClgVlvPos = 0
 #endif
 #if HTG
     AhuHtgEna = Off
@@ -730,9 +773,15 @@ Main:
       If ClgMd = Off Then
 #endif
         ' Heating season: HW valve open, fan cycles on night setback.
-#if DX
+#if CLG
         SuClgCall = Off
+#endif
+#if DX
         ClgCmd = Off
+#endif
+#if CHW
+        ClgEna = Off
+        ClgVlvPos = 0
 #endif
 #if HTG
         If RmTmpCtl < RmTmpSptSb Then
@@ -756,14 +805,18 @@ Main:
 #endif
 #if CMD
       Else
+#if CHW
+        ' Cooling season: fan and CHW valve cycle on night setup.
+#else
         ' Cooling season: fan and DX cycle on night setup.
+#endif
 #if HTG
         SbHtgCall = Off
 #endif
 #if HW
         HwVlvPos = 0
 #endif
-#if DX
+#if CLG
         If RmTmpCtl > RmTmpSptSu Then
           SuClgCall = On
         Endif
@@ -771,7 +824,13 @@ Main:
           SuClgCall = Off
         Endif
         SaFanCmd = SuClgCall
+#if DX
         ClgCmd = SuClgCall
+#endif
+#if CHW
+        ClgEna = SuClgCall
+        ClgVlvPos = ClgLoad
+#endif
         If SuClgCall = On Then
           @MODE UNOCC_COOL
         Else
@@ -790,7 +849,7 @@ Main:
 #if HTG
       SbHtgCall = Off
 #endif
-#if DX
+#if CLG
       SuClgCall = Off
 #endif
 #if CMD
@@ -817,12 +876,21 @@ Main:
 #if DX
         ClgCmd = ClgCall
         @MODE OCC_COOL
+#elif CHW
+        ' Cooling loop modulates the CHW valve on space temp.
+        ClgEna = On
+        ClgVlvPos = ClgLoad
+        @MODE OCC_CHW
 #else
         @MODE OCC_LOCK
 #endif
       Else
 #if DX
         ClgCmd = Off
+#endif
+#if CHW
+        ClgEna = Off
+        ClgVlvPos = 0
 #endif
 #endif
 #if HTG
@@ -936,6 +1004,9 @@ AHU.src.loops = `' =============================================================
 '   SaLlmt    SaTmp vs SaTmpLlmt, direct acting, bias 1. Most OA the supply
 '             air low limit allows. 100 when off.
 #endif
+#if CHW
+'   ClgLoad   RmTmpCtl vs ClgTmpSpt, direct acting. Chilled water valve.
+#endif
 ' Func_PID is called with 9 arguments, so it steps once per scan.
 ' Gains: KP 0.1 = 10 % per deg F. Starting values, tune on site.
 ' Names follow EBO 3 SEBA Naming Convention.
@@ -955,6 +1026,10 @@ Numeric Input  MaTmpLlmt     ' mixed air low limit, deg F (value object)
 Numeric Input  SaTmpLlmt     ' supply air low limit, deg F (value object)
 Numeric Input  EconEna       ' economizer and limit loops enable, from Prog_AhuControl
 #endif
+#if CHW
+Numeric Input  ClgTmpSpt     ' active cooling setpoint, from Prog_AhuControl
+Numeric Input  ClgEna        ' cooling loop enable, from Prog_AhuControl
+#endif
 #if HTG
 Numeric Output HtgLoad       ' space heating, 0-100 %, to Prog_AhuControl
 Numeric Output SaHlmt        ' most heating the supply air high limit allows, to Prog_AhuControl
@@ -963,6 +1038,9 @@ Numeric Output SaHlmt        ' most heating the supply air high limit allows, to
 Numeric Output EconLoad      ' economizer, 0-100 %, to Prog_AhuControl
 Numeric Output MaLmt         ' most OA the mixed air temp allows, to Prog_AhuControl
 Numeric Output SaLlmt        ' most OA the supply air low limit allows, to Prog_AhuControl
+#endif
+#if CHW
+Numeric Output ClgLoad       ' space cooling, 0-100 %, to Prog_AhuControl
 #endif
 Function Func_PID            ' bind to Application/Functions/Func_PID
 
@@ -980,6 +1058,10 @@ Numeric MaLErr
 Numeric MaIntg
 Numeric SaLoLErr
 Numeric SaLoIntg
+#endif
+#if CHW
+Numeric ClgLErr
+Numeric ClgIntg
 #endif
 
 Main:
@@ -1029,6 +1111,17 @@ Main:
     SaLlmt = 100
     SaLoLErr = 0
     SaLoIntg = 0
+  Endif
+#endif
+#if CHW
+
+  ' ---- Cooling: direct acting (Actn 1), bias 0 -----------------------------
+  If ClgEna = On Then
+    ClgLoad = Func_PID(RmTmpCtl, ClgTmpSpt, 0.1, 0.0002, 0, 0, 1, ClgLErr, ClgIntg)
+  Else
+    ClgLoad = 0
+    ClgLErr = 0
+    ClgIntg = 0
   Endif
 #endif
 `;
@@ -1412,7 +1505,7 @@ const VAHU = {
     {id: 'fan', label: 'Supply fan', type: 'select', def: 'vfd', choices: [['vfd', 'VFD on duct static'], ['vortex', 'Inlet vane / vortex damper on duct static'], ['cv', 'Constant volume (no static control)']]},
     {id: 'ret', label: 'Return / relief', type: 'select', def: 'rfvfd', choices: [['rfvfd', 'Return fan VFD, tracks supply speed', o => o.fan === 'vfd'], ['rfss', 'Return fan, start/stop'], ['rlffan', 'Relief fan, runs when the OA damper is open'], ['rlfdpr', 'Relief damper, follows the OA damper'], ['none', 'None']]},
     {id: 'heat', label: 'Heating', type: 'select', def: 'hw', choices: [['hw', 'Hot water valve'], ['hwfb', 'Hot water valve + face & bypass damper'], ['none', 'None']]},
-    {id: 'cool', label: 'Cooling', type: 'select', def: 'dx4', choices: [['dx1', 'DX, 1 stage'], ['dx2', 'DX, 2 stages'], ['dx3', 'DX, 3 stages'], ['dx4', 'DX, 4 stages'], ['pkg', 'Cooling enable to a packaged unit'], ['none', 'None']]},
+    {id: 'cool', label: 'Cooling', type: 'select', def: 'dx4', choices: [['dx1', 'DX, 1 stage'], ['dx2', 'DX, 2 stages'], ['dx3', 'DX, 3 stages'], ['dx4', 'DX, 4 stages'], ['chw', 'Chilled water valve'], ['pkg', 'Cooling enable to a packaged unit'], ['none', 'None']]},
     {id: 'dat', label: 'Discharge air setpoint', type: 'select', def: 'oa', choices: [['oa', 'Reset from outside air temp'], ['room', 'Reset from room temp', o => o.room !== 'none'], ['fixed', 'Fixed']]},
     {id: 'room', label: 'Room temp', type: 'select', def: 'none', choices: [['none', 'None'], ['wired', 'Thermistor wired to this controller'], ['network', 'Average room temp (written from the AS-P)']]},
     {id: 'oat', label: 'Outside air temp', type: 'select', def: 'local', choices: [['local', 'Sensor wired to this controller'], ['network', 'Network value (written from the AS-P)']]},
@@ -1435,7 +1528,7 @@ const VAHU = {
     F.HW = o.heat === 'hw' || o.heat === 'hwfb'; F.FB = o.heat === 'hwfb'; F.HTG = F.HW;
     const n = /^dx(\d)$/.exec(o.cool); F.NDX = n ? +n[1] : 0;
     F.DX = F.NDX >= 1; F.DX2 = F.NDX >= 2; F.DX3 = F.NDX >= 3; F.DX4 = F.NDX >= 4;
-    F.PKG = o.cool === 'pkg'; F.CLG = F.DX || F.PKG;
+    F.PKG = o.cool === 'pkg'; F.CHW = o.cool === 'chw'; F.CLG = F.DX || F.PKG || F.CHW;
     F.ROOM = o.room !== 'none'; F.RMWIRED = o.room === 'wired'; F.RMNET = o.room === 'network';
     F.RMRST = o.dat === 'room' && F.ROOM; F.OARST = o.dat === 'oa' || (o.dat === 'room' && !F.ROOM); F.FIXED = o.dat === 'fixed';
     F.NHT = !!o.nht && F.ROOM && F.HTG;
@@ -1477,7 +1570,8 @@ const VAHU = {
     {name: 'OaDprPos',    descr: 'Outside Air Damper Command', io: 'ao'},
     {name: 'RlfDprPos',   descr: 'Relief Damper Command',     io: 'ao', cond: 'RLFDPR'},
     {name: 'HwVlvPos',    descr: 'Hot Water Valve Command',   io: 'ao', cond: 'HW'},
-    {name: 'FbDprPos',    descr: 'Face/Bypass Damper Position', io: 'ao', cond: 'FB'}
+    {name: 'FbDprPos',    descr: 'Face/Bypass Damper Position', io: 'ao', cond: 'FB'},
+    {name: 'ClgVlvPos',   descr: 'Chilled Water Valve Command', io: 'ao', cond: 'CHW'}
   ],
 
   values: [
@@ -1492,6 +1586,7 @@ const VAHU = {
     {folder: 'Numerics', name: 'EconEna', descr: 'Economizer Enable', kind: 'bv'},
     {folder: 'Numerics', name: 'ClgEna', descr: 'Mechanical Cooling Enable', kind: 'bv', cond: 'CLG'},
     {folder: 'Numerics', name: 'HtgLoad', descr: 'Heating Load', kind: 'av', unit: '%', cond: 'HTG'},
+    {folder: 'Numerics', name: 'ClgLoad', descr: 'Cooling Load', kind: 'av', unit: '%', cond: 'CHW'},
     {folder: 'Numerics', name: 'EconLoad', descr: 'Economizer Load', kind: 'av', unit: '%'},
     {folder: 'Numerics', name: 'MaLmt', descr: 'Mixed Air Low Limit Allowance', kind: 'av', unit: '%'},
     {folder: 'Numerics', name: 'Co2Load', descr: 'CO2 Ventilation Load', kind: 'av', unit: '%', cond: 'CO2'},
@@ -1548,7 +1643,7 @@ const VAHU = {
     {name: 'CondSwt', descr: 'Condensate Overflow Alarm', src: 'Inputs/CondSwt', cond: 'COND'}
   ],
 
-  trends: ['OaTmp', 'DaTmp', 'DaTmpSpt', 'MaTmp', 'RaTmp', 'RmTmp', 'SaStPr', 'RaCO2', 'SaFanSpd', 'SaVorDprPos', 'RaFanSpd', 'OaDprPos', 'RlfDprPos', 'HwVlvPos', 'FbDprPos',
+  trends: ['OaTmp', 'DaTmp', 'DaTmpSpt', 'MaTmp', 'RaTmp', 'RmTmp', 'SaStPr', 'RaCO2', 'SaFanSpd', 'SaVorDprPos', 'RaFanSpd', 'OaDprPos', 'RlfDprPos', 'HwVlvPos', 'FbDprPos', 'ClgVlvPos',
     'SaFanSts', 'RaFanSts', 'RlfFanCmd', 'Dx1Cmd', 'Dx2Cmd', 'Dx3Cmd', 'Dx4Cmd', 'ClgEnaCmd', 'AhuHvacMd'],
 
   programs: [
@@ -1576,6 +1671,7 @@ const VAHU = {
     if (P.F.CO2) s.push('CO2 transmitter is 0-2000 ppm for 0-10 V.');
     if (P.F.FRZ || P.F.SMK) s.push('Freezestat and smoke detectors are hardwired into the fan safety circuit; the program only reports, goes to its safety mode and positions dampers and valves. The inputs read On = tripped; set the point\'s polarity if the contact works the other way.');
     if (P.F.DX) s.push('DX stages on discharge air temp with Func_Staging and is off while the economizer is enabled (as the Airport units run).');
+    if (P.F.CHW) s.push('Chilled water: the cooling loop (Prog_ControlLoops, KP 0.05 / KI 0.0004) modulates ClgVlvPos on discharge air temp. Like DX, it runs only while the economizer is off and OAT is above ClgOaTmpLocSpt.' + (P.F.FRZ ? ' A freezestat trip closes it.' : ''));
     if (P.F.RFVFD) s.push('Return fan speed tracks supply speed minus RaFanSpdOfs; no building pressure control.');
     return s;
   },
@@ -1668,6 +1764,9 @@ VAHU.src.ahu = `' ==============================================================
 #if FB
 '   FbDprPos   0-100 %   0 = full FACE, 100 = full BYPASS
 #endif
+#if CHW
+'   ClgVlvPos  0-100 %   100 = full flow to the coil
+#endif
 ' Built by the BAS Field Tools program generator from the team's Airport AHU
 ' programs. Names follow EBO 3 SEBA Naming Convention.
 ' ===========================================================================
@@ -1706,6 +1805,9 @@ Numeric Input  OaDprPosMin    ' minimum outside air, % (value object)
 Numeric Input  EconEnaSpt     ' economizer enabled below this OAT (value object)
 #if CLG
 Numeric Input  ClgOaTmpLocSpt ' no mechanical cooling below this OAT (value object)
+#endif
+#if CHW
+Numeric Input  ClgLoad        ' from Prog_ControlLoops: cooling, 0-100 %
 #endif
 #if COND
 Numeric Input  CondSwt        ' condensate overflow, On = TRIPPED
@@ -1758,6 +1860,9 @@ Numeric Output ClgEna         ' mechanical cooling enable
 #endif
 #if PKG
 Numeric Output ClgEnaCmd      ' cooling enable relay to the packaged unit
+#endif
+#if CHW
+Numeric Output ClgVlvPos      ' chilled water valve, 0-100 %
 #endif
 Numeric Output AhuHvacMd      ' mode number
 String  Output HvacSts        ' mode text
@@ -2027,6 +2132,15 @@ Main:
 #if PKG
   ClgEnaCmd = ClgEna
 #endif
+#if CHW
+
+  ' ---- Chilled water valve from the cooling loop -----------------------------
+  If ClgEna = On Then
+    ClgVlvPos = ClgLoad
+  Else
+    ClgVlvPos = 0
+  Endif
+#endif
 #if VFD
 
   ' ---- Supply fan speed from the duct static loop ----------------------------
@@ -2056,6 +2170,9 @@ VAHU.src.loops = `' ============================================================
 '   HtgLoad   DaTmp vs DaTmpSpt, reverse acting. Heating valve.
 #endif
 '   EconLoad  DaTmp vs DaTmpSpt, direct acting. Economizer dampers.
+#if CHW
+'   ClgLoad   DaTmp vs DaTmpSpt, direct acting. Chilled water valve.
+#endif
 '   MaLmt     MaTmp vs MaTmpLlmt, direct acting, bias 1. Most OA the mixed
 '             air temp allows. 100 when off.
 #if CO2
@@ -2078,6 +2195,9 @@ Numeric Input  SaFanSts      ' supply fan status, On = running
 Numeric Input  AhuHtgEna     ' heating loop enable, from Prog_AhuControl
 #endif
 Numeric Input  EconEna       ' economizer loop enable, from Prog_AhuControl
+#if CHW
+Numeric Input  ClgEna        ' cooling loop enable, from Prog_AhuControl
+#endif
 #if CO2
 Numeric Input  RaCO2         ' return air CO2, ppm
 Numeric Input  RaCO2Spt      ' return air CO2 setpoint, ppm (value object)
@@ -2091,6 +2211,9 @@ Numeric Output HtgLoad       ' heating, 0-100 %, to Prog_AhuControl
 #endif
 Numeric Output EconLoad      ' economizer, 0-100 %, to Prog_AhuControl
 Numeric Output MaLmt         ' most OA the mixed air temp allows, to Prog_AhuControl
+#if CHW
+Numeric Output ClgLoad       ' cooling, 0-100 %, to Prog_AhuControl
+#endif
 #if CO2
 Numeric Output Co2Load       ' OA the CO2 asks for, 0-100 %, to Prog_AhuControl
 #endif
@@ -2106,6 +2229,10 @@ Numeric HtgIntg
 #endif
 Numeric EconLErr
 Numeric EconIntg
+#if CHW
+Numeric ClgLErr
+Numeric ClgIntg
+#endif
 Numeric MaLErr
 Numeric MaIntg
 #if CO2
@@ -2137,6 +2264,17 @@ Main:
     EconLErr = 0
     EconIntg = 0
   Endif
+#if CHW
+
+  ' ---- Cooling: direct acting (Actn 1), bias 0 -----------------------------
+  If ClgEna = On Then
+    ClgLoad = Func_PID(DaTmp, DaTmpSpt, 0.05, 0.0004, 0, 0, 1, ClgLErr, ClgIntg)
+  Else
+    ClgLoad = 0
+    ClgLErr = 0
+    ClgIntg = 0
+  Endif
+#endif
 
   ' ---- Mixed air low limit: direct acting (Actn 1), bias 1 (100 %) ---------
   If SaFanSts = On Then
@@ -2331,47 +2469,84 @@ OffSpt:
   Endif
 `;
 
-// ---------- VAV box template: add-ons to the stock MP-V VAV application ----------
-// The MP-V ships with Schneider's VAV application (Components/RmTmp99, Rht99,
-// Fan99 ...), which already runs the box, reheat and fan. This adds what the
-// Airport job added on top: perimeter radiation. Everything goes in one new
-// component folder and reads the stock room temp and heating setpoint.
+// ---------- VAV box template: settings and points for the stock MP-V VAV application ----------
+// The MP-V runs Schneider's VAV application (Components/RmTmp99, Rht99, Fan99 ...).
+// Its programs are not copied (Buddy, 2026-10-14): this file sets the stock
+// reheat and fan selections, puts the stock field points on their terminals,
+// switches the optional room sensors on, sets the airflow limits, and can add
+// a perimeter radiation component (from the Airport job). The import merges
+// into the stock objects by name.
+const VAV_RHT = [['7', 'Proportional HW valve (analog)'], ['6', 'Floating HW valve (open/close relays)'], ['8', 'Two-position HW valve (relay)'], ['2', 'Electric, 1 stage'], ['3', 'Electric, 2 stages'], ['5', 'Electric, proportional (analog)'], ['1', 'No reheat']];
 const VAV = {
   label: 'VAV box',
-  title: 'VAV box (add-ons to the stock MP-V VAV application)',
-  model: /^bacnet\.mpx\.udt\.MPV/, modelName: 'an MP-V controller',
+  title: 'VAV box (settings and points for the stock MP-V VAV application)',
+  model: /^bacnet\.mpx\.udt\.MPV/, modelName: 'an MP-V controller with the stock VAV application',
   root: 'Components/PerimRad', rootDescr: 'Perimeter radiation, added by the BAS Field Tools program generator',
+  stock: true,  // objects with `stock` merge into the stock application instead of being created
   options: [
-    {id: 'rad', label: 'Perimeter radiation', type: 'select', def: 'mod', choices: [['mod', 'Modulating valve (0-10 V)'], ['onoff', 'On/off valve or relay']]},
-    {id: 'ena', label: 'Radiation enabled', type: 'select', def: 'oa', choices: [['oa', 'Below an outside air temp'], ['always', 'Always']]}
+    {id: 'rht', label: 'Reheat (RhtSelect)', type: 'select', def: '7', choices: VAV_RHT},
+    {id: 'rad', label: 'Perimeter radiation', type: 'select', def: 'none', choices: [['none', 'Reheat only'], ['mod', 'Reheat + rad valve (0-10 V)'], ['onoff', 'Reheat + rad valve (on/off)']]},
+    {id: 'ena', label: 'Radiation enabled', type: 'select', def: 'oa', choices: [['oa', 'Below an outside air temp', o => o.rad !== 'none'], ['always', 'Always']]},
+    {id: 'fan', label: 'Fan (FanSelect)', type: 'select', def: '1', choices: [['1', 'No fan'], ['2', 'Parallel fan'], ['3', 'Series fan']]},
+    {id: 'sat', label: 'Discharge air temp sensor (SaTmp)', type: 'check', def: true},
+    {id: 'fansts', label: 'Fan status (FanSts)', type: 'check', def: true, needs: o => o.fan !== '1'},
+    {id: 'co2', label: 'Room CO2 from the sensor (RmCO2Ena)', type: 'check', def: false},
+    {id: 'rh', label: 'Room humidity from the sensor (RmRHEna)', type: 'check', def: false},
+    {id: 'occ', label: 'Occupancy sensor (OccSnsrEna)', type: 'check', def: false},
+    {id: 'afl', label: 'Set the airflow limits (from the box schedule)', type: 'check', def: false}
   ],
-  flags(o){ return {MOD: o.rad === 'mod', ONOFF: o.rad === 'onoff', OAENA: o.ena === 'oa'}; },
+  flags(o){
+    const r = o.rht;
+    return {MOD: o.rad === 'mod', ONOFF: o.rad === 'onoff', RAD: o.rad === 'mod' || o.rad === 'onoff', OAENA: (o.rad === 'mod' || o.rad === 'onoff') && o.ena === 'oa',
+      R1: ['2', '3', '6', '8'].includes(r), R2: ['3', '6'].includes(r), RPOS: ['5', '7'].includes(r), FAN: o.fan !== '1', FANSTS: o.fan !== '1' && !!o.fansts, SAT: !!o.sat, AFL: !!o.afl, RHT: r !== '1'};
+  },
   points: [
+    {name: 'SaTmp', descr: 'Discharge Air Temp', io: 'ai', stock: 'SaTmp99/Points', term: 'UI 1', cond: 'SAT'},
+    {name: 'FanSts', descr: 'Fan Status', io: 'di', stock: 'Fan99/Points', term: 'UI 2', cond: 'FANSTS'},
+    {name: 'FanCmd', descr: 'Fan Command', io: 'do', stock: 'Fan99/Points', term: 'DO 1', cond: 'FAN'},
+    {name: 'Rht1Cmd', descr: 'Reheat Stage 1 / Valve Open', io: 'do', stock: 'Rht99/Points', term: 'DO 2', cond: 'R1'},
+    {name: 'Rht2Cmd', descr: 'Reheat Stage 2 / Valve Close', io: 'do', stock: 'Rht99/Points', term: 'DO 3', cond: 'R2'},
+    {name: 'RhtPos', descr: 'Reheat Valve / SCR Signal', io: 'ao', stock: 'Rht99/Points', term: 'AO 1', sig: '10-2', cond: 'RPOS'},
     {name: 'RadVlvPos', descr: 'Radiation Valve Command', io: 'ao', cond: 'MOD'},
     {name: 'RadCmd', descr: 'Radiation Command', io: 'do', cond: 'ONOFF'}
   ],
-  values: [
-    {name: 'RmTmp', descr: 'Room Temperature', ext: 'Components/RmTmp99/Values/RmTmp', unit: 'F'},
-    {name: 'RmTmpHspt', descr: 'Room Heating Setpoint', ext: 'Components/RmTmpSpt99/Values/RmTmpHspt', unit: 'F'},
-    {folder: 'x', name: 'OaTmp', descr: 'Outside Air Temp (written from the AS-P)', kind: 'av', unit: 'F', cond: 'OAENA'},
-    {folder: 'x', name: 'RadOaEnaSpt', descr: 'Radiation Enable Below OAT', kind: 'av', unit: 'F', def: 42, param: true, cond: 'OAENA'},
-    {folder: 'x', name: 'RadTmpDif', descr: 'Radiation On/Off Differential', kind: 'av', unit: 'dF', def: 1, param: true, cond: 'ONOFF'},
-    {folder: 'x', name: 'RadEna', descr: 'Radiation Enabled', kind: 'bv'}
-  ],
+  values(o, F){
+    return [
+      {name: 'RhtSelect', descr: 'Reheat Type', kind: 'stockenum', enumKey: 'rht', stock: 'Rht99/Parameters', def: +o.rht},
+      {name: 'FanSelect', descr: 'Fan Type', kind: 'stockenum', enumKey: 'fan', stock: 'Fan99/Parameters', def: +o.fan},
+      {name: 'RmCO2Ena', descr: 'Room CO2 Enabled', kind: 'stockenum', enumKey: 'ena', stock: 'RmCO299/Parameters', def: o.co2 ? 1 : 0},
+      {name: 'RmRHEna', descr: 'Room Humidity Enabled', kind: 'stockenum', enumKey: 'ena', stock: 'RmRH99/Parameters', def: o.rh ? 1 : 0},
+      {name: 'OccSnsrEna', descr: 'Occupancy Sensor Enabled', kind: 'stockenum', enumKey: 'ena', stock: 'Occ99/Parameters', def: o.occ ? 1 : 0},
+      {name: 'AirFlSptMax', descr: 'Cooling Max Airflow', kind: 'av', unit: 'cfmv', stock: 'AirFlSpt99/Parameters', def: 1000, param: true, cond: 'AFL'},
+      {name: 'AirFlSptMin', descr: 'Cooling Min Airflow', kind: 'av', unit: 'cfmv', stock: 'AirFlSpt99/Parameters', def: 300, param: true, cond: 'AFL'},
+      {name: 'AirFlSptAbsMin', descr: 'Absolute Min Airflow', kind: 'av', unit: 'cfmv', stock: 'AirFlSpt99/Parameters', def: 300, param: true, cond: 'AFL'},
+      {name: 'AirFlSptRhtMax', descr: 'Reheat Max Airflow', kind: 'av', unit: 'cfmv', stock: 'AirFlSpt99/Parameters', def: 600, param: true, cond: 'AFL&RHT'},
+      {name: 'AirFlSptRhtMin', descr: 'Reheat Min Airflow', kind: 'av', unit: 'cfmv', stock: 'AirFlSpt99/Parameters', def: 300, param: true, cond: 'AFL&RHT'},
+      {name: 'RmTmp', descr: 'Room Temperature', ext: 'Components/RmTmp99/Values/RmTmp', unit: 'F', cond: 'RAD'},
+      {name: 'RmTmpHspt', descr: 'Room Heating Setpoint', ext: 'Components/RmTmpSpt99/Values/RmTmpHspt', unit: 'F', cond: 'RAD'},
+      {folder: 'x', name: 'OaTmp', descr: 'Outside Air Temp (written from the AS-P)', kind: 'av', unit: 'F', cond: 'OAENA'},
+      {folder: 'x', name: 'RadOaEnaSpt', descr: 'Radiation Enable Below OAT', kind: 'av', unit: 'F', def: 42, param: true, cond: 'OAENA'},
+      {folder: 'x', name: 'RadTmpDif', descr: 'Radiation On/Off Differential', kind: 'av', unit: 'dF', def: 1, param: true, cond: 'ONOFF'},
+      {folder: 'x', name: 'RadEna', descr: 'Radiation Enabled', kind: 'bv', cond: 'RAD'}
+    ];
+  },
   alarms: [],
   trends: ['RadVlvPos', 'RadCmd', 'RadEna'],
-  programs: [{name: 'Prog_RadControl', descr: 'Perimeter Radiation Program', src: 'rad'}],
+  programs: [{name: 'Prog_RadControl', descr: 'Perimeter Radiation Program', src: 'rad', cond: 'RAD'}],
   importSteps(P){
-    const s = [`In WorkStation, right-click ${P.ctrl.name}/Application/Components and choose Import. Pick the "Complete - import.xml" file. It adds one component folder, PerimRad, laid out like the stock ones (Points, Values, Parameters, Programs, Functions, Trends), and changes nothing in the stock VAV application.`,
-      'Programs arrive uncompiled. Open and save Func_PID first, then Prog_RadControl.'];
+    const s = [`In WorkStation, right-click ${P.ctrl.name}/Application/Components and choose Import. Pick the "Complete - import.xml" file. It sets RhtSelect, FanSelect and the sensor enables, puts the stock points on their terminals${P.F.AFL ? ', sets the airflow limits' : ''}${P.F.RAD ? ', and adds the PerimRad component (Points, Values, Parameters, Programs, Functions, Trends)' : ''}. The stock programs are not touched.`];
+    if (P.F.RAD) s.push('Programs arrive uncompiled. Open and save Func_PID first, then Prog_RadControl.');
     if (P.F.OAENA) s.push('Write PerimRad/Values/OaTmp from the AS-P (or bind it to the building OAT).');
+    s.push('Check the reheat and fan settings, terminals and airflow limits on one box before importing the rest; the airflow limits come from the box schedule.');
     return s;
   },
   assumptions(P){
-    const s = ['Radiation is controlled on the stock room temp (RmTmp99) against the stock heating setpoint (RmTmpSpt99/RmTmpHspt), so setback and setpoint adjust carry over. The Airport units used RmTmpSpt.'];
-    if (P.F.MOD) s.push('Modulating: Func_PID, KP 0.1 / KI 0.0002 (team space loop gains). Tune on site.');
-    if (P.F.ONOFF) s.push('On/off: on RadTmpDif below the heating setpoint, off at the setpoint.');
-    if (P.F.OAENA) s.push('Enabled below RadOaEnaSpt, off 3 F above it (as the Airport units).');
+    const s = ['The stock VAV application is already on the controller (it was on every MP-V export so far). This file only changes the objects it lists; everything else in the stock application stays as it was.',
+      'Reheat points per RhtSelect: proportional types use RhtPos (stock signal 10-2 V); 1-stage and two-position use Rht1Cmd; 2-stage uses Rht1Cmd and Rht2Cmd; floating HW uses Rht1Cmd to open and Rht2Cmd to close (check against the stock Rht99 program).'];
+    if (P.F.RAD) s.push('Radiation is controlled on the stock room temp (RmTmp99) against the stock heating setpoint (RmTmpSpt99/RmTmpHspt), so setback and setpoint adjust carry over. The Airport units used RmTmpSpt.');
+    if (P.F.MOD) s.push('Modulating radiation: Func_PID, KP 0.1 / KI 0.0002 (team space loop gains). Tune on site.');
+    if (P.F.ONOFF) s.push('On/off radiation: on RadTmpDif below the heating setpoint, off at the setpoint.');
+    if (P.F.OAENA) s.push('Radiation enabled below RadOaEnaSpt, off 3 F above it (as the Airport units).');
     return s;
   },
   src: {}
@@ -2477,7 +2652,7 @@ const UV = {
   ],
   options: [
     {id: 'heat', label: 'Heating', type: 'select', def: 'hwfb', choices: [['hwfb', 'Hot water valve + face & bypass damper'], ['hw', 'Hot water valve'], ['none', 'None']]},
-    {id: 'cool', label: 'Cooling', type: 'select', def: 'chw', choices: [['chw', 'Chilled water valve'], ['none', 'None']]},
+    {id: 'cool', label: 'Cooling', type: 'select', def: 'chw', choices: [['chw', 'Chilled water valve'], ['dx1', 'DX, 1 stage'], ['dx2', 'DX, 2 stages'], ['none', 'None']]},
     {id: 'oa', label: 'Outside air', type: 'select', def: 'econ', choices: [['econ', 'Economizer damper'], ['min', 'OA damper at minimum position'], ['none', 'No OA damper']]},
     {id: 'oat', label: 'Outside air temp', type: 'select', def: 'network', choices: [['network', 'Network value (written from the AS-P)'], ['local', 'Sensor wired to this controller']]},
     {id: 'room', label: 'Room sensor', type: 'select', def: 'sb', choices: [['sb', 'SmartX sensor on the Sensor Bus'], ['wired', 'Thermistor wired to this controller']]},
@@ -2487,20 +2662,22 @@ const UV = {
     {id: 'frz', label: 'Low limit switch (stops the fan)', type: 'check', def: true},
     {id: 'nht', label: 'Night heat on room temp', type: 'check', def: true, needs: o => o.heat !== 'none'},
     {id: 'opt', label: 'Morning warm-up / cool-down (time to occupancy from the AS-P)', type: 'check', def: true, needs: o => o.heat !== 'none' || o.cool !== 'none'},
-    {id: 'dehum', label: 'Dehumidify mode from the AS-P', type: 'check', def: true, needs: o => o.cool !== 'none'}
+    {id: 'dehum', label: 'Dehumidify mode from the AS-P', type: 'check', def: true, needs: o => o.cool === 'chw'}
   ],
   flags(o){
     const F = {};
     F.HW = o.heat === 'hw' || o.heat === 'hwfb'; F.FB = o.heat === 'hwfb'; F.HTG = F.HW;
-    F.CLG = o.cool === 'chw';
+    F.CHW = o.cool === 'chw';
+    F.DX = o.cool === 'dx1' || o.cool === 'dx2'; F.DX2 = o.cool === 'dx2';
+    F.CLG = F.CHW || F.DX;
     F.ECON = o.oa === 'econ'; F.OAMOD = o.oa === 'econ' || o.oa === 'min';
-    F.OATNET = o.oat === 'network'; F.OAT = F.ECON || F.FB;
+    F.OATNET = o.oat === 'network'; F.OAT = F.ECON || F.FB || F.DX;
     F.SB = o.room === 'sb'; F.SPT = F.SB && !!o.spt; F.OVR = F.SB && !!o.ovr;
     F.STS = !!o.sts; F.FRZ = !!o.frz;
     F.NHT = F.HW && !!o.nht;
     F.OPT = (F.HW || F.CLG) && !!o.opt; F.WU = F.OPT && F.HW; F.CD = F.OPT && F.CLG;
     F.UNOCSPT = F.NHT || F.WU;
-    F.DEHUM = F.CLG && !!o.dehum;
+    F.DEHUM = F.CHW && !!o.dehum;
     F.RA = false;  // Prog_RoomTemp: no return air sensor to fall back on
     return F;
   },
@@ -2513,7 +2690,9 @@ const UV = {
     {name: 'SaFanCmd', descr: 'Supply Air Fan Command', term: 'DO 1', io: 'do'},
     {name: 'HwVlvPos', descr: 'Hot Water Valve Command', term: 'Ub 5', io: 'ao', sig: '10-2', cond: 'HW'},
     {name: 'FbDprPos', descr: 'Face/Bypass Damper Position', term: 'Ub 7', io: 'ao', sig: '2-10', cond: 'FB'},
-    {name: 'ClgVlvPos', descr: 'Chilled Water Valve Command', term: 'Ub 6', io: 'ao', sig: '2-10', cond: 'CLG'},
+    {name: 'ClgVlvPos', descr: 'Chilled Water Valve Command', term: 'Ub 6', io: 'ao', sig: '2-10', cond: 'CHW'},
+    {name: 'Dx1Cmd',   descr: 'Cooling Stage 1 Command', io: 'do', cond: 'DX'},
+    {name: 'Dx2Cmd',   descr: 'Cooling Stage 2 Command', io: 'do', cond: 'DX2'},
     {name: 'OaDprPos', descr: 'Outside Air Damper Command', term: 'Ub 4', io: 'ao', sig: '2-10', cond: 'OAMOD'}
   ],
   values: [
@@ -2536,6 +2715,7 @@ const UV = {
     {folder: 'Numerics', name: 'EconEna', descr: 'Economizer Enable', kind: 'bv', cond: 'ECON'},
     {folder: 'Numerics', name: 'SaLlmt', descr: 'Supply Air Low Limit Allowance', kind: 'av', unit: '%', cond: 'OAMOD'},
     {folder: 'Numerics', name: 'SaFanAlm', descr: 'Supply Air Fan Alarm', kind: 'alm', cond: 'STS'},
+    {folder: 'Numerics', name: 'DxStg', descr: 'Cooling Stage Status', kind: 'msv', states: 'dx', cond: 'DX'},
 
     {folder: 'Occupancy', name: 'OccCmdTs', descr: 'Schedule', kind: 'occ'},
     {folder: 'Occupancy', name: 'RmOccOvr', descr: 'Occupancy Override', kind: 'occ', cond: 'OVR', sensor: 'Display:OccupancyOverride'},
@@ -2561,6 +2741,9 @@ const UV = {
     {folder: 'Parameters', name: 'EconEnaSpt', descr: 'Economizer Enable Below OAT', kind: 'av', unit: 'F', def: 70, param: true, cond: 'ECON'},
     {folder: 'Parameters', name: 'OaDprPosMin', descr: 'OA Damper Minimum Position', kind: 'av', unit: '%', def: 15, param: true, cond: 'OAMOD'},
     {folder: 'Parameters', name: 'SaTmpLlmt', descr: 'Supply Air Low Limit', kind: 'av', unit: 'F', def: 54, param: true, cond: 'OAMOD'},
+    {folder: 'Parameters', name: 'ClgOaTmpLocSpt', descr: 'Cooling Lockout Below OAT', kind: 'av', unit: 'F', def: 55, param: true, cond: 'DX'},
+    {folder: 'Parameters', name: 'DxStgDif', descr: 'Stage Add/Drop Differential', kind: 'av', unit: 'dF', def: 2, param: true, cond: 'DX'},
+    {folder: 'Parameters', name: 'DxStgDly', descr: 'Stage Add/Drop Delay', kind: 'av', unit: 'min', def: 5, param: true, cond: 'DX'},
     {folder: 'Parameters', name: 'SaFanAlmDly', descr: 'Supply Air Fan Alarm Delay', kind: 'av', unit: 's', def: 60, param: true, cond: 'STS'},
     {folder: 'Parameters', name: 'RmTmpLlmt', descr: 'Lowest Believable Room Temp', kind: 'av', unit: 'F', def: 40, param: true},
     {folder: 'Parameters', name: 'RmTmpHlmt', descr: 'Highest Believable Room Temp', kind: 'av', unit: 'F', def: 100, param: true}
@@ -2570,7 +2753,7 @@ const UV = {
     {name: 'TmpLlmt', descr: 'Low Temp Alarm', src: 'Inputs/TmpLlmt', cond: 'FRZ'},
     {name: 'RmTmpAlm', descr: 'Room Sensor Failure Alarm', src: 'Numerics/RmTmpAlm'}
   ],
-  trends: ['SaTmp', 'RmTmpCtl', 'DaTmpSpt', 'OaTmp', 'HwVlvPos', 'FbDprPos', 'ClgVlvPos', 'OaDprPos', 'SaFanCmd', 'SaFanSts', 'UvHvacMd'],
+  trends: ['SaTmp', 'RmTmpCtl', 'DaTmpSpt', 'OaTmp', 'HwVlvPos', 'FbDprPos', 'ClgVlvPos', 'Dx1Cmd', 'Dx2Cmd', 'OaDprPos', 'SaFanCmd', 'SaFanSts', 'UvHvacMd'],
   programs(o, F){
     const v = {RMSPT: F.SPT ? 'RmTmpSptAct' : 'RmTmpSpt', FAN: F.STS ? 'SaFanSts' : 'SaFanCmd'};
     return [
@@ -2579,6 +2762,7 @@ const UV = {
       {name: 'Prog_RoomSetpoint', descr: 'Room Setpoint Program', src: 'spt', cond: 'SPT'},
       {name: 'Prog_UvControl', descr: 'Unit Ventilator Control Program', src: 'uv', vars: v},
       {name: 'Prog_UvHeatCool', descr: 'Heating and Cooling Program', src: 'hc', vars: v, cond: 'HW|CLG'},
+      {name: 'Prog_CoolingControl', descr: 'Cooling Control Program', src: 'dx', vars: Object.assign({NDX: F.DX2 ? 2 : 1}, v), cond: 'DX'},
       {name: 'Prog_OaDamper', descr: 'Outside Air Damper Program', src: 'oa', vars: v, cond: 'OAMOD'},
       {name: 'Prog_SaFanAlarm', descr: 'Supply Fan Alarm Program', src: 'safan', cond: 'STS'}
     ];
@@ -2606,7 +2790,8 @@ const UV = {
       'Override now runs the unit occupied (outside air and occupied setpoint). The Bower Hill programs ran the fan but stayed unoccupied.'];
     if (P.F.FB) s.push('Face & bypass: FbDprPos 100 = full FACE (through the coil), as Bower Hill. Below FbDprOaEnaSpt the valve goes full open and the damper modulates. With the fan off the valve and face go full open.');
     else if (P.F.HW) s.push('With the fan off the HW valve goes full open, as Bower Hill.');
-    if (P.F.HW) s.push('HwVlvPos is set up 10-2 V (normally open valve) and the dampers and CHW valve 2-10 V, as Bower Hill. Change the signal in step 4 if the actuators differ.');
+    if (P.F.HW) s.push('HwVlvPos is set up 10-2 V (normally open valve) and the dampers' + (P.F.CHW ? ' and CHW valve' : '') + ' 2-10 V, as Bower Hill. Change the signal in step 4 if the actuators differ.');
+    if (P.F.DX) s.push('DX stages on supply air temp against DaTmpSpt with Func_Staging (the VAV AHU staging): add or drop a stage after SaTmp has been DxStgDif off setpoint for DxStgDly minutes. It runs with the fan proven, ClgEna On and OAT above ClgOaTmpLocSpt, alongside the economizer as the CHW valve did.');
     if (P.F.FRZ) s.push('Low limit switch: On = tripped. The program stops the fan and reports; keep it hardwired too.');
     if (P.F.OAMOD) s.push('OA damper opens 2 minutes after the fan proves, occupied or dehumidifying only. Supply low limit loop is the team limit loop (KP 0.05 / KI 0.0004, starts at 100 %); Bower Hill used KP 0.001 / KI 0.0001.');
     if (P.F.ECON) s.push('Economizer: enabled below EconEnaSpt (1 F differential). The damper follows the cooling load, so the CHW valve and economizer open together, as Bower Hill.');
@@ -2881,8 +3066,11 @@ UV.src.hc = `' =================================================================
 '   Below FbDprOaEnaSpt OAT the valve stays full open and the damper
 '   modulates instead.
 #endif
-#if CLG
+#if CHW
 '   ClgVlvPos  0-100 %   100 = full flow. ClgEna (from the AS-P) must be On.
+#endif
+#if DX
+'   DX stages run in Prog_CoolingControl on the same supply air setpoint.
 #endif
 #if HW
 ' Fan off: HW valve full open to protect the coil.
@@ -2904,7 +3092,7 @@ Numeric Input  OaTmp           ' outside air temp, deg F
 Numeric Input  FbDprOaEnaSpt   ' low-temp mode below this OAT, deg F (value object)
 Numeric Output FbDprPos        ' face & bypass damper, 100 = full face
 #endif
-#if CLG
+#if CHW
 Numeric Input  ClgEna          ' from the AS-P, On = cooling allowed
 Numeric Output ClgVlvPos       ' chilled water valve, 0-100 %
 #endif
@@ -2941,7 +3129,7 @@ FanOff:
 #if CLG|ECON
   ClgLoad = 0
 #endif
-#if CLG
+#if CHW
   ClgVlvPos = 0
 #endif
   If {FAN} = On Then
@@ -2990,7 +3178,7 @@ Run:
 #endif
   Endif
 #endif
-#if CLG
+#if CHW
   If ClgEna = On Then
 #if DEHUM
     If DehumMode = On Then
@@ -3095,8 +3283,1221 @@ Open:
   Endif
 `;
 
+UV.src.dx = `' ===========================================================================
+' Prog_CoolingControl  -  {UNIT} DX cooling, {NDX} stage(s) on supply air
+' While ClgEna (from the AS-P) is on, the fan is running and OAT is above
+' ClgOaTmpLocSpt, stages are added when SaTmp is DxStgDif above DaTmpSpt
+' for DxStgDly minutes and dropped when it is DxStgDif below for DxStgDly
+' minutes (Func_Staging, as the VAV AHU). Stage 1 waits 60 seconds after
+' cooling is allowed. DxStg is 1 = off, 2 = stage 1, and so on.
+' Names follow EBO 3 SEBA Naming Convention.
+' ===========================================================================
+
+Numeric Input  ClgEna         ' from the AS-P, On = cooling allowed
+Numeric Input  {FAN}       ' fan running (On)
+Numeric Input  OaTmp          ' outside air temp, deg F
+Numeric Input  ClgOaTmpLocSpt ' no DX below this OAT, deg F (value object)
+Numeric Input  SaTmp          ' supply air temp, deg F
+Numeric Input  DaTmpSpt       ' discharge setpoint, from Prog_UvControl, deg F
+Numeric Input  DxStgDif       ' add/drop differential, deg F (value object)
+Numeric Input  DxStgDly       ' add/drop delay, minutes (value object)
+Numeric Output Dx1Cmd         ' DX stage 1 relay
+#if DX2
+Numeric Output Dx2Cmd         ' DX stage 2 relay
+#endif
+Numeric Output DxStg          ' stage status (display)
+Function Func_Staging         ' bind to Functions/Func_Staging
+
+' ---- Local state -----------------------------------------------------------
+Numeric Stgs                  ' stages called for
+Datetime LsTm                 ' last time the stage count changed
+
+Init:
+  Goto DxOff
+
+DxOff:
+  Stgs = 0
+  DxStg = 1
+  Dx1Cmd = Off
+#if DX2
+  Dx2Cmd = Off
+#endif
+  If ClgEna = On And {FAN} = On And OaTmp >= ClgOaTmpLocSpt Then
+    Goto DxDly
+  Endif
+
+DxDly:
+  If ClgEna = Off Or {FAN} = Off Or OaTmp < ClgOaTmpLocSpt Then
+    Goto DxOff
+  Endif
+  If TS >= 60 Then
+    Goto DxRun
+  Endif
+
+DxRun:
+  Stgs = Func_Staging(SaTmp, DaTmpSpt, Stgs, 0, {NDX}, DxStgDif, DxStgDly, DxStgDif, DxStgDly, 1, LsTm)
+  DxStg = Stgs + 1
+  If Stgs >= 1 Then
+    Dx1Cmd = On
+  Else
+    Dx1Cmd = Off
+  Endif
+#if DX2
+  If Stgs >= 2 Then
+    Dx2Cmd = On
+  Else
+    Dx2Cmd = Off
+  Endif
+#endif
+  If ClgEna = Off Or {FAN} = Off Or OaTmp < ClgOaTmpLocSpt - 2 Then
+    Goto DxOff
+  Endif
+`;
+
+// ---------- Boiler plant template: AS-P with SmartX IO modules ----------
+// From the team's Bower Hill HWS programs: OA enable with pump post-run,
+// lead/standby pumps with flow proof, OA reset of the boiler loop and of the
+// building supply (3-way diverting valve), lead/lag boiler staging with
+// rotation, per-boiler low fire hold and ramp, high pressure cutout, panel lights.
+// Output is two files: IO (into the IO Bus) and Complete (into Application/<unit>).
+const BLR = {
+  label: 'Boiler',
+  title: 'Hot water boiler plant (AS-P with SmartX IO modules)',
+  platform: 'asp', modelName: 'an AS-P with SmartX IO modules',
+  options: [
+    {id: 'n', label: 'Boilers', type: 'select', def: '2', choices: [['2', '2, lead/lag'], ['1', '1']]},
+    {id: 'fire', label: 'Burner control', type: 'select', def: 'mod', choices: [['mod', 'Enable + firing rate (0-10 V)'], ['onoff', 'Enable only']]},
+    {id: 'pumps', label: 'System pumps', type: 'select', def: '2', choices: [['2', '2, lead/standby'], ['1', '1']]},
+    {id: 'div', label: 'Building supply', type: 'select', def: 'div', choices: [['div', '3-way diverting valve, own reset'], ['none', 'Straight from the boilers']]},
+    {id: 'sched', label: 'Occupied / unoccupied reset', type: 'select', def: 'sched', choices: [['sched', 'Schedule HWSOcc', o => o.div === 'div'], ['none', 'Occupied curve only']]},
+    {id: 'oat', label: 'Outside air temp', type: 'select', def: 'local', choices: [['local', 'Sensor wired to the AS-P'], ['network', 'From the network (bind by hand)']]},
+    {id: 'pres', label: 'Boiler pressure transmitters, high pressure cutout', type: 'check', def: true},
+    {id: 'balm', label: 'Boiler alarm contacts', type: 'check', def: true},
+    {id: 'mon', label: 'Each boiler\'s supply temp and HW return temp (monitor only)', type: 'check', def: true},
+    {id: 'oarh', label: 'OA humidity (monitor only)', type: 'check', def: true},
+    {id: 'gen', label: 'Emergency generator status and alarm', type: 'check', def: true},
+    {id: 'lights', label: 'Panel pilot lights', type: 'check', def: true}
+  ],
+  flags(o){
+    const F = {};
+    F.N2 = o.n !== '1'; F.MOD = o.fire === 'mod'; F.ONOFF = !F.MOD; F.P2 = o.pumps !== '1';
+    F.DIV = o.div === 'div'; F.SCHED = F.DIV && o.sched === 'sched';
+    F.OATLOC = o.oat !== 'network'; F.OATNET = !F.OATLOC;
+    F.PRES = !!o.pres; F.BALM = !!o.balm; F.MON = !!o.mon; F.OARH = !!o.oarh; F.GEN = !!o.gen; F.LIGHTS = !!o.lights;
+    F.LTP2 = F.LIGHTS && F.P2; F.LTPRES = F.LIGHTS && F.PRES; F.LTN2 = F.LIGHTS && F.N2;
+    return F;
+  },
+  points(o, F){
+    const p = [];
+    const nb = F.N2 ? 2 : 1;
+    for (let i = 1; i <= nb; i++) {
+      p.push({name: `Blr${i}Ena`, descr: `Boiler ${i} Enable`, io: 'do', term: `S03 DO ${i}`});
+      p.push({name: `Blr${i}FireRate`, descr: `Boiler ${i} Firing Rate`, io: 'ao', term: `S04 AO ${i + 1}`, cond: 'MOD'});
+      p.push({name: `Blr${i}Sts`, descr: `Boiler ${i} Burner Status`, io: 'di', text: 'onoff', term: `S06 DI ${2 * i - 1}`});
+      p.push({name: `Blr${i}Alm`, descr: `Boiler ${i} Burner Alarm`, io: 'di', text: 'alarm', term: `S06 DI ${2 * i}`, cond: 'BALM'});
+      p.push({name: `Blr${i}STmp`, descr: `Boiler ${i} Supply Temp`, io: 'ai', term: `S05 UI ${i}`, cond: 'MON'});
+      p.push({name: `Blr${i}Pres`, descr: `Boiler ${i} Pressure`, io: 'vi', unit: 'psi', range: [0, 100], etop: 5, term: `S05 UI ${7 + i}`, cond: 'PRES'});
+    }
+    p.push({name: 'HwP1Cmd', descr: 'Hot Water Pump 1 Command', io: 'do', term: 'S03 DO 3'});
+    p.push({name: 'HwP2Cmd', descr: 'Hot Water Pump 2 Command', io: 'do', term: 'S03 DO 4', cond: 'P2'});
+    p.push({name: 'HwP1Sts', descr: 'Hot Water Pump 1 Status', io: 'di', text: 'onoff', term: 'S06 DI 5'});
+    p.push({name: 'HwP2Sts', descr: 'Hot Water Pump 2 Status', io: 'di', text: 'onoff', term: 'S06 DI 6', cond: 'P2'});
+    p.push({name: 'HwBypVlvPos', descr: 'HW 3-Way Diverting Valve Position', io: 'ao', term: 'S04 AO 1', cond: 'DIV'});
+    p.push({name: 'BlrHwSTmp', descr: 'Boiler Loop HW Supply Temp', io: 'ai', term: 'S05 UI 3'});
+    p.push({name: 'HwSTmp', descr: 'HW Supply Temp To Building', io: 'ai', term: 'S05 UI 4', cond: 'DIV'});
+    p.push({name: 'HwRTmp', descr: 'HW Return Temp From Building', io: 'ai', term: 'S05 UI 5', cond: 'MON'});
+    p.push({name: 'OaTmp', descr: 'Outdoor Air Temp', io: 'ai', term: 'S05 UI 6', cond: 'OATLOC'});
+    p.push({name: 'OaRh', descr: 'Outdoor Air Relative Humidity', io: 'vi', unit: 'rh', range: [0, 100], term: 'S05 UI 7', cond: 'OARH'});
+    p.push({name: 'GenSts', descr: 'Emergency Generator Status', io: 'di', text: 'onoff', term: 'S06 DI 7', cond: 'GEN'});
+    p.push({name: 'GenAlm', descr: 'Emergency Generator Alarm', io: 'di', text: 'alarm', term: 'S06 DI 8', cond: 'GEN'});
+    p.push({name: 'HwSysEnaLt', descr: 'Heating System Enabled Light', io: 'do', term: 'S07 DO 1', cond: 'LIGHTS'});
+    for (let i = 1; i <= nb; i++) p.push({name: `Blr${i}AlmLt`, descr: `Boiler ${i} Alarm Light`, io: 'do', term: `S07 DO ${i + 1}`, cond: 'LIGHTS'});
+    p.push({name: 'HwP1AlmLt', descr: 'Hot Water Pump 1 Alarm Light', io: 'do', term: 'S07 DO 4', cond: 'LIGHTS'});
+    p.push({name: 'HwP2AlmLt', descr: 'Hot Water Pump 2 Alarm Light', io: 'do', term: 'S07 DO 5', cond: 'LTP2'});
+    p.push({name: 'HwSysPrHalmLt', descr: 'High System Pressure Light', io: 'do', term: 'S07 DO 6', cond: 'LTPRES'});
+    return p;
+  },
+  values(o, F){
+    const nb = F.N2 ? 2 : 1;
+    const v = [
+      {folder: 'Inputs', name: 'OaTmp', descr: 'Outside Air Temp (bind to the building OAT)', kind: 'av', unit: 'F', cond: 'OATNET'},
+      {ext: 'NwkScheduling/HWSOcc', name: 'OccCmd', descr: 'HWS Schedule', cond: 'SCHED'},
+      {folder: 'Numerics', name: 'HwSysEna', descr: 'HW System Enable', kind: 'bv'},
+      {folder: 'Numerics', name: 'HwPReq', descr: 'HW Pumps Requested', kind: 'bv'},
+      {folder: 'Numerics', name: 'HwFlSts', descr: 'HW Flow Proven', kind: 'bv'},
+      {folder: 'Numerics', name: 'HwP1Fof', descr: 'HW Pump 1 Fail Alarm', kind: 'alm'},
+      {folder: 'Numerics', name: 'HwP2Fof', descr: 'HW Pump 2 Fail Alarm', kind: 'alm', cond: 'P2'},
+      {folder: 'Numerics', name: 'HwPLd', descr: 'Lead HW Pump (1 or 2)', kind: 'av', cond: 'P2'},
+      {folder: 'Numerics', name: 'HwPRotTm', descr: 'Last HW Pump Rotation (s)', kind: 'av', cond: 'P2'},
+      {folder: 'Numerics', name: 'BlrHwSTmpSpt', descr: 'Boiler Loop Supply Temp Setpoint', kind: 'av', unit: 'F'},
+      {folder: 'Numerics', name: 'HwSTmpSpt', descr: 'Building HW Supply Temp Setpoint', kind: 'av', unit: 'F', cond: 'DIV'},
+      {folder: 'Numerics', name: 'BlrLoad', descr: 'Boiler Firing Signal', kind: 'av', unit: '%', cond: 'MOD'},
+      {folder: 'Numerics', name: 'BlrLd', descr: 'Lead Boiler (1 or 2)', kind: 'av', cond: 'N2'},
+      {folder: 'Numerics', name: 'BlrRotTm', descr: 'Last Boiler Rotation (s)', kind: 'av', cond: 'N2'},
+      {folder: 'Numerics', name: 'HwSysSts', descr: 'Plant Mode (see README)', kind: 'av'},
+      {folder: 'Numerics', name: 'HwSysPrHalm', descr: 'High System Pressure Alarm', kind: 'alm', cond: 'PRES'}
+    ];
+    for (let i = 1; i <= nb; i++) {
+      v.push({folder: 'Numerics', name: `Blr${i}Req`, descr: `Boiler ${i} Requested`, kind: 'bv'});
+      v.push({folder: 'Numerics', name: `Blr${i}Fof`, descr: `Boiler ${i} Fail Alarm`, kind: 'alm'});
+      v.push({folder: 'Numerics', name: `Blr${i}Fon`, descr: `Boiler ${i} Running With Enable Off`, kind: 'alm'});
+      v.push({folder: 'Numerics', name: `Blr${i}Avl`, descr: `Boiler ${i} Available`, kind: 'bv'});
+      v.push({folder: 'Numerics', name: `Blr${i}Md`, descr: `Boiler ${i} Mode (see README)`, kind: 'av'});
+    }
+    const P = (name, descr, unit, def, cond) => v.push({folder: 'Parameters', name, descr, kind: 'av', unit, def, param: true, cond});
+    P('HwSysOaTmpLocSpt', 'HW System Enable Below OAT', 'F', 55);
+    P('HwSysOaTmpLocDif', 'HW System Disable Differential', 'dF', 2);
+    P('HwPCmdDof', 'HW Pump Post-Run', 's', 120);
+    P('HwPRotSel', 'Lead Pump Select (0 Auto, 1, 2)', 'none', 0, 'P2');
+    P('HwPRotDays', 'Pump Rotation Period (days)', 'none', 30, 'P2');
+    P('HwPFofDly', 'Pump Fail Delay', 's', 30);
+    P('BlrRotSel', 'Lead Boiler Select (0 Auto, 1, 2)', 'none', 0, 'N2');
+    P('BlrRotDays', 'Boiler Rotation Period (days)', 'none', 30, 'N2');
+    P('BlrOnDif', 'Lead Boiler On Below Setpoint', 'dF', 5);
+    P('BlrOffDif', 'Boilers Off Above Setpoint', 'dF', 10);
+    P('BlrStgUpLoad', 'Lag On Above Firing Signal', '%', 90, 'N2&MOD');
+    P('BlrStgUpDif', 'Lag On Below / Off Above Setpoint', 'dF', 3, 'N2');
+    P('BlrStgUpDly', 'Lag On Delay', 's', 600, 'N2');
+    P('BlrStgDnLoad', 'Lag Off Below Firing Signal', '%', 40, 'N2&MOD');
+    P('BlrStgDnDly', 'Lag Off Delay', 's', 600, 'N2');
+    P('BlrFireRateMin', 'Low Fire Signal', '%', 20, 'MOD');
+    P('BlrLowFireDly', 'Low Fire Hold', 's', 300, 'MOD');
+    P('BlrRampDly', 'Time At Each Ramp Limit', 's', 300, 'MOD');
+    P('BlrFofDly', 'Boiler Fail Delay', 's', 300);
+    P('HwSysPrHlmt', 'Boilers Off Above Pressure', 'psi', 25, 'PRES');
+    v.push({folder: 'Parameters', name: 'HwSysAlmRst', descr: 'Fail Alarm Reset (On then Off)', kind: 'bv', def: 0, param: false});
+    return v;
+  },
+  alarms(o, F){
+    const nb = F.N2 ? 2 : 1, a = [];
+    for (let i = 1; i <= nb; i++) {
+      a.push({name: `Blr${i}Fof`, descr: `Boiler ${i} Fail Alarm`, src: `Numerics/Blr${i}Fof`, msg: `Boiler ${i} Failed - No Burner Status`, rst: `Boiler ${i} Fail Alarm Reset`});
+      a.push({name: `Blr${i}Fon`, descr: `Boiler ${i} In Hand Alarm`, src: `Numerics/Blr${i}Fon`, msg: `Boiler ${i} Running With Enable Off (Hand)`, rst: `Boiler ${i} Returned To Normal`});
+      a.push({name: `Blr${i}Alm`, descr: `Boiler ${i} Burner Alarm`, src: `Inputs/Blr${i}Alm`, msg: `Boiler ${i} Burner Alarm`, rst: `Boiler ${i} Burner Alarm Returned To Normal`, dly: 5, cond: 'BALM'});
+    }
+    a.push({name: 'HwP1Fof', descr: 'HW Pump 1 Fail Alarm', src: 'Numerics/HwP1Fof', msg: F.P2 ? 'HW Pump 1 Failed - Standby Pump Started' : 'HW Pump 1 Failed - No Status', rst: 'HW Pump 1 Fail Alarm Reset'});
+    a.push({name: 'HwP2Fof', descr: 'HW Pump 2 Fail Alarm', src: 'Numerics/HwP2Fof', msg: 'HW Pump 2 Failed - Standby Pump Started', rst: 'HW Pump 2 Fail Alarm Reset', cond: 'P2'});
+    a.push({name: 'HwSysPrHalm', descr: 'High System Pressure Alarm', src: 'Numerics/HwSysPrHalm', msg: 'Boiler High Pressure - Boilers Shut Down', rst: 'Boiler Pressure Returned To Normal', cond: 'PRES'});
+    a.push({name: 'GenAlm', descr: 'Emergency Generator Alarm', src: 'Inputs/GenAlm', msg: 'Emergency Generator Alarm', rst: 'Emergency Generator Alarm Returned To Normal', dly: 5, cond: 'GEN'});
+    a.push({name: 'BlrHwSTmpAlm', descr: 'Boiler Loop Temp Alarm', src: 'Inputs/BlrHwSTmp', range: [0, 210]});
+    a.push({name: 'HwSTmpAlm', descr: 'Building HW Supply Temp Alarm', src: 'Inputs/HwSTmp', range: [0, 210], cond: 'DIV'});
+    a.push({name: 'OaTmpFalm', descr: 'Outside Air Temp Sensor Fail', src: 'Inputs/OaTmp', range: [-40, 130], cond: 'OATLOC'});
+    return a;
+  },
+  trends(o, F){
+    const nb = F.N2 ? 2 : 1, t = ['OaTmp', 'BlrHwSTmp', 'BlrHwSTmpSpt', 'HwSTmp', 'HwSTmpSpt', 'HwRTmp'];
+    for (let i = 1; i <= nb; i++) t.push(`Blr${i}STmp`, `Blr${i}Pres`, `Blr${i}FireRate`);
+    t.push('BlrLoad', 'HwBypVlvPos', 'HwSysEna', 'HwSysSts');
+    for (let i = 1; i <= nb; i++) t.push(`Blr${i}Md`, `Blr${i}Ena`, `Blr${i}Sts`);
+    t.push('HwP1Cmd', 'HwP2Cmd', 'HwP1Sts', 'HwP2Sts', 'GenSts');
+    return t;
+  },
+  programs(o, F){
+    const nb = F.N2 ? 2 : 1;
+    const p = [
+      {name: 'Prog_HwSysEnable', descr: 'HW System Enable Program', src: 'ena'},
+      {name: 'Prog_HwPumps', descr: 'HW Pumps Program', src: 'pumps'},
+      {name: 'Prog_HwReset', descr: 'HW Reset Program', src: 'reset'},
+      {name: 'Prog_HwLoops', descr: 'Boiler Firing and Diverting Valve Loops Program', src: 'loops', cond: 'MOD|DIV'},
+      {name: 'Prog_BoilerStaging', descr: 'Boiler Staging Program', src: 'stg'}
+    ];
+    for (let i = 1; i <= nb; i++) p.push({name: `Prog_Boiler${i}`, descr: `Boiler ${i} Program`, src: 'blr', vars: {N: i}});
+    p.push({name: 'Prog_PanelLights', descr: 'Panel Lights Program', src: 'lights', cond: 'LIGHTS'});
+    return p;
+  },
+  states(F){
+    return {
+      plant: F.N2 ? ['Off', 'Lead boiler', 'Lead + lag boiler'].concat(F.PRES ? ['High pressure - boilers off'] : []) : ['Off', 'Boiler on'].concat(F.PRES ? ['', 'High pressure - boiler off'] : []),
+      blr: F.MOD ? ['Off', 'Starting', 'Low fire hold', 'Ramp - 50 % limit', 'Ramp - 75 % limit', 'Modulating', 'Fail - no status', 'Boiler alarm'] : ['Off', 'Starting', '', '', '', 'Running', 'Fail - no status', 'Boiler alarm']
+    };
+  },
+  modesText(P){
+    const st = this.states(P.F), L = ['HwSysSts (plant): ' + st.plant.map((t, i) => t ? `${i + 1} ${t}` : '').filter(Boolean).join(', ')];
+    L.push('Blr' + (P.F.N2 ? 'N' : '1') + 'Md (each boiler): ' + st.blr.map((t, i) => t ? `${i + 1} ${t}` : '').filter(Boolean).join(', '));
+    return L;
+  },
+  importSteps(P){
+    const s = [
+      `In WorkStation, right-click the AS-P's IO Bus and choose Import. Pick "${P.unit} IO - import.xml". It adds the SmartX modules and their points (modules that already exist are merged by name).`,
+      `Right-click Application and choose Import. Pick "${P.unit} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml". It adds the ${P.unit} folder.`
+    ];
+    if (!P.pointsOnly) s.push('Programs arrive uncompiled. Open and save Func_PID first, then each program.');
+    if (P.F.SCHED) s.push('Make sure Application/NwkScheduling/HWSOcc exists (a digital schedule, On = occupied), or rebind Prog_HwReset.OccCmd to your schedule.');
+    if (P.F.OATNET) s.push(`Bind ${P.unit}/Inputs/OaTmp to the building OAT.`);
+    s.push('Check every output stroke and every status contact before putting the plant in auto.');
+    return s;
+  },
+  assumptions(P){
+    const s = ['Sequence and gains are the Bower Hill HWS plant\'s. Firing loop KP 0.04 / KI 0.0003, diverting valve loop KP 0.05 / KI 0.0005 (starting values, tune on site).',
+      'Enabled below HwSysOaTmpLocSpt; disabled HwSysOaTmpLocDif above it, pumps keep running HwPCmdDof after the boilers stop.',
+      'Boiler loop reset: OA 60 F -> 160 F, OA 0 F -> 200 F (in Prog_HwReset Init).'];
+    if (P.F.DIV) s.push('Building supply reset (in Prog_HwReset Init): occupied 120/135/150/175/200 F and unoccupied 100/120/135/160/185 F at OA 60/45/30/15/0 F. Diverting valve 100 % = all boiler water to the building; verify ports and stroke.');
+    if (P.F.MOD) s.push('Each boiler starts at low fire (BlrFireRateMin), holds BlrLowFireDly after status proves, then is limited to 50 % and 75 % for BlrRampDly each.');
+    if (P.F.ONOFF) s.push('Enable only: the boiler\'s own controls fire it. The DDC holds the enable while the boiler loop is below setpoint + BlrOffDif.');
+    if (P.F.N2) s.push('Lag boiler: on when the lead is ' + (P.F.MOD ? 'modulating, BlrLoad >= BlrStgUpLoad and ' : 'running and ') + 'the loop is BlrStgUpDif below setpoint for BlrStgUpDly; off ' + (P.F.MOD ? 'at BlrLoad <= BlrStgDnLoad or ' : 'when ') + 'the loop is BlrStgUpDif above setpoint for BlrStgDnDly.');
+    if (P.F.PRES) s.push('High pressure: either boiler above HwSysPrHlmt shuts the boilers off; auto reset 2 psi below. Pressure transmitters 0-5 V = 0-100 psi.');
+    s.push('Fail alarms latch until HwSysAlmRst is set On, then Off. Alarms auto-clear otherwise.');
+    s.push('SmartX outputs: DO-FC-8 for relays, AO-8 for 0-10 V. Inputs: UI-16 (10k Continuum thermistors), DI-16.');
+    return s;
+  },
+  src: {}
+};
+
+BLR.src.ena = `' ===========================================================================
+' Prog_HwSysEnable  -  {UNIT} hot water system enable
+' Below HwSysOaTmpLocSpt the HW system is enabled: system pumps run and the
+' boilers may fire. Above HwSysOaTmpLocSpt + HwSysOaTmpLocDif the boilers
+' are disabled right away and the pumps keep running for HwPCmdDof.
+' HwSysEna -> Prog_BoilerStaging; HwPReq -> Prog_HwPumps.
+' From the team's Bower Hill HWS programs. Names follow EBO 3 SEBA Naming
+' Convention.
+' ===========================================================================
+
+Numeric Input  OaTmp              ' outside air temp, deg F
+Numeric Input  HwSysOaTmpLocSpt   ' enable below this OAT, deg F
+Numeric Input  HwSysOaTmpLocDif   ' disable above setpoint + this, deg F
+Numeric Input  HwPCmdDof          ' pump post-run after disable, s
+Numeric Output HwSysEna           ' On = HW system enabled (boilers allowed)
+Numeric Output HwPReq             ' On = system pumps requested
+
+Init:
+  HwSysEna = Off
+  HwPReq = Off
+  Goto Off
+
+Off:
+  HwSysEna = Off
+  HwPReq = Off
+  If OaTmp < HwSysOaTmpLocSpt Then
+    Goto Ena
+  Endif
+
+Ena:
+  HwSysEna = On
+  HwPReq = On
+  If OaTmp > HwSysOaTmpLocSpt + HwSysOaTmpLocDif Then
+    Goto PostRun
+  Endif
+
+PostRun:
+  HwSysEna = Off
+  HwPReq = On
+  If OaTmp < HwSysOaTmpLocSpt Then
+    Goto Ena
+  Endif
+  If TS >= HwPCmdDof Then
+    Goto Off
+  Endif
+`;
+
+BLR.src.pumps = `' ===========================================================================
+#if P2
+' Prog_HwPumps  -  {UNIT} HW system pumps lead/standby and flow proof
+' The lead runs whenever HwPReq is On, the other is standby. If the lead is
+' commanded with no current switch status for HwPFofDly, its fail alarm
+' latches and the standby starts. Fail alarms clear with HwSysAlmRst.
+' Lead selection (HwPRotSel): 0 = auto, swap every HwPRotDays days
+'                             1 = Pump 1 lead, 2 = Pump 2 lead
+' HwFlSts (flow proven, to the boilers) is On while either pump has status
+' and drops 15 s after both lose it, so a lead swap does not drop the boilers.
+#else
+' Prog_HwPumps  -  {UNIT} HW system pump and flow proof
+' The pump runs whenever HwPReq is On. Commanded with no current switch
+' status for HwPFofDly latches its fail alarm (clears with HwSysAlmRst).
+' HwFlSts (flow proven, to the boilers) is On while the pump has status and
+' drops 15 s after it loses it.
+#endif
+' From the team's Bower Hill HWS programs. Names follow EBO 3 SEBA Naming
+' Convention.
+' ===========================================================================
+
+Numeric Input  HwPReq         ' from Prog_HwSysEnable
+Numeric Input  HwP1Sts        ' pump 1 current switch, On = running
+#if P2
+Numeric Input  HwP2Sts        ' pump 2 current switch, On = running
+Numeric Input  HwPRotSel      ' 0 = auto rotate, 1 = pump 1 lead, 2 = pump 2 lead
+Numeric Input  HwPRotDays     ' auto rotation period, days
+#endif
+Numeric Input  HwPFofDly      ' commanded with no status this long = fail, s
+Numeric Input  HwSysAlmRst    ' operator alarm reset, On = reset
+Numeric Output HwP1Cmd        ' pump 1 start/stop
+#if P2
+Numeric Output HwP2Cmd        ' pump 2 start/stop
+#endif
+Numeric Output HwP1Fof        ' pump 1 fail alarm
+#if P2
+Numeric Output HwP2Fof        ' pump 2 fail alarm
+Numeric Output HwPLd          ' selected lead pump, 1 or 2
+Numeric Output HwPRotTm       ' time of last auto rotation (Date, seconds)
+#endif
+Numeric Output HwFlSts        ' HW flow proven, to the boiler programs
+
+#if P2
+Numeric ActLd                 ' lead actually running (standby if lead failed)
+#endif
+Numeric P1OkTm                ' last time pump 1 was OK (Date)
+#if P2
+Numeric P2OkTm                ' last time pump 2 was OK (Date)
+#endif
+Numeric FlOkTm                ' last time a pump had status (Date)
+Numeric FlOffDly              ' flow proof drop-out delay, s
+
+Init:
+  FlOffDly = 15
+  P1OkTm = Date
+#if P2
+  P2OkTm = Date
+#endif
+  FlOkTm = Date
+  HwFlSts = Off
+#if P2
+  If HwPLd <> 1 And HwPLd <> 2 Then
+    HwPLd = 1
+  Endif
+  If HwPRotTm = 0 Then
+    HwPRotTm = Date
+  Endif
+#endif
+  Goto Main
+
+Main:
+#if P2
+  ' ---- Lead selection ------------------------------------------------------
+  If HwPRotSel = 1 Then
+    HwPLd = 1
+  Endif
+  If HwPRotSel = 2 Then
+    HwPLd = 2
+  Endif
+  If HwPRotSel = 0 And Date - HwPRotTm >= HwPRotDays * 86400 Then
+    HwPLd = 3 - HwPLd
+    HwPRotTm = Date
+  Endif
+
+  ' ---- Standby takes over if the lead has failed ---------------------------
+  ActLd = HwPLd
+  If HwPLd = 1 And HwP1Fof = On And HwP2Fof = Off Then
+    ActLd = 2
+  Endif
+  If HwPLd = 2 And HwP2Fof = On And HwP1Fof = Off Then
+    ActLd = 1
+  Endif
+
+  ' ---- Commands ------------------------------------------------------------
+  If HwPReq = On And ActLd = 1 Then
+    HwP1Cmd = On
+  Else
+    HwP1Cmd = Off
+  Endif
+  If HwPReq = On And ActLd = 2 Then
+    HwP2Cmd = On
+  Else
+    HwP2Cmd = Off
+  Endif
+#else
+  ' ---- Command -------------------------------------------------------------
+  HwP1Cmd = HwPReq
+#endif
+
+  ' ---- Fail alarms: commanded with no status for HwPFofDly -----------------
+  If HwP1Cmd = On And HwP1Sts = Off Then
+    If Date - P1OkTm >= HwPFofDly Then
+      HwP1Fof = On
+    Endif
+  Else
+    P1OkTm = Date
+  Endif
+#if P2
+  If HwP2Cmd = On And HwP2Sts = Off Then
+    If Date - P2OkTm >= HwPFofDly Then
+      HwP2Fof = On
+    Endif
+  Else
+    P2OkTm = Date
+  Endif
+#endif
+  If HwSysAlmRst = On Then
+    HwP1Fof = Off
+    P1OkTm = Date
+#if P2
+    HwP2Fof = Off
+    P2OkTm = Date
+#endif
+  Endif
+
+  ' ---- Flow proof for the boilers ------------------------------------------
+#if P2
+  If HwP1Sts = On Or HwP2Sts = On Then
+#else
+  If HwP1Sts = On Then
+#endif
+    HwFlSts = On
+    FlOkTm = Date
+  Else
+    If Date - FlOkTm >= FlOffDly Then
+      HwFlSts = Off
+    Endif
+  Endif
+`;
+
+BLR.src.reset = `' ===========================================================================
+' Prog_HwReset  -  {UNIT} boiler loop${'#'}DIVTXT# reset
+' Boiler loop, straight line, clamped at the ends:
+'     OA 60 F -> 160 F        OA 0 F -> 200 F
+#if DIV
+' Building HW supply (3-way diverting valve), straight lines between the
+' schedule points, clamped at 60 F and 0 F:
+'     OA     Occupied   Unoccupied
+'     60 F    120 F      100 F
+'     45 F    135 F      120 F
+'     30 F    150 F      135 F
+'     15 F    175 F      160 F
+'      0 F    200 F      185 F
+#if SCHED
+' OccCmd: the HWS schedule Application/NwkScheduling/HWSOcc, On = occupied.
+#else
+' No schedule: the occupied curve is used all the time.
+#endif
+#endif
+' The schedule values are set in Init below; change them there if the
+' engineer adjusts the schedule.
+' From the team's Bower Hill HWS programs. Names follow EBO 3 SEBA Naming
+' Convention.
+' ===========================================================================
+
+Numeric Input  OaTmp          ' outside air temp, deg F
+#if SCHED
+Numeric Input  OccCmd         ' HWS schedule, On = occupied
+#endif
+Numeric Output BlrHwSTmpSpt   ' boiler loop supply temp setpoint, deg F
+#if DIV
+Numeric Output HwSTmpSpt      ' building HW supply temp setpoint, deg F
+#endif
+
+Numeric BlrSptLo              ' boiler setpoint at 60 F OAT
+Numeric BlrSptHi              ' boiler setpoint at 0 F OAT
+#if DIV
+Numeric Occ60                 ' occupied building setpoints at 60/45/30/15/0 F OAT
+Numeric Occ45
+Numeric Occ30
+Numeric Occ15
+Numeric Occ0
+#if SCHED
+Numeric Uno60                 ' unoccupied building setpoints
+Numeric Uno45
+Numeric Uno30
+Numeric Uno15
+Numeric Uno0
+#endif
+#endif
+Numeric X                     ' OAT clamped 0 to 60 F
+#if DIV
+Numeric OccSpt
+#if SCHED
+Numeric UnoSpt
+#endif
+#endif
+
+Init:
+  BlrSptLo = 160
+  BlrSptHi = 200
+#if DIV
+  Occ60 = 120
+  Occ45 = 135
+  Occ30 = 150
+  Occ15 = 175
+  Occ0 = 200
+#if SCHED
+  Uno60 = 100
+  Uno45 = 120
+  Uno30 = 135
+  Uno15 = 160
+  Uno0 = 185
+#endif
+#endif
+  Goto Main
+
+Main:
+  X = Maximum(Minimum(OaTmp, 60), 0)
+
+  ' ---- Boiler loop reset ---------------------------------------------------
+  BlrHwSTmpSpt = BlrSptHi - ((BlrSptHi - BlrSptLo) * X / 60)
+#if DIV
+
+  ' ---- Building HW supply reset, 15 F segments -----------------------------
+  If X >= 45 Then
+    OccSpt = Occ45 + ((Occ60 - Occ45) * (X - 45) / 15)
+#if SCHED
+    UnoSpt = Uno45 + ((Uno60 - Uno45) * (X - 45) / 15)
+#endif
+  Else
+    If X >= 30 Then
+      OccSpt = Occ30 + ((Occ45 - Occ30) * (X - 30) / 15)
+#if SCHED
+      UnoSpt = Uno30 + ((Uno45 - Uno30) * (X - 30) / 15)
+#endif
+    Else
+      If X >= 15 Then
+        OccSpt = Occ15 + ((Occ30 - Occ15) * (X - 15) / 15)
+#if SCHED
+        UnoSpt = Uno15 + ((Uno30 - Uno15) * (X - 15) / 15)
+#endif
+      Else
+        OccSpt = Occ0 + ((Occ15 - Occ0) * X / 15)
+#if SCHED
+        UnoSpt = Uno0 + ((Uno15 - Uno0) * X / 15)
+#endif
+      Endif
+    Endif
+  Endif
+
+#if SCHED
+  If OccCmd = On Then
+    HwSTmpSpt = OccSpt
+  Else
+    HwSTmpSpt = UnoSpt
+  Endif
+#else
+  HwSTmpSpt = OccSpt
+#endif
+#endif
+`.replace(`${'#'}DIVTXT#`, '');
+
+BLR.src.loops = `' ===========================================================================
+#if MOD&DIV
+' Prog_HwLoops  -  {UNIT} boiler firing loop and 3-way diverting valve loop
+#elif MOD
+' Prog_HwLoops  -  {UNIT} boiler firing loop
+#else
+' Prog_HwLoops  -  {UNIT} 3-way diverting valve loop
+#endif
+' Calls Func_PID every scan (9 arguments, steps once per scan).
+#if MOD
+'   BlrLoad      BlrHwSTmp vs BlrHwSTmpSpt, reverse acting. Common firing
+'                signal; each boiler program applies its own low fire and
+'                ramp limits. Runs while a boiler is requested, else 0.
+#endif
+#if DIV
+'   HwBypVlvPos  HwSTmp vs HwSTmpSpt, reverse acting. 100 % = all boiler
+'                water to the building, 0 % = all bypassed back to the
+'                boilers. Verify valve ports and stroke at startup. Runs while
+'                flow is proven, else 0.
+#endif
+' Gains are starting values; tune on site.
+' From the team's Bower Hill HWS programs. Names follow EBO 3 SEBA Naming
+' Convention.
+' ===========================================================================
+
+#if MOD
+Numeric Input  BlrHwSTmp      ' boiler loop supply temp, deg F
+Numeric Input  BlrHwSTmpSpt   ' from Prog_HwReset
+Numeric Input  Blr1Req        ' from Prog_BoilerStaging
+#if N2
+Numeric Input  Blr2Req        ' from Prog_BoilerStaging
+#endif
+#endif
+#if DIV
+Numeric Input  HwSTmp         ' HW supply temp to the building, deg F
+Numeric Input  HwSTmpSpt      ' from Prog_HwReset
+Numeric Input  HwFlSts        ' from Prog_HwPumps, On = flow proven
+#endif
+#if MOD
+Numeric Output BlrLoad        ' boiler firing signal, 0-100 %
+#endif
+#if DIV
+Numeric Output HwBypVlvPos    ' 3-way diverting valve, 0-100 %
+#endif
+Function Func_PID
+#if MOD
+Numeric BlrLErr               ' firing loop last error
+Numeric BlrIntg               ' firing loop integral
+#endif
+#if DIV
+Numeric VlvLErr               ' valve loop last error
+Numeric VlvIntg               ' valve loop integral
+#endif
+
+Main:
+#if MOD
+  ' ---- Boiler firing loop: reverse acting (Actn 0), bias 0 ----------------
+#if N2
+  If Blr1Req = On Or Blr2Req = On Then
+#else
+  If Blr1Req = On Then
+#endif
+    BlrLoad = Func_PID(BlrHwSTmp, BlrHwSTmpSpt, 0.04, 0.0003, 0, 0, 0, BlrLErr, BlrIntg)
+  Else
+    BlrLoad = 0
+    BlrLErr = 0
+    BlrIntg = 0
+  Endif
+#endif
+#if DIV
+
+  ' ---- Diverting valve loop: reverse acting (Actn 0), bias 0 ---------------
+  If HwFlSts = On Then
+    HwBypVlvPos = Func_PID(HwSTmp, HwSTmpSpt, 0.05, 0.0005, 0, 0, 0, VlvLErr, VlvIntg)
+  Else
+    HwBypVlvPos = 0
+    VlvLErr = 0
+    VlvIntg = 0
+  Endif
+#endif
+`;
+
+BLR.src.stg = `' ===========================================================================
+#if N2
+' Prog_BoilerStaging  -  {UNIT} boiler lead/lag, staging and rotation
+' Boilers are allowed when HwSysEna is On and HW flow is proven (HwFlSts).
+'   Off      Lead starts when BlrHwSTmp drops BlrOnDif below BlrHwSTmpSpt.
+#if MOD
+'   Lead     Lag starts when the lead is modulating (Md 6), BlrLoad >=
+'            BlrStgUpLoad and the loop is BlrStgUpDif below setpoint, held
+'            for BlrStgUpDly. All off BlrOffDif above setpoint.
+'   LeadLag  Lag drops when BlrLoad <= BlrStgDnLoad, or the loop is
+'            BlrStgUpDif above setpoint, held for BlrStgDnDly.
+#else
+'   Lead     Lag starts when the lead is running (Md 6) and the loop is
+'            BlrStgUpDif below setpoint, held for BlrStgUpDly. All off
+'            BlrOffDif above setpoint.
+'   LeadLag  Lag drops when the loop is BlrStgUpDif above setpoint, held
+'            for BlrStgDnDly.
+#endif
+' If the lead is not available (failed or boiler alarm) the other boiler
+' acts as lead right away.
+' Lead selection (BlrRotSel): 0 = auto, swap every BlrRotDays days
+'                             1 = Boiler 1 lead, 2 = Boiler 2 lead
+' An auto swap waits until the plant is Off; a day overdue it swaps in Lead.
+' HwSysSts: 1 OFF   2 LEAD BOILER   3 LEAD + LAG BOILER
+#else
+' Prog_BoilerStaging  -  {UNIT} boiler request
+' The boiler is allowed when HwSysEna is On and HW flow is proven (HwFlSts).
+' It is requested when BlrHwSTmp drops BlrOnDif below BlrHwSTmpSpt and
+' released BlrOffDif above it.
+' HwSysSts: 1 OFF   2 BOILER ON
+#endif
+#if PRES
+'           4 HIGH PRESSURE - BOILERS OFF
+' High pressure: a boiler pressure above HwSysPrHlmt shuts the boilers off
+' and sets HwSysPrHalm; auto resets 2 psi below.
+#endif
+' From the team's Bower Hill HWS programs. Names follow EBO 3 SEBA Naming
+' Convention.
+' ===========================================================================
+
+Numeric Input  HwSysEna       ' from Prog_HwSysEnable
+Numeric Input  HwFlSts        ' from Prog_HwPumps, On = flow proven
+Numeric Input  BlrHwSTmp      ' boiler loop supply temp, deg F
+Numeric Input  BlrHwSTmpSpt   ' from Prog_HwReset
+Numeric Input  BlrOnDif       ' lead on this far below setpoint, deg F
+Numeric Input  BlrOffDif      ' all off this far above setpoint, deg F
+#if N2
+#if MOD
+Numeric Input  BlrLoad        ' from Prog_HwLoops, 0-100 %
+#endif
+Numeric Input  Blr1Avl        ' from Prog_Boiler1, On = available
+Numeric Input  Blr2Avl        ' from Prog_Boiler2, On = available
+Numeric Input  Blr1Md         ' from Prog_Boiler1, 6 = proven and released
+Numeric Input  Blr2Md         ' from Prog_Boiler2, 6 = proven and released
+Numeric Input  BlrRotSel      ' 0 = auto rotate, 1 = boiler 1 lead, 2 = boiler 2 lead
+Numeric Input  BlrRotDays     ' auto rotation period, days
+#if MOD
+Numeric Input  BlrStgUpLoad   ' lag on above this firing signal, %
+#endif
+Numeric Input  BlrStgUpDif    ' lag on below / lag off above setpoint by this, deg F
+Numeric Input  BlrStgUpDly    ' lag on delay, s
+#if MOD
+Numeric Input  BlrStgDnLoad   ' lag off below this firing signal, %
+#endif
+Numeric Input  BlrStgDnDly    ' lag off delay, s
+#endif
+#if PRES
+Numeric Input  Blr1Pres       ' boiler 1 pressure, psi
+#if N2
+Numeric Input  Blr2Pres       ' boiler 2 pressure, psi
+#endif
+Numeric Input  HwSysPrHlmt    ' boilers off above this pressure, psi
+#endif
+Numeric Output Blr1Req        ' to Prog_Boiler1
+#if N2
+Numeric Output Blr2Req        ' to Prog_Boiler2
+Numeric Output BlrLd          ' selected lead boiler, 1 or 2
+Numeric Output BlrRotTm       ' time of last auto rotation (Date, seconds)
+#endif
+Numeric Output HwSysSts       ' plant mode number, see above
+#if PRES
+Numeric Output HwSysPrHalm    ' high pressure alarm
+#endif
+
+#if N2
+Numeric ActLd                 ' boiler acting as lead
+Numeric LdMd                  ' acting lead's Md
+Numeric UpOkTm                ' last time stage up was not called (Date)
+Numeric DnOkTm                ' last time stage down was not called (Date)
+#endif
+
+Init:
+  Blr1Req = Off
+#if N2
+  Blr2Req = Off
+#endif
+  HwSysSts = 1
+#if N2
+  UpOkTm = Date
+  DnOkTm = Date
+  If BlrLd <> 1 And BlrLd <> 2 Then
+    BlrLd = 1
+  Endif
+  If BlrRotTm = 0 Then
+    BlrRotTm = Date
+  Endif
+#endif
+  Goto Main
+
+Main:
+#if N2
+  ' ---- Lead selection and auto rotation ------------------------------------
+  If BlrRotSel = 1 Then
+    BlrLd = 1
+  Endif
+  If BlrRotSel = 2 Then
+    BlrLd = 2
+  Endif
+  If BlrRotSel = 0 Then
+    If HwSysSts = 1 And Date - BlrRotTm >= BlrRotDays * 86400 Then
+      BlrLd = 3 - BlrLd
+      BlrRotTm = Date
+    Endif
+    If HwSysSts = 2 And Date - BlrRotTm >= (BlrRotDays + 1) * 86400 Then
+      BlrLd = 3 - BlrLd
+      BlrRotTm = Date
+    Endif
+  Endif
+
+  ' ---- Acting lead: selected lead unless it is down and the other is OK ----
+  ActLd = BlrLd
+  If BlrLd = 1 And Blr1Avl = Off And Blr2Avl = On Then
+    ActLd = 2
+  Endif
+  If BlrLd = 2 And Blr2Avl = Off And Blr1Avl = On Then
+    ActLd = 1
+  Endif
+  If ActLd = 1 Then
+    LdMd = Blr1Md
+  Else
+    LdMd = Blr2Md
+  Endif
+
+#endif
+#if PRES
+  ' ---- High pressure -------------------------------------------------------
+#if N2
+  If Blr1Pres > HwSysPrHlmt Or Blr2Pres > HwSysPrHlmt Then
+#else
+  If Blr1Pres > HwSysPrHlmt Then
+#endif
+    HwSysPrHalm = On
+  Endif
+#if N2
+  If Blr1Pres < HwSysPrHlmt - 2 And Blr2Pres < HwSysPrHlmt - 2 Then
+#else
+  If Blr1Pres < HwSysPrHlmt - 2 Then
+#endif
+    HwSysPrHalm = Off
+  Endif
+  If HwSysPrHalm = On Then
+    HwSysSts = 4
+  Endif
+  If HwSysSts = 4 And HwSysPrHalm = Off Then
+    HwSysSts = 1
+  Endif
+
+#endif
+  ' ---- Plant mode ----------------------------------------------------------
+#if N2
+  If HwSysSts = 4 Then
+    UpOkTm = Date
+    DnOkTm = Date
+  Endif
+#endif
+  If HwSysSts < 4 And (HwSysEna = Off Or HwFlSts = Off) Then
+    HwSysSts = 1
+  Endif
+  If HwSysSts > 1 And HwSysSts < 4 And BlrHwSTmp > BlrHwSTmpSpt + BlrOffDif Then
+    HwSysSts = 1
+  Endif
+
+  If HwSysSts = 1 Then
+#if N2
+    UpOkTm = Date
+    DnOkTm = Date
+#endif
+    If HwSysEna = On And HwFlSts = On And BlrHwSTmp < BlrHwSTmpSpt - BlrOnDif Then
+      HwSysSts = 2
+    Endif
+#if N2
+  Else
+    If HwSysSts = 2 Then
+      ' stage up timer
+      DnOkTm = Date
+#if MOD
+      If LdMd = 6 And BlrLoad >= BlrStgUpLoad And BlrHwSTmp < BlrHwSTmpSpt - BlrStgUpDif Then
+#else
+      If LdMd = 6 And BlrHwSTmp < BlrHwSTmpSpt - BlrStgUpDif Then
+#endif
+        If Date - UpOkTm >= BlrStgUpDly Then
+          HwSysSts = 3
+        Endif
+      Else
+        UpOkTm = Date
+      Endif
+    Endif
+    If HwSysSts = 3 Then
+      ' stage down timer
+      UpOkTm = Date
+#if MOD
+      If BlrLoad <= BlrStgDnLoad Or BlrHwSTmp > BlrHwSTmpSpt + BlrStgUpDif Then
+#else
+      If BlrHwSTmp > BlrHwSTmpSpt + BlrStgUpDif Then
+#endif
+        If Date - DnOkTm >= BlrStgDnDly Then
+          HwSysSts = 2
+        Endif
+      Else
+        DnOkTm = Date
+      Endif
+    Endif
+#endif
+  Endif
+
+  ' ---- Boiler requests -----------------------------------------------------
+#if N2
+  If HwSysSts = 1 Or HwSysSts = 4 Then
+    Blr1Req = Off
+    Blr2Req = Off
+  Endif
+  If HwSysSts = 2 Then
+    If ActLd = 1 Then
+      Blr1Req = On
+      Blr2Req = Off
+    Else
+      Blr1Req = Off
+      Blr2Req = On
+    Endif
+  Endif
+  If HwSysSts = 3 Then
+    Blr1Req = On
+    Blr2Req = On
+  Endif
+#else
+  If HwSysSts = 2 Then
+    Blr1Req = On
+  Else
+    Blr1Req = Off
+  Endif
+#endif
+`;
+
+BLR.src.blr = `' ===========================================================================
+' Prog_Boiler{N}  -  {UNIT} boiler {N} enable${'#'}MODTXT#, fail and alarm
+#if MOD
+' When Blr{N}Req comes on, Blr{N}Ena closes with the firing rate at low fire
+' (BlrFireRateMin). Once burner status proves, the boiler holds low fire
+' for BlrLowFireDly, then is limited to 50 % for BlrRampDly, then 75 % for
+' BlrRampDly, then follows BlrLoad. It never goes below low fire while
+' enabled.
+#else
+' When Blr{N}Req comes on, Blr{N}Ena closes and the boiler's own controls
+' fire it. Md 6 (running) once burner status proves.
+#endif
+' Fail: enabled with no burner status for BlrFofDly -> Blr{N}Fof, boiler off
+' and unavailable until HwSysAlmRst (On, then Off). If status drops while
+' running the boiler goes back to Starting; if it does not prove again
+' within BlrFofDly it fails. Set the boiler's own operating control above
+' the DDC setpoint so it does not cycle the burner.
+#if BALM
+' Boiler alarm contact (Blr{N}Alm) On -> boiler off and unavailable until it
+' clears.
+#endif
+' Blr{N}Fon: burner status with the enable off for BlrFofDly (boiler in
+' hand). Clears with status.
+' Blr{N}Md (32 characters max in the README):
+#if MOD
+'   1 OFF  2 STARTING  3 LOW FIRE HOLD  4 RAMP - 50 % LIMIT
+'   5 RAMP - 75 % LIMIT  6 MODULATING  7 FAIL - NO STATUS  8 BOILER ALARM
+#else
+'   1 OFF  2 STARTING  6 RUNNING  7 FAIL - NO STATUS  8 BOILER ALARM
+#endif
+' From the team's Bower Hill HWS programs. Names follow EBO 3 SEBA Naming
+' Convention.
+' ===========================================================================
+
+Numeric Input  Blr{N}Req          ' from Prog_BoilerStaging
+Numeric Input  Blr{N}Sts          ' burner status from the boiler, On = firing
+#if BALM
+Numeric Input  Blr{N}Alm          ' boiler alarm contact, On = in alarm
+#endif
+#if MOD
+Numeric Input  BlrLoad          ' from Prog_HwLoops, 0-100 %
+Numeric Input  BlrFireRateMin   ' low fire signal, %
+Numeric Input  BlrLowFireDly    ' low fire hold after status proves, s
+Numeric Input  BlrRampDly       ' time at the 50 % and at the 75 % limit, s
+#endif
+Numeric Input  BlrFofDly        ' enabled with no status this long = fail, s
+Numeric Input  HwSysAlmRst      ' operator alarm reset, On = reset
+Numeric Output Blr{N}Ena          ' boiler enable
+#if MOD
+Numeric Output Blr{N}FireRate     ' firing rate, 0-100 %
+#endif
+Numeric Output Blr{N}Fof          ' fail alarm
+Numeric Output Blr{N}Fon          ' running with enable off (in hand) alarm
+Numeric Output Blr{N}Avl          ' to Prog_BoilerStaging, On = available
+Numeric Output Blr{N}Md           ' mode number, see above
+
+Init:
+  Blr{N}Fof = Off
+  Blr{N}Fon = Off
+  Goto Off
+
+Off:
+  Blr{N}Md = 1
+  Blr{N}Ena = Off
+#if MOD
+  Blr{N}FireRate = 0
+#endif
+  Blr{N}Avl = On
+  If Blr{N}Sts = On And TS >= BlrFofDly Then
+    Blr{N}Fon = On
+  Endif
+  If Blr{N}Sts = Off Then
+    Blr{N}Fon = Off
+  Endif
+#if BALM
+  If Blr{N}Alm = On Then
+    Goto Alarm
+  Endif
+#endif
+  If Blr{N}Req = On Then
+    Blr{N}Fon = Off
+    Goto Starting
+  Endif
+
+Starting:
+  Blr{N}Md = 2
+  Blr{N}Ena = On
+#if MOD
+  Blr{N}FireRate = BlrFireRateMin
+#endif
+  Blr{N}Avl = On
+#if BALM
+  If Blr{N}Alm = On Then
+    Goto Alarm
+  Endif
+#endif
+  If Blr{N}Req = Off Then
+    Goto Off
+  Endif
+  If Blr{N}Sts = On Then
+#if MOD
+    Goto LowFire
+#else
+    Goto Running
+#endif
+  Endif
+  If TS >= BlrFofDly Then
+    Goto Fail
+  Endif
+
+#if MOD
+LowFire:
+  Blr{N}Md = 3
+  Blr{N}Ena = On
+  Blr{N}FireRate = BlrFireRateMin
+#if BALM
+  If Blr{N}Alm = On Then
+    Goto Alarm
+  Endif
+#endif
+  If Blr{N}Req = Off Then
+    Goto Off
+  Endif
+  If Blr{N}Sts = Off Then
+    Goto Starting
+  Endif
+  If TS >= BlrLowFireDly Then
+    Goto Ramp50
+  Endif
+
+Ramp50:
+  Blr{N}Md = 4
+  Blr{N}Ena = On
+  Blr{N}FireRate = Maximum(BlrFireRateMin, Minimum(50, BlrLoad))
+#if BALM
+  If Blr{N}Alm = On Then
+    Goto Alarm
+  Endif
+#endif
+  If Blr{N}Req = Off Then
+    Goto Off
+  Endif
+  If Blr{N}Sts = Off Then
+    Goto Starting
+  Endif
+  If TS >= BlrRampDly Then
+    Goto Ramp75
+  Endif
+
+Ramp75:
+  Blr{N}Md = 5
+  Blr{N}Ena = On
+  Blr{N}FireRate = Maximum(BlrFireRateMin, Minimum(75, BlrLoad))
+#if BALM
+  If Blr{N}Alm = On Then
+    Goto Alarm
+  Endif
+#endif
+  If Blr{N}Req = Off Then
+    Goto Off
+  Endif
+  If Blr{N}Sts = Off Then
+    Goto Starting
+  Endif
+  If TS >= BlrRampDly Then
+    Goto Running
+  Endif
+
+#endif
+Running:
+  Blr{N}Md = 6
+  Blr{N}Ena = On
+#if MOD
+  Blr{N}FireRate = Maximum(BlrFireRateMin, BlrLoad)
+#endif
+#if BALM
+  If Blr{N}Alm = On Then
+    Goto Alarm
+  Endif
+#endif
+  If Blr{N}Req = Off Then
+    Goto Off
+  Endif
+  If Blr{N}Sts = Off Then
+    Goto Starting
+  Endif
+
+Fail:
+  Blr{N}Md = 7
+  Blr{N}Ena = Off
+#if MOD
+  Blr{N}FireRate = 0
+#endif
+  Blr{N}Avl = Off
+  Blr{N}Fof = On
+  If HwSysAlmRst = On Then
+    Blr{N}Fof = Off
+    Goto Off
+  Endif
+#if BALM
+
+Alarm:
+  Blr{N}Md = 8
+  Blr{N}Ena = Off
+#if MOD
+  Blr{N}FireRate = 0
+#endif
+  Blr{N}Avl = Off
+  If Blr{N}Alm = Off Then
+    Goto Off
+  Endif
+#endif
+`.replace(`${'#'}MODTXT#`, '');
+
+BLR.src.lights = `' ===========================================================================
+' Prog_PanelLights  -  {UNIT} boiler panel pilot lights
+'   HwSysEnaLt     HEATING SYSTEM ENABLED
+'   Blr1AlmLt      BOILER-1 ALARM (fail, in hand${'#'}BA#)
+#if N2
+'   Blr2AlmLt      BOILER-2 ALARM
+#endif
+'   HwP1AlmLt      PUMP-1 ALARM
+#if P2
+'   HwP2AlmLt      PUMP-2 ALARM
+#endif
+#if PRES
+'   HwSysPrHalmLt  HIGH SYSTEM PRESSURE
+#endif
+' Call for heat / call for pump lights wired off the enable relays are not
+' in this program.
+' From the team's Bower Hill HWS programs. Names follow EBO 3 SEBA Naming
+' Convention.
+' ===========================================================================
+
+Numeric Input  HwSysEna        ' from Prog_HwSysEnable
+#if BALM
+Numeric Input  Blr1Alm         ' boiler 1 burner alarm
+#endif
+Numeric Input  Blr1Fof         ' from Prog_Boiler1
+Numeric Input  Blr1Fon         ' from Prog_Boiler1
+#if N2
+#if BALM
+Numeric Input  Blr2Alm         ' boiler 2 burner alarm
+#endif
+Numeric Input  Blr2Fof         ' from Prog_Boiler2
+Numeric Input  Blr2Fon         ' from Prog_Boiler2
+#endif
+Numeric Input  HwP1Fof         ' from Prog_HwPumps
+#if P2
+Numeric Input  HwP2Fof         ' from Prog_HwPumps
+#endif
+#if PRES
+Numeric Input  HwSysPrHalm     ' from Prog_BoilerStaging
+#endif
+Numeric Output HwSysEnaLt      ' heating system enabled light
+Numeric Output Blr1AlmLt       ' boiler 1 alarm light
+#if N2
+Numeric Output Blr2AlmLt       ' boiler 2 alarm light
+#endif
+Numeric Output HwP1AlmLt       ' pump 1 alarm light
+#if P2
+Numeric Output HwP2AlmLt       ' pump 2 alarm light
+#endif
+#if PRES
+Numeric Output HwSysPrHalmLt   ' high system pressure light
+#endif
+
+Main:
+  HwSysEnaLt = HwSysEna
+#if BALM
+  If Blr1Alm = On Or Blr1Fof = On Or Blr1Fon = On Then
+#else
+  If Blr1Fof = On Or Blr1Fon = On Then
+#endif
+    Blr1AlmLt = On
+  Else
+    Blr1AlmLt = Off
+  Endif
+#if N2
+#if BALM
+  If Blr2Alm = On Or Blr2Fof = On Or Blr2Fon = On Then
+#else
+  If Blr2Fof = On Or Blr2Fon = On Then
+#endif
+    Blr2AlmLt = On
+  Else
+    Blr2AlmLt = Off
+  Endif
+#endif
+  HwP1AlmLt = HwP1Fof
+#if P2
+  HwP2AlmLt = HwP2Fof
+#endif
+#if PRES
+  HwSysPrHalmLt = HwSysPrHalm
+#endif
+`.replace(`${'#'}BA#`, '');
+
 // ---------- engine: controller parsing, IO assignment, program and XML building ----------
-const UNITS = {F: '0x280003', dF: '0x290002', '%': '0x200001', s: '0x2E0007', min: '0x2E0006', inwc: '0x230005', ppm: '0x200002', cfm: '0x1C0001', psi: '0x230003', rh: '0x170001', none: '0x10001'};
+const UNITS = {cfmv: '0xF0004', F: '0x280003', dF: '0x290002', '%': '0x200001', s: '0x2E0007', min: '0x2E0006', inwc: '0x230005', ppm: '0x200002', cfm: '0x1C0001', psi: '0x230003', rh: '0x170001', none: '0x10001'};
 // Lists in a template may be arrays or functions of (options, flags), for repeated equipment.
 const LIST = (x, o, F) => typeof x === 'function' ? x(o, F) : (x || []);
 // Path of target (relative to Application) as seen from an object in folder `from`.
@@ -3107,6 +4508,8 @@ function rel(from, target){
 }
 const toDev = folder => '../'.repeat(folder.split('/').length + 2);
 const COV_UNIT = {F: '0x290002'};
+// Enumerations of the stock MP-V VAV application (same type names on every job so far)
+const STOCK_ENUM = {"rht": {"name": "udt.enum.aabb2g7eoptqsodegndurwyhcy.aabb2g7eoptqsodegndua7hkwo", "xml": "<PropertyType Name        = \"udt.enum.aabb2g7eoptqsodegndurwyhcy.aabb2g7eoptqsodegndua7hkwo\"\n                    DisplayName = \"Custom enumeration\"\n                    Description = \"Custom enumeration\"\n                    Base        = \"system.pt.PositiveInt32\"\n                    RegExp      = \".*\"\n                    Translate   = \"1\"\n                    EnumType    = \"Strict\"\n                    Icon        = \"\"\n                    Abstract    = \"0\"\n                    >\n                 <Enum Name=\"1-No Reheat\" Value=\"1\"/>\n                 <Enum Name=\"2-One Stage EH\" Value=\"2\"/>\n                 <Enum Name=\"3-Two Stage EH\" Value=\"3\"/>\n                 <Enum Name=\"4-Three Stage EH\" Value=\"4\"/>\n                 <Enum Name=\"5-Proportional EH\" Value=\"5\"/>\n                 <Enum Name=\"6-Floating HW\" Value=\"6\"/>\n                 <Enum Name=\"7-Proportional HW\" Value=\"7\"/>\n                 <Enum Name=\"8-Two Position\" Value=\"8\"/>\n      </PropertyType>"}, "fan": {"name": "udt.enum.aaamra4dlvsbz6cnotcvseyzxz.aaamra4dlvsbz6cnotcuasjedt", "xml": "<PropertyType Name        = \"udt.enum.aaamra4dlvsbz6cnotcvseyzxz.aaamra4dlvsbz6cnotcuasjedt\"\n                    DisplayName = \"Custom enumeration\"\n                    Description = \"Custom enumeration\"\n                    Base        = \"system.pt.PositiveInt32\"\n                    RegExp      = \".*\"\n                    Translate   = \"1\"\n                    EnumType    = \"Strict\"\n                    Icon        = \"\"\n                    Abstract    = \"0\"\n                    >\n                 <Enum Name=\"1-No Fan\" Value=\"1\"/>\n                 <Enum Name=\"2-Parallel Fan\" Value=\"2\"/>\n                 <Enum Name=\"3-Series Fan\" Value=\"3\"/>\n      </PropertyType>"}, "ena": {"name": "udt.enum.aaaijp5jsoeifocmrnmhr354eq.aaaijp5jsoeifocmrnmeaplgvc", "xml": "<PropertyType Name        = \"udt.enum.aaaijp5jsoeifocmrnmhr354eq.aaaijp5jsoeifocmrnmeaplgvc\"\n                    DisplayName = \"Custom enumeration\"\n                    Description = \"Custom enumeration\"\n                    Base        = \"system.pt.Boolean\"\n                    RegExp      = \".*\"\n                    Translate   = \"1\"\n                    EnumType    = \"Strict\"\n                    Icon        = \"\"\n                    Abstract    = \"0\"\n                    >\n                 <Enum Name=\"Not Enabled\" Value=\"0\"/>\n                 <Enum Name=\"Enabled\" Value=\"1\"/>\n      </PropertyType>"}};
 const ENUM = {
   onoff: {name: 'udt.enum.aaaic256pscofocffvw36g7ybz.aaaic256pscofocffvwyaoqpds', base: 'system.pt.Boolean', states: [['Off', 0], ['On', 1]], text: ['On', 'Off']},
   alarm: {name: 'udt.enum.aaaif6v63pob7ocsujg6mccqyx.aaaif6v63pob7ocsujg4ao466p', base: 'system.pt.Boolean', states: [['Normal', 0], ['Alarm', 1]], text: ['Alarm', 'Normal']},
@@ -3230,21 +4633,37 @@ function parseController(text){
   const usedTerms = {};
   const refRe = /Object="[^"]*Onboard IO\/([^"]+)"/g; let r;
   while ((r = refRe.exec(text))) usedTerms[r[1]] = true;
+  // which point sits on each terminal (so a template can move a stock point)
+  const pointTerm = {};
+  const ptRe = /<OI\b[^>]*NAME="([^"]+)"[^>]*TYPE="bacnet\.mpx\.point\.[^"]*"[^>]*>([\s\S]*?)<\/OI>/g;
+  while ((r = ptRe.exec(text))) { const t = /Onboard IO\/([^"]+)"/.exec(r[2]); if (t) pointTerm[r[1]] = t[1]; }
   return {
     name: dev.NAME, model: (dev.TYPE || '').replace('bacnet.mpx.udt.', ''), type: dev.TYPE,
     server: meta.ServerFullPath || '', version: meta.RuntimeVersion || '7.1.2.171',
-    terms: sortTerms(terms), sensors, existing, usedTerms, paths, appType: app ? app.TYPE || '' : ''
+    terms: sortTerms(terms), sensors, existing, usedTerms, pointTerm, paths, appType: app ? app.TYPE || '' : ''
   };
 }
-function termKey(t){ const m = /^([A-Za-z]+)\s*(\d+)$/.exec(t); return m ? [m[1], +m[2]] : [t, 0]; }
+// MP terminals are 'Ub 1'; SmartX module channels on an AS-P are 'S05 UI 1' (slot, kind, channel).
+function termKey(t){ const m = /^((?:S\d+ )?[A-Za-z]+)\s*(\d+)$/.exec(t); return m ? [m[1], +m[2]] : [t, 0]; }
 function sortTerms(ts){ return ts.slice().sort((a, b) => { const [pa, na] = termKey(a), [pb, nb] = termKey(b); return pa === pb ? na - nb : pa.localeCompare(pb); }); }
 // What a terminal can do on an MP controller: DO = relay out; Ub/Uc = universal (input or 0-10 V out); AO = analog out; UI = input.
 function termCaps(t){
-  const p = termKey(t)[0].toUpperCase();
+  const k = termKey(t)[0].toUpperCase(), p = k.split(' ').pop();
+  if (/^S\d+ /.test(k) && p === 'DI') return {di: 1};  // SmartX DI-16
   if (p === 'DO' || p === 'DOT' || p === 'RO') return {do: 1};
   if (p === 'AO') return {ao: 1};
   if (p === 'UI' || p === 'DI') return {ai: 1, vi: 1, di: 1};
   return {ai: 1, vi: 1, di: 1, ao: 1};
+}
+
+// Points a template takes over from the stock application keep their wiring by
+// default, and the terminals they sit on count as free for them.
+function stockCtrl(ctrl, points){
+  const own = ctrl.pointTerm || {}, mine = new Set(points.filter(p => p.stock).map(p => own[p.name]).filter(Boolean));
+  if (!mine.size) return ctrl;
+  const used = {}; Object.keys(ctrl.usedTerms || {}).forEach(t => { if (!mine.has(t)) used[t] = 1; });
+  points.forEach(p => { if (p.stock && own[p.name]) p.term = own[p.name]; });
+  return Object.assign({}, ctrl, {usedTerms: used});
 }
 
 // Default terminal for each point: inputs from the lowest universal up, analog
@@ -3259,7 +4678,7 @@ function assignIO(points, ctrl, keep){
   const pick = (io) => {
     const ts = [...free].filter(t => termCaps(t)[io]);
     if (io === 'ao') {
-      const pref = ts.filter(t => /^(AO|Uc)/i.test(t));
+      const pref = ts.filter(t => /(^|\s)(AO|Uc)\s/i.test(t));
       if (pref.length) return sortTerms(pref)[0];
       return sortTerms(ts).reverse()[0];
     }
@@ -3338,6 +4757,9 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   opts = fixOpts(tpl, opts);
   const F = tpl.flags(opts);
   const root = tpl.root || null;  // one component folder (add-ons to a stock application)
+  const asp = tpl.platform === 'asp';  // AS-P: everything in Application/<unit>, field points on the IO Bus
+  const unit = (opts.unit || tpl.label).trim() || tpl.label;
+  const uf = asp ? unit.replace(/[\\/:*?"<>|]+/g, '-') + '/' : '';
   // Inside it, the stock component layout: Points, Values, Parameters, Programs, Functions, Alarms, Trends.
   const sub = name => root + '/' + name;
   const pointsOnly = !!opts.pointsOnly;  // objects only; the Programs folder stays empty
@@ -3356,12 +4778,11 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   const points = tplPoints.concat(customPoints(opts).filter(dupOk).filter((p, i, a) => a.findIndex(q => q.name === p.name) === i));
   const values = tplValues.concat(customValues(opts).filter(dupOk).filter((v, i, a) => a.findIndex(q => q.name === v.name) === i)).map(v => {
     const d = Object.assign({}, v);
-    if (d.defNoDx != null && !F.DX) d.def = d.defNoDx;
+    if (d.defNoDx != null && !(F.DX || F.CHW)) d.def = d.defNoDx;
     d.isParam = d.param === true || (typeof d.param === 'string' && cond(d.param, F));
     if (edits && edits[d.name] != null && edits[d.name] !== '' && isFinite(+edits[d.name])) d.def = +edits[d.name];
     return d;
   });
-  const unit = (opts.unit || tpl.label).trim() || tpl.label;
   // programs: preprocess, number the modes that appear, then expand
   const progsAll = LIST(tpl.programs, opts, F).filter(p => cond(p.cond, F)).map(p => Object.assign({}, p, buildProgram(tpl, tpl.src[p.src], F, typeof p.vars === 'function' ? p.vars(F, opts) : p.vars)));
   const used = new Set(); progsAll.forEach(p => p.used.forEach(k => used.add(k)));  // mode numbers stay the same in a points-only file
@@ -3376,17 +4797,18 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   // object registry by name
   const reg = {};
   const ptUnit = p => p.io === 'ai' ? 'F' : p.io === 'ao' ? '%' : p.io === 'vi' ? p.unit || 'none' : 'none';
-  points.forEach(p => { reg[p.name] = {kind: 'point', folder: root ? sub('Points') : (/^(ai|vi|di)$/.test(p.io) ? 'Inputs' : 'Outputs'), p, unit: ptUnit(p)}; });
+  points.forEach(p => { reg[p.name] = {kind: 'point', stock: !!p.stock, folder: p.stock ? 'Components/' + p.stock : asp ? '../IO Bus/' + aspModule(ctrl, io[p.name]) : root ? sub('Points') : (/^(ai|vi|di)$/.test(p.io) ? 'Inputs' : 'Outputs'), p, unit: ptUnit(p)}; });
   const issues = customIssues.slice();
   values.forEach(v => {
     if (v.ext) {
       // an object of the controller's stock application: bind to it, never create it
       const parts = v.ext.split('/');
       reg[v.name] = {kind: 'ext', folder: parts.slice(0, -1).join('/'), v, unit: v.unit || 'none', reused: true, extName: parts[parts.length - 1]};
-      if (ctrl.paths && !ctrl.paths[v.ext]) issues.push(`${v.ext} is not in this controller's application`);
+      if (!asp && ctrl.paths && !ctrl.paths[v.ext]) issues.push(`${v.ext} is not in this controller's application`);
       return;
     }
-    reg[v.name] = {kind: 'value', folder: root ? sub(v.param || v.folder === 'Parameters' ? 'Parameters' : 'Values') : v.folder, v, unit: v.unit || 'none'};
+    if (v.stock) { reg[v.name] = {kind: 'value', stock: true, folder: 'Components/' + v.stock, v, unit: v.unit || 'none'}; return; }
+    reg[v.name] = {kind: 'value', folder: root ? sub(v.param || v.folder === 'Parameters' ? 'Parameters' : 'Values') : uf + v.folder, v, unit: v.unit || 'none'};
   });
   // Objects the controller already has are reused: not re-created, programs bind to them where they are.
   const ex = root ? {} : (ctrl.existing || {});
@@ -3405,7 +4827,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   const alarms = LIST(tpl.alarms, opts, F).filter(a => cond(a.cond, F) && !ex[a.name] && (!pointsOnly || (reg[a.src.split('/')[1]] || {}).kind === 'point'));
   const trends = LIST(tpl.trends, opts, F).concat(points.filter(p => p.custom).map(p => p.name)).filter(t => reg[t] && reg[t].kind !== 'ext' && !ex[t + 'Tlog']);
   // functions the programs call
-  const fnFolder = root ? sub('Functions') : 'Functions';
+  const fnFolder = root ? sub('Functions') : uf + 'Functions';
   const fns = [...new Set([].concat(...progs.map(p => p.decl.fns)))];
   const fnAt = {};
   fns.forEach(f => { fnAt[f] = ex[f] || fnFolder; });
@@ -3425,12 +4847,12 @@ function plan(tpl, opts, ctrl, io, sig, edits){
     if (t) { if (seen[t]) ioIssues.push(`${t} is used by ${seen[t]} and ${p.name}`); else seen[t] = p.name; }
   });
   if (tpl.model && !tpl.model.test(ctrl.type || '') && !ctrl.sample) issues.unshift(`${tpl.label} needs ${tpl.modelName}; this export is ${ctrl.model}`);
-  if (root && exRoot && exRoot[root]) issues.push(`${root} already exists in this controller. Rename or delete it before importing.`);
+  if (root && exRoot && exRoot[root] && Object.values(reg).some(r => !r.stock && !r.reused)) issues.push(`${root} already exists in this controller. Rename or delete it before importing.`);
   const sensor = (ctrl.sensors && ctrl.sensors[0]) || 'SpaceLogic Sensor Device';
-  const progFolder = root ? sub('Programs') : 'Programs';
+  const progFolder = root ? sub('Programs') : uf + 'Programs';
   const clashes = root ? [] : progs.map(p => p.name).filter(n => ex[n]);
   const reused = Object.keys(reg).filter(n => reg[n].reused && reg[n].kind !== 'ext').concat(fns.filter(f => ex[f]));
-  return {F, root, pointsOnly, points, values, progs, modeMap, states, reg, writer, alarms, trends, issues, ioIssues, io, sig: sig || {}, sensor, clashes, reused, manual, pidFolder, fns, fnAt, newFns, progFolder, opts, ctrl, unit, tpl};
+  return {F, root, asp, uf, pointsOnly, points, values, progs, modeMap, states, reg, writer, alarms, trends, issues, ioIssues, io, sig: sig || {}, sensor, clashes, reused, manual, pidFolder, fns, fnAt, newFns, progFolder, opts, ctrl, unit, tpl};
 }
 
 // ---------- XML ----------
@@ -3445,13 +4867,15 @@ function objXml(P, name, enums){
   if (r.kind === 'point') {
     const p = r.p, term = ref(toDev(r.folder) + 'IO Resources/Onboard IO/' + P.io[p.name]);
     const w = progRef(P, p.name);
+    // no terminal picked (controller out of that IO): leave the point unbound
+    const termPi = () => { if (P.io[p.name]) lines.push(`${I}  <PI Name="Terminal">`, `${I}    ${term}`, `${I}  </PI>`); };
     lines.push(`${I}<OI DESCR="${xa(p.descr)}" NAME="${p.name}" TYPE="bacnet.mpx.point.${{ai: 'TemperatureInput', vi: 'VoltageInput', di: 'DigitalInput', do: 'DigitalOutput', ao: 'VoltageOutput'}[p.io]}">`);
     if (p.io === 'ai') {
       pi('<PI Name="COVIncrement" Unit="0x290001" Value="0.100000001" />');
       pi('<PI Name="MaxPresValue" Unit="0x280001" Value="3.40282347e+38" />');
       pi('<PI Name="MinPresValue" Unit="0x280001" Value="-3.40282347e+38" />');
       pi('<PI Name="Offset" Unit="0x290001" Value="0" />');
-      lines.push(`${I}  <PI Name="Terminal">`, `${I}    ${term}`, `${I}  </PI>`);
+      termPi();
     } else if (p.io === 'vi') {
       // 0-10 V transmitter scaled to engineering units (range from the template)
       const U = UNITS[p.unit || 'none'], [lo, hi] = p.range || [0, 100];
@@ -3460,19 +4884,19 @@ function objXml(P, name, enums){
       pi(`<PI Name="EngBottomOfScale" Unit="${U}" Value="${lo}" />`); pi(`<PI Name="EngTopOfScale" Unit="${U}" Value="${hi}" />`);
       pi(`<PI Name="MaxPresValue" Unit="${U}" Value="3.40282347e+38" />`); pi(`<PI Name="MinPresValue" Unit="${U}" Value="-3.40282347e+38" />`);
       pi(`<PI Name="Offset" Unit="${U}" Value="0" />`);
-      lines.push(`${I}  <PI Name="Terminal">`, `${I}    ${term}`, `${I}  </PI>`);
+      termPi();
       pi(`<PI Name="Value" Unit="${U}" />`);
     } else if (p.io === 'di') {
       const e = ENUM[p.text || 'onoff']; enums.add(p.text || 'onoff');
       pi(`<PI Name="ActiveText" Value="${e.text[0]}" />`); pi(`<PI Name="InactiveText" Value="${e.text[1]}" />`);
-      lines.push(`${I}  <PI Name="Terminal">`, `${I}    ${term}`, `${I}  </PI>`);
+      termPi();
       pi(`<PI Name="Value" Type="${e.name}" />`);
     } else if (p.io === 'do') {
       const e = ENUM.onoff; enums.add('onoff');
       pi('<PI Name="ActiveText" Value="On" />'); pi('<PI Name="InactiveText" Value="Off" />');
       PRIOS.forEach(pr => { if (pr === 'Priority9' && w) piRef(`Name="Priority9" Type="${e.name}"`, w); else pi(`<PI Name="${pr}" Type="${e.name}" />`); });
       pi(`<PI Name="RelinquishDefault" Type="${e.name}"${p.def != null ? ` Value="${p.def ? 1 : 0}"` : ''} />`);
-      lines.push(`${I}  <PI Name="Terminal">`, `${I}    ${term}`, `${I}  </PI>`);
+      termPi();
       pi(`<PI Name="Value" Type="${e.name}" />`);
     } else {
       const s = P.sig[p.name] || p.sig || '0-10';
@@ -3483,7 +4907,7 @@ function objXml(P, name, enums){
       pi('<PI Name="MaxPresValue" Unit="0x200001" Value="3.40282347e+38" />'); pi('<PI Name="MinPresValue" Unit="0x200001" Value="-3.40282347e+38" />');
       if (w) piRef('Name="Priority9"', w);
       if (p.def != null) pi(`<PI Name="RelinquishDefault" Unit="0x200001" Value="${p.def}" />`);
-      lines.push(`${I}  <PI Name="Terminal">`, `${I}    ${term}`, `${I}  </PI>`);
+      termPi();
       pi('<PI Name="Value" Unit="0x200001" />');
     }
     lines.push(`${I}</OI>`);
@@ -3541,7 +4965,7 @@ async function buildXml(T, P){
   enumSet.multi = (name, st) => { const k = name + ':' + st.join(';'); let e = multis.find(m => m.k === k); if (!e) { e = {k, st}; multis.push(e); } return e.name || (e.name = '@@ENUM' + multis.indexOf(e) + '@@'); };
   // objects first (so enums get collected)
   const folders = {Inputs: [], Numerics: [], Occupancy: [], Outputs: [], Parameters: []};
-  Object.keys(P.reg).forEach(n => { const r = P.reg[n]; if (r.reused) return; (folders[r.folder] || (folders[r.folder] = [])).push(objXml(P, n, enumSet)); });
+  Object.keys(P.reg).forEach(n => { const r = P.reg[n]; if (r.reused || r.stock) return; (folders[r.folder] || (folders[r.folder] = [])).push(objXml(P, n, enumSet)); });
   for (const m of multis) m.real = await enumName(base + '/' + m.k);
   // functions
   const fnTypes = [], fnObjs = [];
@@ -3603,7 +5027,11 @@ async function buildXml(T, P){
     const kids = [folder('Points', at('Points')), folder('Values', at('Values')), folder('Parameters', at('Parameters')),
       folder('Programs', progObjs, null, P.pointsOnly), folder('Functions', fnObjs), folder('Alarms', alarmObjs), folder('Trends', trendItems)]
       .filter(Boolean).map(x => x.replace(/^/gm, '  '));
-    body = folder(leaf, kids, P.tpl && P.tpl.rootDescr);
+    body = kids.length ? folder(leaf, kids, P.tpl && P.tpl.rootDescr) : null;
+    // settings and points merged into the stock application, by name
+    const st = stockXml(P);
+    st.enums.forEach(k => types.push('      ' + STOCK_ENUM[k].xml));
+    body = [st.xml, body].filter(Boolean).join('\n');
   } else {
     body = [
       folder('Alarms', alarmObjs), folder('Functions', fnObjs),
@@ -3617,11 +5045,48 @@ async function buildXml(T, P){
   return xml;
 }
 
+// Objects of the stock application this file changes: only the properties set here,
+// so the stock programs' own bindings stay as they are when the import merges by name.
+function stockXml(P){
+  const tree = {}, enums = new Set();
+  const put = (path, xml) => { let t = tree; path.split('/').slice(1).forEach(k => { t = t[k] = t[k] || {}; }); (t['@'] = t['@'] || []).push(xml); };
+  Object.keys(P.reg).forEach(n => {
+    const r = P.reg[n]; if (!r.stock) return;
+    const L = [];
+    if (r.kind === 'point') {
+      const p = r.p, T = {ai: 'TemperatureInput', vi: 'VoltageInput', di: 'DigitalInput', do: 'DigitalOutput', ao: 'VoltageOutput'}[p.io];
+      L.push(`<OI NAME="${n}" TYPE="bacnet.mpx.point.${T}">`);
+      if (p.io === 'ao' && P.sig[n]) {
+        const [eb, et] = {'0-10': [0, 10], '2-10': [2, 10], '10-0': [10, 0], '10-2': [10, 2]}[P.sig[n]];
+        L.push(`  <PI Name="ElecBottomOfScale" Value="${eb}"/>`, `  <PI Name="ElecTopOfScale" Value="${et}"/>`);
+      }
+      if (P.io[n]) L.push('  <PI Name="Terminal">', `    ${ref(toDev(r.folder) + 'IO Resources/Onboard IO/' + P.io[n])}`, '  </PI>');
+      L.push('</OI>');
+    } else {
+      const v = r.v;
+      if (v.kind === 'stockenum') {
+        const e = STOCK_ENUM[v.enumKey]; enums.add(v.enumKey);
+        L.push(`<OI NAME="${n}" TYPE="bacnet.mpx.value.${v.enumKey === 'ena' ? 'DigitalValue' : 'MultistateValue'}">`, `  <PI Name="RelinquishDefault" Type="${e.name}" Value="${v.def}"/>`, `  <PI Name="Value" Type="${e.name}" Value="${v.def}"/>`, '</OI>');
+      } else {
+        const U = UNITS[v.unit || 'none'];
+        L.push(`<OI NAME="${n}" TYPE="bacnet.mpx.value.AnalogValue">`, `  <PI Name="RelinquishDefault" Unit="${U}" Value="${v.def}"/>`, `  <PI Name="Value" RetainLevel="ColdStart" Unit="${U}" Value="${v.def}"/>`, '</OI>');
+      }
+    }
+    put(r.folder, L.join('\n'));
+  });
+  const out = (t, d) => Object.keys(t).filter(k => k !== '@').sort().map(k => {
+    const pad = '  '.repeat(d);
+    const inner = (t[k]['@'] || []).map(x => x.replace(/^/gm, pad + '  ')).concat(out(t[k], d + 1).map(x => x));
+    return [`${pad}<OI NAME="${xa(k)}" TYPE="system.base.Folder">`, ...inner, `${pad}</OI>`].join('\n');
+  });
+  return {xml: out(tree, 1).join('\n'), enums};
+}
+
 // ---------- README ----------
-const UNIT_TXT = {F: 'F', dF: 'F', '%': '%', s: 's', min: 'min', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', psi: 'psi', rh: '%RH', none: ''};
+const UNIT_TXT = {cfmv: 'cfm', F: 'F', dF: 'F', '%': '%', s: 's', min: 'min', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', psi: 'psi', rh: '%RH', none: ''};
 function ioLabel(p, P){
   if (p.io === 'ao') return 'AO ' + (P.sig[p.name] || p.sig || '0-10') + 'V';
-  if (p.io === 'vi') return 'AI 0-10V';
+  if (p.io === 'vi') return `AI 0-${p.etop || 10}V`;
   return {ai: 'AI 10k', di: 'DI', do: 'DO'}[p.io];
 }
 function readme(P, tpl){
@@ -3655,12 +5120,12 @@ function readme(P, tpl){
   if (P.reused.length) { L.push('ALREADY IN THIS CONTROLLER (kept as they are; the programs bind to them)'); L.push('  ' + P.reused.join(', '), ''); }
   if (P.manual.length) { L.push('BIND BY HAND AFTER IMPORT (existing objects a program writes to)'); P.manual.forEach(m => L.push('  ' + m)); L.push(''); }
   const ext = Object.keys(P.reg).filter(n => P.reg[n].kind === 'ext');
-  if (ext.length) { L.push('READ FROM THE STOCK APPLICATION (not changed)'); ext.forEach(n => L.push('  ' + pad(n, 14) + P.reg[n].folder + '/' + P.reg[n].extName)); L.push(''); }
+  if (ext.length) { L.push(P.asp ? 'BOUND OUTSIDE THIS FOLDER (make sure these exist)' : 'READ FROM THE STOCK APPLICATION (not changed)'); ext.forEach(n => L.push('  ' + pad(n, 14) + P.reg[n].folder + '/' + P.reg[n].extName)); L.push(''); }
   L.push('IO MAP');
   L.push('  ' + pad('Terminal', 12) + pad('Point', 16) + pad('Type', 11) + 'Description');
   P.points.slice().sort((a, b) => { const [pa, na] = termKey(P.io[a.name] || 'zz'), [pb, nb] = termKey(P.io[b.name] || 'zz'); return pa === pb ? na - nb : pa.localeCompare(pb); })
     .forEach(p => L.push('  ' + pad(P.reg[p.name].reused ? '(existing)' : P.io[p.name] || '(none)', 12) + pad(p.name, 16) + pad(ioLabel(p, P), 11) + p.descr
-      + (p.io === 'vi' ? ` (${(p.range || [0, 100]).join('-')} ${UNIT_TXT[p.unit || 'none']} = 0-10 V)` : '')
+      + (p.io === 'vi' ? ` (${(p.range || [0, 100]).join('-')} ${UNIT_TXT[p.unit || 'none']} = 0-${p.etop || 10} V)` : '')
       + (p.io === 'di' && p.text === 'alarm' ? ' (On = tripped)' : p.io === 'di' && p.text === 'dirty' ? ' (Closed = dirty)' : '')));
   L.push('');
   L.push(`PROGRAMS (${P.ctrl.name}/Application/${P.progFolder})`);
@@ -3682,7 +5147,9 @@ function readme(P, tpl){
   L.push('');
   L.push('TRENDS');
   wrap(P.trends.map(t => t + 'Tlog').join(', '), 70).forEach(l => L.push('  ' + l));
-  L.push(`  Analog every ${+P.opts.trendMin || 5} min, digital on change, 800 samples. Chart: "${P.unit} Trend Chart".`);
+  L.push(P.asp ? `  Analog on the AS-P's default log interval (3000 records), digital on change. Chart: "${P.unit} Trend Chart", list: "${P.unit} Trend Log List".`
+    : `  Analog every ${+P.opts.trendMin || 5} min, digital on change, 800 samples. Chart: "${P.unit} Trend Chart".`);
+  if (tpl.modesText) { L.push('', 'MODE NUMBERS'); tpl.modesText(P).forEach(l => L.push('  ' + l)); }
   L.push('');
   L.push('PROGRAM-TO-PROGRAM VALUES');
   Object.keys(P.writer).filter(n => P.reg[n].kind === 'value').forEach(n => {
@@ -3699,6 +5166,163 @@ function readme(P, tpl){
   return L.join('\r\n').replace(/\r?\n/g, '\r\n');
 }
 
+// ---------- AS-P with SmartX IO modules: controller model, IO file and Complete file ----------
+// SmartX modules the generator knows (EBO type names from a team AS-P import).
+const ASP_MODS = {
+  UI16: {kind: 'UI', n: 16, label: 'UI-16 (universal inputs)'},
+  DI16: {kind: 'DI', n: 16, label: 'DI-16 (digital inputs)'},
+  DOFC8H: {kind: 'DO', n: 8, label: 'DO-FC-8 (relay outputs)'},
+  AO8H: {kind: 'AO', n: 8, label: 'AO-8 (0-10 V outputs)'}
+};
+// The Bower Hill HWS panel: the boiler template's default terminals sit on these.
+const ASP_DEFAULT_MODS = [{slot: 3, type: 'DOFC8H'}, {slot: 4, type: 'AO8H'}, {slot: 5, type: 'UI16'}, {slot: 6, type: 'DI16'}, {slot: 7, type: 'DOFC8H'}];
+const s2 = n => String(n).padStart(2, '0');
+function aspCtrl(server, modules){
+  const mods = (modules || []).filter(m => ASP_MODS[m.type] && +m.slot >= 1 && +m.slot <= 99)
+    .filter((m, i, a) => a.findIndex(x => +x.slot === +m.slot) === i).sort((a, b) => a.slot - b.slot);
+  const terms = [];
+  mods.forEach(m => { const d = ASP_MODS[m.type]; for (let c = 1; c <= d.n; c++) terms.push(`S${s2(m.slot)} ${d.kind} ${c}`); });
+  const slots = {}; mods.forEach(m => slots['S' + s2(m.slot)] = m);
+  return {name: 'AS-P', model: 'SmartX IO', type: 'asp', asp: true, server: (server || '/AS-P').trim() || '/AS-P', version: '7.1.2.171',
+    terms, slots, modules: mods, sensors: [], existing: {}, usedTerms: {}, paths: null};
+}
+// 'S05 UI 3' -> 'Slot05:UI16'
+function aspModule(ctrl, term){
+  const m = /^S(\d+) /.exec(term || ''); const mod = m && ctrl.slots && ctrl.slots['S' + m[1]];
+  return mod ? `Slot${s2(mod.slot)}:${mod.type}` : 'Unassigned';
+}
+const aspChan = term => +(/(\d+)$/.exec(term || '') || [0, 0])[1];
+
+// Team Func_PID (unchanged), for the AS-P copy in Application/<unit>/Functions.
+const PID_CODE = "'RETURNS SIGNAL FROM 0 TO 100\n' Func_PID  -  team standard PID Script Function, as supplied by Buddy 2026-10-05.\n' Unchanged except these header comments. Called with 9 args\n' (no LsTm), so DLTm = 1 and it steps once per scan.\n\nArg 1 CV ' Controlled Variable (Sensor)\nArg 2 SP ' Setpoint\nArg 3 KP ' Proportional Gain - Constant\nArg 4 KI ' Integral Gain - Constant\nArg 5 KD ' Derivative Gain - Constant\nArg 6 Bias ' Initial Output Value When No Error Exists\nArg 7 Actn ' Directional Relationship Of CV And Output Capacity (1=DA 0=RA)\nArg 8 LErr ' Error From Previous Scan - Returned To Calling Program\nArg 9 Intg ' Integral Value - Returned To Calling Program\nArg 10 LsTm ' Last Time The Function Was Called - Returned To Calling Program\nNumeric Err ' Difference Between SP And CV\nNumeric DLTm ' Difference Between Current Time And LsTm\nNumeric Op ' Output Capacity (0-1) - Returned To Calling Program\nNumeric Outpt\n\nIf (passed(10)) then\n  DLTm = maximum((Date - LsTm), Scan + 0.0001)\n  LsTm = Date\nElse\n  DLTm = 1\nEndif\nErr = ((CV - SP) * (Actn = 1)) + ((SP - CV) * (Actn = 0))\nOp = maximum(minimum(((KP * Err) + (KI * Intg) + (KD * ((Err - LErr) / DLTm)) + Bias), 1), 0)\nIntg = Intg + (Err * DLTm * (((Op < 1) or (Err < 0)) and ((Op > 0) or (Err > 0))))\nLErr = Err\nOutpt = Op * 100\nReturn (Outpt)\n";
+
+// AS-P Script code lives as escaped PEObject text (not gzipped like the MP CodeFile).
+function aspFile(code, objType){
+  const crlf = code.replace(/\r?\n/g, '\r\n');
+  const inner = b64(new TextEncoder().encode(crlf)).replace(/(.{72})/g, '$1\r\n').replace(/\r\n$/, '');
+  const tail = objType === 2
+    ? ' <FunctionArgs Count="0" Version="1"/>\n'
+    : ' <Labels Count="0" Version="1"/>\n <WebServiceVars Count="0" Version="1"/>\n <BufferedVars Count="0" Version="1"/>\n <DataFileVars Count="0" Version="1"/>\n <TrendLogVars Count="0" Version="1"/>\n';
+  const pe = `<PEObject CompilationSuccess="false" DateChanged="${julianNow()}" LineNumberDeclarationsEnd="0" LineProgramEntry="0" ProgramEntry="0" ScriptCompilerVersion="1" ScriptObjectType="${objType}" Version="1">\n <Code CodeEncrypted="false" Version="1">${inner}</Code>\n <ByteCode Version="1"></ByteCode>\n <LocalVars Count="0" Version="1"/>\n <BindingVars Count="0" Version="1"/>\n <PublicVars Count="0" Version="1"/>\n <FunctionVars Count="0" Version="1"/>\n <XmlNodeVars Count="0" Version="1"/>\n <ObjectVars Count="0" Version="1"/>\n${tail}</PEObject>\n`;
+  return xa(pe).replace(/\r/g, '&#xD;').replace(/\n/g, '&#xA;');
+}
+const dbl = x => { const b = new DataView(new ArrayBuffer(8)); b.setFloat64(0, +x); return '0x' + [...new Uint8Array(b.buffer)].map(v => v.toString(16).padStart(2, '0')).join(''); };
+
+async function buildAsp(P){
+  const U = n => { const r = P.reg[n]; return r ? UNITS[r.unit] || UNITS.none : UNITS.none; };
+  const base = `${P.ctrl.server}/Application`;
+  const I = '    ', meta = `<?xml version="1.0" encoding="UTF-8"?>\n<ObjectSet ExportMode="Standard" Note="TypesFirst" SemanticsFilter="Standard" Version="${xa(P.ctrl.version)}">\n  <MetaInformation>\n    <ExportMode Value="Standard"/>\n    <SemanticsFilter Value="None"/>\n    <RuntimeVersion Value="${xa(P.ctrl.version)}"/>\n    <SourceVersion Value="${xa(P.ctrl.version)}"/>\n    <ServerFullPath Value="${xa(P.ctrl.server)}"/>\n  </MetaInformation>\n`;
+  const wref = name => { const w = P.writer[name]; return w ? ref(rel(P.reg[name].folder, P.progFolder + '/' + w), name) : null; };
+
+  // ---- IO file: modules on the IO Bus, outputs written by the programs ----
+  const bySlot = {};
+  P.points.forEach(p => { const t = P.io[p.name]; const m = aspModule(P.ctrl, t); if (m === 'Unassigned') return; (bySlot[m] = bySlot[m] || []).push(p); });
+  const ioMods = Object.keys(bySlot).sort().map(mname => {
+    const [slot, type] = mname.replace('Slot', '').split(':');
+    const L = [`  <OI NAME="${mname}" TYPE="io.${type}">`, `    <PI Name="ModuleID" Value="${+slot}"/>`];
+    bySlot[mname].sort((a, b) => aspChan(P.io[a.name]) - aspChan(P.io[b.name])).forEach(p => {
+      const ch = aspChan(P.io[p.name]), wr = P.pointsOnly ? null : P.writer[p.name];
+      const w = wr ? ref(`../../../Application/${P.progFolder}/${wr}`, p.name) : null;  // IO Bus/SlotNN/point -> server root
+      const val = (attrs) => w ? [`${I}  <PI Name="Value"${attrs}>`, `${I}    ${w}`, `${I}  </PI>`] : [`${I}  <PI Name="Value"${attrs}/>`];
+      const head = t => `${I}<OI DESCR="${xa(p.descr)}" NAME="${p.name}" TYPE="io.point.${t}">`;
+      if (p.io === 'do') L.push(head('DigitalOutput'), `${I}  <PI Name="OutputChannelNumber" Value="${ch}"/>`, ...(w ? val('') : []), `${I}</OI>`);
+      else if (p.io === 'ao') {
+        const s = P.sig[p.name] || p.sig || '0-10';
+        const [eb, et, gb, gt] = {'0-10': [0, 10, 0, 100], '2-10': [2, 10, 0, 100], '10-0': [0, 10, 100, 0], '10-2': [2, 10, 100, 0]}[s];
+        L.push(head('VoltageOutput'), `${I}  <PI Name="DefaultOutput" Unit="0x200001" Value="${p.def != null ? p.def : 0}"/>`);
+        if (eb) L.push(`${I}  <PI Name="ElecBottomOfScale" Value="${eb}"/>`);
+        L.push(`${I}  <PI Name="ElecTopOfScale" Value="${et}"/>`, `${I}  <PI Name="EngBottomOfScale" Unit="0x200001" Value="${gb}"/>`, `${I}  <PI Name="EngTopOfScale" Unit="0x200001" Value="${gt}"/>`,
+          `${I}  <PI Name="LogArray" Unit="0x200001"/>`, `${I}  <PI Name="OutputChannelNumber" Value="${ch}"/>`, `${I}  <PI Name="RequestedValue" Unit="0x200001"/>`, ...val(' Unit="0x200001"'), `${I}</OI>`);
+      } else if (p.io === 'ai') L.push(head('TemperatureInput'), `${I}  <PI Name="InputChannelNumber" Value="${ch}"/>`, `${I}  <PI Name="ThermistorType" Value="1"/>`, `${I}  <PI Name="Threshold" Value="${p.name === 'OaTmp' ? '0.277778' : '0.111111'}"/>`, `${I}</OI>`);
+      else if (p.io === 'vi') {
+        const u = UNITS[p.unit || 'none'], [lo, hi] = p.range || [0, 100];
+        L.push(head('VoltageInput'), `${I}  <PI Name="ElecTopOfScale" Value="${p.etop || 10}"/>`, `${I}  <PI Name="EngBottomOfScale" Unit="${u}" Value="${lo}"/>`, `${I}  <PI Name="EngTopOfScale" Unit="${u}" Value="${hi}"/>`,
+          `${I}  <PI Name="InputChannelNumber" Value="${ch}"/>`, `${I}  <PI Name="LogArray" Unit="${u}"/>`, `${I}  <PI Name="Offset" Unit="${u}" Value="0"/>`, `${I}  <PI Name="Resolution" Value="0.100000001"/>`,
+          `${I}  <PI Name="Threshold" Value="${p.unit === 'psi' ? '0.200000003' : '0.5'}"/>`, `${I}  <PI Name="Value" Unit="${u}"/>`, `${I}</OI>`);
+      } else L.push(head('DigitalInput'), `${I}  <PI Name="InputChannelNumber" Value="${ch}"/>`, `${I}</OI>`);
+    });
+    L.push('  </OI>');
+    return L.join('\n');
+  });
+  const io = `${meta}<ExportedObjects>\n${ioMods.join('\n')}\n</ExportedObjects>\n\n</ObjectSet>\n`;
+
+  // ---- Complete file: Application/<unit> ----
+  const types = [], fnObjs = [], progObjs = [];
+  for (const f of P.newFns) {
+    const lib = f === 'Func_PID' ? {code: PID_CODE, descr: 'PID Loop'} : FUNCS[f];
+    if (!lib || !lib.code) throw new Error('No code for function ' + f);
+    const tn = await udtName(`${base}/${P.fnAt[f]}/${f}`);
+    types.push('    ' + TA.fn.replace('@@TYPE@@', tn).replace('@@FILE@@', aspFile(lib.code, 2)));
+    fnObjs.push(`    <OI DESCR="${xa(lib.descr || f)}" NAME="${f}" TYPE="${tn}"/>`);
+  }
+  for (const p of P.progs) {
+    const tn = await udtName(`${base}/${P.progFolder}/${p.name}`);
+    const v = (tpl, n, u) => tpl.split('"@@NAME@@"').join(`"${n}"`).replace('@@UNIT@@', u);
+    const tab = (n, g, body) => `      <PropertyTab Name = "${n}">\n        <PropertyGroup Name = "${g}">\n${body.join('\n')}\n        </PropertyGroup>\n      </PropertyTab>`;
+    const tabs = [];
+    if (p.decl.ins.length) tabs.push(tab('InVarTab', 'InVarGroup', p.decl.ins.map(i => v(TA.vin, i.name, i.str ? UNITS.none : U(i.name)))));
+    if (p.decl.outs.length) tabs.push(tab('OutVarTab', 'OutVarGroup', p.decl.outs.map(o => v(TA.vout, o.name, o.str ? UNITS.none : U(o.name)))));
+    if (p.decl.fns.length) tabs.push(tab('FunctionTab', 'FunctionGroup', p.decl.fns.map(f => TA.fref.split('@@NAME@@').join(f))));
+    types.push('    ' + TA.progHead.replace('@@TYPE@@', tn).replace('@@FILE@@', aspFile(p.code, 1)) + '\n' + tabs.join('\n') + '\n\n\n    </ObjectType>');
+    const binds = p.decl.ins.map(i => { const r = P.reg[i.name]; return r ? [i.name, ref(rel(P.progFolder, r.folder + '/' + (r.extName || i.name)), 'Value')] : null; }).filter(Boolean)
+      .concat(p.decl.fns.map(f => [f, ref(rel(P.progFolder, P.fnAt[f] + '/' + f))])).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+    progObjs.push([`    <OI DESCR="${xa(p.descr)}" NAME="${p.name}" TYPE="${tn}">`].concat(...binds.map(([n, rf]) => [`      <PI Name="${n}">`, `        ${rf}`, '      </PI>']), ['    </OI>']).join('\n'));
+  }
+  // values
+  const folders = {};
+  P.values.forEach(v => {
+    const r = P.reg[v.name]; if (!r || r.reused || r.kind !== 'value') return;
+    const f = r.folder.slice(P.uf.length), w = wref(v.name), u = UNITS[v.unit || 'none'];
+    const isB = v.kind === 'bv' || v.kind === 'alm' || v.kind === 'occ';
+    const L = [`    <OI DESCR="${xa(v.descr)}" NAME="${v.name}" TYPE="server.point.${isB ? 'BV' : 'AV'}">`];
+    const ua = isB ? '' : ` Unit="${u}"`;
+    if (w) L.push(`      <PI Name="Value"${ua}>`, `        ${w}`, '      </PI>');
+    else if (v.def != null) L.push(`      <PI Name="Value" RetainLevel="ColdStart"${ua} Value="${isB ? (+v.def ? 1 : 0) : v.def}"/>`);
+    else if (ua) L.push(`      <PI Name="Value"${ua}/>`);
+    L.push('    </OI>');
+    (folders[f] = folders[f] || []).push(L.join('\n'));
+  });
+  // alarms
+  const almF = P.uf + 'Alarms', trF = P.uf + 'Trends';
+  const alarmObjs = P.alarms.map(a => {
+    const n0 = a.src.split('/')[1], r = P.reg[n0]; if (!r) return null;
+    const src = ref(rel(almF, r.folder + '/' + n0), 'Value');
+    if (a.range) {
+      const u = U(n0), du = u === UNITS.F ? UNITS.dF : u;
+      return [`    <OI DESCR="${xa(a.descr)}" NAME="${a.name}" TYPE="alarm.OutOfRangeAlarm">`, `      <PI Name="Deadband" Value="${dbl(2)}" Unit="${du}"/>`, `      <PI Name="HighLimit" Value="${dbl(a.range[1])}" Unit="${u}"/>`,
+        '      <PI Name="HighLimitMessage" Value="@(MonitoredObject-&gt;DESCR) High Limit: @(O) = @(V)"/>', `      <PI Name="LowLimit" Value="${dbl(a.range[0])}" Unit="${u}"/>`,
+        '      <PI Name="LowLimitMessage" Value="@(MonitoredObject-&gt;DESCR) Low Limit: @(O) = @(V)"/>', `      <PI Name="MonitoredVariable" Unit="${u}">`, `        ${src}`, '      </PI>',
+        '      <PI Name="ResetMessage" Value="@(MonitoredObject-&gt;DESCR) Return to Normal: @(O) = @(V)"/>', `      <PI Name="TimeDelayToNormal" Value="${dbl(60)}"/>`, `      <PI Name="TimeDelayToOffNormal" Value="${dbl(60)}"/>`, '    </OI>'].join('\n');
+    }
+    return [`    <OI DESCR="${xa(a.descr)}" NAME="${a.name}" TYPE="alarm.ChangeOfStateAlarm">`, '      <PI Name="AcknowledgementMethod" Value="0"/>', `      <PI Name="AlarmMessage" Value="${xa(a.msg || a.descr)}"/>`,
+      '      <PI Name="MonitoredVariable">', `        ${src}`, '      </PI>', `      <PI Name="ResetMessage" Value="${xa(a.rst || (a.msg || a.descr) + ' Returned To Normal')}"/>`, '      <PI Name="StateValue" Value="1"/>', `      <PI Name="TimeDelayToOffNormal" Value="${a.dly || 0}"/>`, '    </OI>'].join('\n');
+  }).filter(Boolean);
+  // trends: analog on the AS-P default interval, digital on change of value
+  const isDig = n => { const r = P.reg[n]; return (r.kind === 'point' && /^(di|do)$/.test(r.p.io)) || (r.kind === 'value' && /^(bv|alm|occ)$/.test(r.v.kind)) || (r.kind === 'value' && /Md$|Sts$/.test(n) && r.v.kind === 'av' && !r.v.unit); };
+  const trendObjs = P.trends.map(n => {
+    const r = P.reg[n], d = (r.kind === 'point' ? r.p.descr : r.v.descr) + ' Trend', src = ref(rel(trF, r.folder + '/' + n), 'Value');
+    if (isDig(n)) return [`    <OI DESCR="${xa(d)}" NAME="${n}Tlog" TYPE="trend.TLogChangeOfValue">`, '      <PI Name="Enabled" Value="1"/>', '      <PI Name="LogPoint">', `        ${src}`, '      </PI>', '    </OI>'].join('\n');
+    const u = U(n), L = [`    <OI DESCR="${xa(d)}" NAME="${n}Tlog" TYPE="trend.TLog">`];
+    if (u === UNITS.F) L.push(`      <PI Name="DeltaValue" Unit="${UNITS.dF}" Value="0"/>`);
+    L.push('      <PI Name="Enabled" Value="1"/>', `      <PI Name="LogArray" Unit="${u}"/>`, `      <PI Name="LogPoint" Unit="${u}">`, `        ${src}`, '      </PI>', '      <PI Name="LogSize" Value="3000"/>', '    </OI>');
+    return L.join('\n');
+  });
+  const analog = P.trends.filter(n => !isDig(n));
+  const chartN = P.trends.slice(0, 16);
+  const chart = P.trends.length ? [`    <OI NAME="${xa(P.unit)} Trend Chart" TYPE="trend.view.GraphicalTrendView">`, '      <PI Name="DisplayTimeSpan" Value="86400"/>']
+    .concat(chartN.map((n, i) => [`      <OI NAME="${n}" TYPE="trend.view.TrendLogSeriesProperties" hidden="1">`, `        <PI Name="Color" Value="${CHART_COLORS[i % CHART_COLORS.length]}"/>`, '        <PI Name="DisplayLog">', `          ${ref('../../' + n + 'Tlog')}`, '        </PI>', '        <PI Name="ShowEvents" Value="1"/>', '      </OI>'].join('\n')), ['    </OI>']).join('\n') : null;
+  const list = P.trends.length ? [`    <OI NAME="${xa(P.unit)} Trend Log List" TYPE="trend.view.MultiTextualTrendView">`, '      <PI Name="NumberOfRecords" Value="5000"/>']
+    .concat(P.trends.map(n => [`      <OI NAME="${n}" TYPE="trend.view.MultiTextualTrendSeriesProperties" hidden="1">`, '        <PI Name="DisplayLog">', `          ${ref('../../' + n + 'Tlog')}`, '        </PI>', '      </OI>'].join('\n')), ['    </OI>']).join('\n') : null;
+  void analog;
+  const folder = (name, items, keep) => items.length || keep ? [`   <OI NAME="${xa(name)}" TYPE="system.base.Folder">`, ...items, '   </OI>'].join('\n') : null;
+  const body = [`  <OI NAME="${xa(P.uf.slice(0, -1))}" TYPE="system.base.Folder">`,
+    folder('Functions', fnObjs), folder('Programs', progObjs, P.pointsOnly),
+    folder('Inputs', folders.Inputs || []), folder('Numerics', folders.Numerics || []), folder('Parameters', folders.Parameters || []),
+    folder('Alarms', alarmObjs), folder('Trends', trendObjs.concat([chart, list].filter(Boolean))), '  </OI>'].filter(Boolean).join('\n');
+  const complete = `${meta}  <Types>\n${types.join('\n')}\n  </Types>\n<ExportedObjects>\n${body}\n</ExportedObjects>\n\n</ObjectSet>\n`;
+  return {io, complete};
+}
+
 
 (function(){
   const $ = id => document.getElementById(id);
@@ -3710,20 +5334,25 @@ function readme(P, tpl){
     {id: 'vahu', label: 'VAV AHU', tpl: VAHU, sample: () => mpc('AHU-1', 'MPC36A', UB10.concat(Array.from({length: 10}, (_, i) => 'Ub ' + (i + 11)), Array.from({length: 8}, (_, i) => 'Uc ' + (i + 1))))},
     {id: 'vav', label: 'VAV box', tpl: VAV, sample: () => Object.assign(mpc('VAV-1', 'MPV9A', ['AO 1','AO 2','DO 1','DO 2','DO 3','UI 1','UI 2','UI 3','UI 4']), {
       sensors: ['SmartX Sensor Device'], usedTerms: {'AO 1': 1, 'DO 1': 1, 'DO 2': 1, 'DO 3': 1, 'UI 1': 1, 'UI 2': 1},
+      pointTerm: {SaTmp: 'UI 1', FanSts: 'UI 2', FanCmd: 'DO 1', Rht1Cmd: 'DO 2', Rht2Cmd: 'DO 3', RhtPos: 'AO 1'},
       existing: {RmTmp99: 'Components', RmTmpSpt99: 'Components', Rht99: 'Components', Fan99: 'Components', Flow99: 'Components'},
       paths: {'Components/RmTmp99/Values/RmTmp': 1, 'Components/RmTmpSpt99/Values/RmTmpHspt': 1}})},
     {id: 'uv', label: 'Unit Vent', tpl: UV, sample: () => Object.assign(mpc('UV-1', 'RPC12A', ['DO 1','DO 2','DO 3','DO 4','Ub 1','Ub 2','Ub 3','Ub 4','Ub 5','Ub 6','Ub 7','Ub 8']), {sensors: ['SmartX Sensor Device']})},
-    {id: 'rtu', label: 'RTU'}, {id: 'fcu', label: 'FCU'}, {id: 'blr', label: 'Boiler'}
+    {id: 'blr', label: 'Boiler', tpl: BLR, asp: true},
+    {id: 'rtu', label: 'RTU'}, {id: 'fcu', label: 'FCU'}
   ];
   const IOLBL = {ai: 'AI 10k', vi: 'AI 0-10 V', di: 'DI', do: 'DO', ao: 'AO'};
-  const UNITLBL = {F: '°F', dF: '°F', '%': '%', s: 's', min: 'min', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', psi: 'psi', rh: '%RH', none: ''};
-  const fresh = () => ({ctrl: null, sample: false, type: 'ahu', unit: '', optsBy: {}, ioBy: {}, sigBy: {}, editsBy: {}, customBy: {}, pointsOnly: false, trendMin: 5, prog: 0});
+  const UNITLBL = {cfmv: 'cfm', F: '°F', dF: '°F', '%': '%', s: 's', min: 'min', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', psi: 'psi', rh: '%RH', none: ''};
+  const fresh = () => ({ctrl: null, sample: false, asp: {server: '/AS-P', modules: ASP_DEFAULT_MODS.map(m => Object.assign({}, m))}, type: 'ahu', unit: '', optsBy: {}, ioBy: {}, sigBy: {}, editsBy: {}, customBy: {}, pointsOnly: false, trendMin: 5, prog: 0});
   let S = fresh();
   let P = null, downloads = null;
 
   function defaults(tpl){ const o = {}; tpl.options.forEach(op => o[op.id] = op.def); return o; }
   const typ = () => TYPES.find(t => t.id === S.type && t.tpl) || TYPES[0];
   const tpl = () => typ().tpl;
+  const isAsp = () => !!typ().asp;
+  // the controller the current type builds for: an opened MP export, or the AS-P described in step 1
+  const CT = () => isAsp() ? aspCtrl(S.asp.server, S.asp.modules) : S.ctrl;
   // Options, terminals, signals and setpoint edits are kept per unit type.
   const by = k => { S[k] = S[k] || {}; return S[k][S.type] = S[k][S.type] || {}; };
   const O = () => by('optsBy'), IO = () => by('ioBy'), SIG = () => by('sigBy'), ED = () => by('editsBy');
@@ -3735,6 +5364,7 @@ function readme(P, tpl){
         if (x.opts && !x.optsBy) { x.optsBy = {ahu: x.opts}; x.ioBy = {ahu: x.io || {}}; x.sigBy = {ahu: x.sig || {}}; x.editsBy = {ahu: x.edits || {}}; }  // saved by version 1
         ['opts', 'io', 'sig', 'edits'].forEach(k => delete x[k]);
         S = Object.assign(S, x);
+        if (!S.asp || !Array.isArray(S.asp.modules)) S.asp = fresh().asp;
       }
     } catch(e) {}
     TYPES.forEach(t => { if (t.tpl) S.optsBy[t.id] = Object.assign(defaults(t.tpl), S.optsBy[t.id] || {}); });
@@ -3745,6 +5375,9 @@ function readme(P, tpl){
 
   // ---------- step 1 ----------
   function renderCtrl(){
+    const asp = isAsp();
+    $('aspBox').hidden = !asp;
+    if (asp) { $('ctrlEmpty').hidden = $('ctrlInfo').hidden = true; renderAsp(); return; }
     const c = S.ctrl;
     $('ctrlEmpty').hidden = !!c; $('ctrlInfo').hidden = !c;
     if (!c) return;
@@ -3756,6 +5389,25 @@ function readme(P, tpl){
       + `<dt>Room sensor</dt><dd>${c.sensors.length ? esc(c.sensors.join(', ')) : 'none on the Sensor Bus'}</dd>`
       + `<dt>Objects</dt><dd>${Object.keys(c.existing).length ? Object.keys(c.existing).length + ' already in Application' : 'Application is empty'}</dd>`;
   }
+  function renderAsp(){
+    if (document.activeElement !== $('aspServer')) $('aspServer').value = S.asp.server;
+    const foc = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.mi : null;
+    $('modList').innerHTML = S.asp.modules.map((m, i) => `<li><span class="u">Slot</span><input id="ms-${i}" aria-label="Module slot" data-mi="${i}" data-mk="slot" type="number" inputmode="numeric" min="1" max="99" value="${m.slot}">`
+      + `<select data-mi="${i}" data-mk="type" aria-label="Module type">${Object.keys(ASP_MODS).map(k => `<option value="${k}" ${m.type === k ? 'selected' : ''}>${ASP_MODS[k].label}</option>`).join('')}</select>`
+      + `<button type="button" class="link" data-mrm="${i}">Remove</button></li>`).join('');
+    if (foc != null) { const el = $('modList').querySelector(`input[data-mi="${foc}"]`); if (el) el.focus(); }
+  }
+  $('aspServer').addEventListener('input', e => { S.asp.server = e.target.value; recompute(true); });
+  $('modList').addEventListener('change', e => {
+    const el = e.target.closest('[data-mi]'); if (!el) return;
+    const m = S.asp.modules[+el.dataset.mi]; if (!m) return;
+    m[el.dataset.mk] = el.dataset.mk === 'slot' ? Math.max(1, Math.min(99, parseInt(el.value, 10) || 1)) : el.value;
+    renderAsp(); recompute();
+  });
+  $('modList').addEventListener('click', e => { const b = e.target.closest('button[data-mrm]'); if (!b) return; S.asp.modules.splice(+b.dataset.mrm, 1); renderAsp(); recompute(); });
+  $('modAdd').addEventListener('click', () => { const slot = Math.max(0, ...S.asp.modules.map(m => +m.slot || 0)) + 1; S.asp.modules.push({slot, type: 'UI16'}); renderAsp(); recompute(); });
+  $('modReset').addEventListener('click', () => { S.asp.modules = ASP_DEFAULT_MODS.map(m => Object.assign({}, m)); S.ioBy[S.type] = {}; renderAsp(); recompute(); toast('Modules set to the Bower Hill HWS layout'); });
+
   function loadText(text, name){
     let c;
     try { c = parseController(text); } catch(e) { toast(e.message, true); return; }
@@ -3785,21 +5437,23 @@ function readme(P, tpl){
   function renderTypes(){
     $('types').innerHTML = TYPES.map(t => `<button type="button" data-t="${t.id}" aria-pressed="${t.id === S.type}" ${t.tpl ? '' : 'disabled'}>${t.label}${t.tpl ? '' : '<small>soon</small>'}</button>`).join('');
     const t = tpl();
-    $('typeHint').textContent = `${t.title}. Needs ${t.modelName}${t.root ? `; everything imports into one new component folder, Application/${t.root}, with the stock Points, Values, Parameters and Programs subfolders` : ''}. The greyed-out types are added once there is a finished, field-proven program set to build them from.`;
-    $('sampleBtn').textContent = `Look around with a sample ${prettyModel(typ().sample().model)}`;
+    $('typeHint').textContent = `${t.title}. Needs ${t.modelName}${t.stock ? '; the file sets the stock reheat and fan selections and wires the stock points, and perimeter radiation goes in a new Components/PerimRad folder' : t.root ? `; everything imports into one new component folder, Application/${t.root}, with the stock Points, Values, Parameters and Programs subfolders` : ''}. The greyed-out types are added once there is a finished, field-proven program set to build them from.`;
+    if (typ().sample) $('sampleBtn').textContent = `Look around with a sample ${prettyModel(typ().sample().model)}`;
+    $('trendMinF').hidden = isAsp();
+    $('unitName').placeholder = isAsp() ? 'HWS' : 'AHU-1';
     if (document.activeElement !== $('unitName')) $('unitName').value = S.unit;
   }
   $('types').addEventListener('click', e => {
     const b = e.target.closest('button[data-t]'); if (!b || b.disabled || b.dataset.t === S.type) return;
     S.type = b.dataset.t; S.prog = 0;
-    if (S.sample) loadSample();  // the sample follows the unit type
+    if (S.sample && typ().sample) loadSample();  // the sample follows the unit type
     render();
   });
   $('unitName').addEventListener('input', e => { S.unit = e.target.value; recompute(); });
 
   // ---------- step 3 ----------
   function renderOpts(){
-    const t = tpl(), o = S.optsBy[S.type] = fixOpts(t, O());
+    const t = tpl(), o = fixOpts(t, O());  // the stored choices stay as picked; unavailable ones are only hidden
     const foc = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.o : null;
     $('selOpts').innerHTML = t.options.filter(op => op.type === 'select').map(op => {
       const ch = op.choices.filter(c => !c[2] || c[2](o));
@@ -3821,7 +5475,7 @@ function readme(P, tpl){
   // ---------- step 4 ----------
   function renderIO(){
     if (!P) { $('ioBody').innerHTML = '<tr><td colspan="4" class="ds" style="display:table-cell">Open a controller export first.</td></tr>'; $('ioHint').textContent = ''; return; }
-    const c = S.ctrl, bad = new Set(P.ioIssues.map(s => s.split(/[: ]/)[0]));
+    const c = P.ctrl, bad = new Set(P.ioIssues.map(s => s.split(/[: ]/)[0]));
     const taken = {}; P.points.forEach(p => { const t = IO()[p.name]; if (t && !P.reg[p.name].reused) (taken[t] = taken[t] || []).push(p.name); });
     $('ioBody').innerHTML = P.points.map(p => {
       if (P.reg[p.name].reused) return `<tr><td class="nm">${p.name}</td><td class="ds">${esc(p.descr)}</td><td><span class="tag">${IOLBL[p.io]}</span></td><td><span class="tag">already in ${esc(P.reg[p.name].folder)}</span></td></tr>`;
@@ -3830,15 +5484,16 @@ function readme(P, tpl){
       const dup = t && taken[t].length > 1;
       let cell = `<select data-io="${p.name}" aria-label="${p.name} terminal"><option value="">–</option>${opts.map(x => `<option ${x === t ? 'selected' : ''}>${x}</option>`).join('')}</select>`;
       if (p.io === 'ao') cell += ` <select data-sig="${p.name}" aria-label="${p.name} signal">${['0-10', '2-10', '10-0', '10-2'].map(s => `<option value="${s}" ${(SIG()[p.name] || p.sig || '0-10') === s ? 'selected' : ''}>${s} V</option>`).join('')}</select>`;
-      return `<tr class="${!t || dup || bad.has(p.name) ? 'err' : ''}"><td class="nm">${p.name}${p.custom ? '<span class="mine">added</span>' : ''}</td><td class="ds">${esc(p.descr)}</td><td><span class="tag">${IOLBL[p.io]}</span></td><td>${cell}</td></tr>`;
+      return `<tr class="${!t || dup || bad.has(p.name) ? 'err' : ''}"><td class="nm">${p.name}${p.custom ? '<span class="mine">added</span>' : ''}</td><td class="ds">${esc(p.descr)}</td><td><span class="tag">${p.io === 'vi' && p.etop ? `AI 0-${p.etop} V` : IOLBL[p.io]}</span></td><td>${cell}</td></tr>`;
     }).join('');
     const free = c.terms.filter(x => !(c.usedTerms || {})[x]).length;
     const kinds = [...new Set(c.terms.map(x => termKey(x)[0]))];
     const parts = [];
     if (kinds.some(k => /^U[bc]$/.test(k))) parts.push(`${kinds.filter(k => /^U[bc]$/.test(k)).join('/')} take inputs or 0-10 V outputs`);
-    if (kinds.includes('UI')) parts.push('UI are inputs');
-    if (kinds.includes('AO')) parts.push('AO are 0-10 V outputs');
-    if (kinds.includes('DO')) parts.push('DO are relays');
+    if (c.asp) parts.push('DO are DO-FC-8 relays, AO are AO-8 0-10 V outputs, UI are UI-16 inputs, DI are DI-16 contacts');
+    else if (kinds.includes('UI')) parts.push('UI are inputs');
+    if (!c.asp && kinds.includes('AO')) parts.push('AO are 0-10 V outputs');
+    if (!c.asp && kinds.includes('DO')) parts.push('DO are relays');
     const used = Object.keys(c.usedTerms || {}).filter(x => c.terms.includes(x)).length;
     $('ioHint').textContent = `${P.points.length} field point${P.points.length === 1 ? '' : 's'} on ${free} free terminal${free === 1 ? '' : 's'}${used ? ` (${used} already used by the controller's application)` : ''}. ${parts.join('; ')}.`;
   }
@@ -3902,6 +5557,7 @@ function readme(P, tpl){
     const act = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.sp : null;
     const rows = P.values.filter(v => v.isParam);
     if (act && rows.length === $('sptBody').children.length) return;  // don't rebuild under the cursor
+    if (!rows.length) { $('sptBody').innerHTML = '<tr><td colspan="3" class="ds" style="display:table-cell">No setpoints for these options.</td></tr>'; return; }
     $('sptBody').innerHTML = rows.map(v => `<tr><td class="nm">${v.name}</td><td class="ds">${esc(v.descr)}</td><td><input data-sp="${v.name}" type="number" inputmode="decimal" step="any" value="${v.def}" aria-label="${v.name}"><span class="u">${UNITLBL[v.unit || 'none']}</span></td></tr>`).join('');
   }
   $('sptBody').addEventListener('input', e => { const i = e.target; if (!i.dataset.sp) return; ED()[i.dataset.sp] = i.value; recompute(true); });
@@ -3910,16 +5566,19 @@ function readme(P, tpl){
   // ---------- compute + readout ----------
   function recompute(keepSpts){
     const t = tpl();
-    if (!S.ctrl) { P = null; renderIO(); renderSpts(); renderReadout(); save(); return; }
+    const C = CT();
+    if (!C) { P = null; renderIO(); renderSpts(); renderReadout(); save(); return; }
     const opts = fixOpts(t, Object.assign({}, O(), {unit: S.unit, trendMin: S.trendMin, custom: CU(), pointsOnly: !!S.pointsOnly}));
     const F = t.flags(opts);
-    const ex = t.root ? {} : (S.ctrl.existing || {});
-    const pts = allPoints(t, opts, F).filter(p => !ex[p.name]);
+    const ex = t.root ? {} : (C.existing || {});
+    const pts0 = allPoints(t, opts, F).filter(p => !ex[p.name] || p.stock);
+    const pts = pts0.map(p => Object.assign({}, p));
+    const C2 = t.stock ? stockCtrl(C, pts) : C;
     // keep terminals the user picked, fill the rest
-    const io = assignIO(pts, S.ctrl, IO());
-    pts.forEach(p => { if (IO()[p.name] && S.ctrl.terms.includes(IO()[p.name])) io[p.name] = IO()[p.name]; });
+    const io = assignIO(pts, C2, IO());
+    pts.forEach(p => { if (IO()[p.name] && C2.terms.includes(IO()[p.name])) io[p.name] = IO()[p.name]; });
     S.ioBy[S.type] = Object.assign({}, IO(), io);
-    P = plan(t, opts, S.ctrl, io, SIG(), ED());
+    P = plan(t, opts, C2, io, SIG(), ED());
     renderIO(); if (!keepSpts) renderSpts(); else renderSptsSoft();
     renderReadout(); renderCode(); save();
   }
@@ -3932,8 +5591,8 @@ function readme(P, tpl){
       ['rPts', 'rProgs', 'rSpts', 'rAlms', 'rTrends'].forEach(id => $(id).textContent = '–');
       $('rPills').innerHTML = ''; $('saveXml').disabled = $('saveTxt').disabled = true; return;
     }
-    $('rLbl').textContent = `${S.ctrl.name} · ${S.ctrl.model}`;
-    $('rTitle').textContent = `${P.unit} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml`;
+    $('rLbl').textContent = P.asp ? `${P.ctrl.server} · SmartX IO` : `${P.ctrl.name} · ${P.ctrl.model}`;
+    $('rTitle').textContent = P.asp ? `${P.unit} IO + ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml` : `${P.unit} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml`;
     $('rPts').textContent = P.points.length;
     $('rProgs').textContent = P.progs.length;
     [...$('expSeg').children].forEach(b => b.setAttribute('aria-pressed', String((b.dataset.x === 'points') === !!S.pointsOnly)));
@@ -3945,12 +5604,15 @@ function readme(P, tpl){
     if (P.clashes.length) pills.push(['bad', `${P.clashes.join(', ')} already in this controller. Rename or delete ${P.clashes.length > 1 ? 'them' : 'it'} before importing.`]);
     if (P.reused.length) pills.push(['warn', `Keeping ${P.reused.length} object${P.reused.length > 1 ? 's' : ''} the controller already has; the programs bind to them.${P.manual.length ? ` ${P.manual.length} need a binding by hand (see README).` : ''}`]);
     if (P.pointsOnly) pills.push(['warn', 'Points only: the Programs folder is empty and nothing writes the calculated values yet.']);
-    if (S.sample) pills.push(['warn', 'Sample controller. Open the real export before saving.']);
-    if (P.F.SB && !S.ctrl.sensors.length && !S.sample) pills.push(['warn', 'No room sensor on this controller\'s Sensor Bus yet. Add it before importing, or the room values stay unbound.']);
+    const sample = S.sample && !P.asp;
+    if (sample) pills.push(['warn', 'Sample controller. Open the real export before saving.']);
+    if (P.F.SB && !P.ctrl.sensors.length && !sample) pills.push(['warn', 'No room sensor on this controller\'s Sensor Bus yet. Add it before importing, or the room values stay unbound.']);
     if (!pills.some(p => !(p[0] === 'warn' && p[1].startsWith('Points only')))) pills.push(['ok', 'Ready to save']);
     $('rPills').innerHTML = pills.map(([k, s]) => `<span class="pill ${k}">${esc(s)}</span>`).join('');
-    const blocked = S.sample || P.ioIssues.length || P.issues.length || P.clashes.length;
-    $('saveXml').disabled = !!blocked; $('saveTxt').disabled = S.sample;
+    if (P.asp && !P.ctrl.modules.length) pills.push(['bad', 'Add the AS-P\'s IO modules in step 1.']);
+    const blocked = sample || (P.asp && !P.ctrl.modules.length) || P.ioIssues.length || P.issues.length || P.clashes.length;
+    $('saveXml').disabled = !!blocked; $('saveTxt').disabled = sample;
+    $('saveXml').textContent = P.asp ? 'Save the 2 import files' : 'Save import file';
   }
 
   function renderCode(){
@@ -3987,7 +5649,14 @@ function readme(P, tpl){
   $('saveXml').addEventListener('click', async () => {
     if (!P) return;
     $('saveXml').disabled = true;
-    try { const xml = await buildXml(T, P); await saveFile(`${fname(P.unit)} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml`, xml, 'application/xml', P.pointsOnly ? `Saved ${P.points.length} points, no programs` : `Saved ${P.progs.length} programs and ${P.points.length} points`); }
+    try {
+      if (P.asp) {
+        const x = await buildAsp(P), nm = fname(P.unit);
+        await saveFile(`${nm} IO - import.xml`, x.io, 'application/xml', `Saved the IO file (${P.points.length} points)`);
+        await saveFile(`${nm} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml`, x.complete, 'application/xml', P.pointsOnly ? 'Saved the points file, no programs' : `Saved ${P.progs.length} programs`);
+        renderReadout(); return;
+      }
+      const xml = await buildXml(T, P); await saveFile(`${fname(P.unit)} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml`, xml, 'application/xml', P.pointsOnly ? `Saved ${P.points.length} points, no programs` : `Saved ${P.progs.length} programs and ${P.points.length} points`); }
     catch(e) { toast('Could not build the file: ' + e.message, true); }
     renderReadout();
   });
