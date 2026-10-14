@@ -23,6 +23,7 @@ manifest.webmanifest, assets/   Home-screen icons (BAS stripes), favicon
 point-checkout/checkouttool.html + README.md
 device-scanner/devicescanner.html + README.md
 vav-calculator/index.html + README.md
+program-generator/index.html + README.md
 docs/workflow.md                Job workflow manual (install → programming → commissioning → closeout)
 docs/phones.md                  Phone setup manual (Android/Chrome, Samsung Internet, iPhone/Safari, laptop)
 docs/HANDOFF.md                 This file
@@ -72,6 +73,16 @@ Install-time master device list.
 ### VAV Field Calculator (`vav-calculator/index.html`)
 Tabs: Airflow (CFM = K√ΔP, ideal K = 4005 × area), K-Factor correction, Reheat (BTU/h, GPM, kW/amps), Inlets table. Flags for ΔP < 0.03″, FPM out of range, error ±5/±10 %, LAT > 95 °F. Inputs in localStorage `vav-calc-v1`; the **Reset** button uses the three-tap pattern.
 
+### EBO Program Generator (`program-generator/index.html`, ~150 KB)
+Canned EBO 7.1 program set for one MP controller. v1 = single-zone AHU on MP-C; the other unit types (RTU, VAV, FCU, UV, Boiler) are disabled until Buddy supplies a finished program set for each.
+- **Input:** a WorkStation export of one MP controller (`bacnet.mpx.udt.MPC18B` etc.). Reads terminals from IO Resources/Onboard IO, the SpaceLogic sensor on the Sensor Bus, and what's already in `Application`. An AS-P SmartX export gets an error. A built-in sample MP-C-18B is for looking around only (saving blocked).
+- **Options:** heating (none / HW / HW + F&B), cooling (none / DX1 / DX2), OA (econ / min / two-position / none), OAT local or network, room sensor (Sensor Bus or wired), return fan, freezestat, filter, RA sensor, setpoint adjust, override.
+- **Engine:** program templates with `#if/#elif/#else/#endif` blocks on option flags and `@MODE` lines that expand to numbered modes and text. Programs are the Bower Hill AHU-B/C/D programs made generic. Objects already on the controller are reused, not re-created; existing program names are flagged as clashes.
+- **IO:** inputs lowest Ub, analog outputs Uc/AO then highest Ub, relays DO; editable per point, with 0-10/2-10/10-0/10-2 V signal.
+- **Output:** `<unit> Complete - import.xml`, copying the AHU-A Complete export structure (EBO 7.1.2.171): folders Alarms, Functions, Inputs, Numerics, Occupancy, Outputs, Parameters, Programs, Trends; program CodeFile = base64(gzip(PEObject XML with base64 CRLF code)); type names `udt.<26>.<32>` from SHA-256 of the object path. Plus a plain-text README.txt. Not yet test-imported in EBO.
+- **Storage:** localStorage `ebo-gen-v1`. Saves the same way as the checkout tracker.
+- The page source (engine, AHU template, UI) was built in a session scratchpad; the repo file is the built output and is the master now.
+
 ## claude.ai artifacts (private to Buddy)
 - Point Checkout Tracker: https://claude.ai/artifact/NoNDzjxJUspFrsHFmKt2nS (db, user `profile`, downloads)
 - Device Scanner: https://claude.ai/artifact/XpZxtAW31REAoKXhESVBaG (db, user, downloads)
@@ -87,4 +98,6 @@ GitHub Pages is the primary way coworkers use the tools.
 ## Open items / ideas
 - Confirm the scanner's WebAssembly reader works on the claude.ai link (or just use Pages).
 - Name matching between the scanner and EBO/Niagara relies on consistent naming. Fuzzier matching (e.g. room number) could help.
-- Ideas mentioned but not built: MS/TP trunk planner, sensor/signal converter (4–20 mA, 0–10 V, thermistor curves), psychrometric quick-calc, fan/pump affinity calc.
+- MS/TP trunk planner: drafted, then shelved by Buddy (2026-10-14). Do not ship unless he asks.
+- More unit types for the Program Generator, once Buddy supplies finished program sets.
+- Ideas mentioned but not built: sensor/signal converter (4–20 mA, 0–10 V, thermistor curves), psychrometric quick-calc, fan/pump affinity calc.
