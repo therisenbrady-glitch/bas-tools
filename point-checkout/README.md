@@ -72,10 +72,17 @@ A spreadsheet has no points in it, so each group gets a standard template (see b
 The file made with **Export for checkout** (or **Export job**) in the Device Scanner. Scanning happens at install and checkout comes later, so this works in either order:
 
 - **Units already on the list** (for example from the EBO XML): each scanned device is matched to a unit by name. The match ignores spaces, dashes, and case, so `vav 12` matches `VAV-12`. Its device ID, model, serial, and both MACs are attached. The ID shows in the unit's header, and the full details show in a **Device** line when the unit is open.
+- **Names that don't match:** a device whose name doesn't match any unit gets a second try by number, but only onto units that have no scan yet, and only when exactly one device and one unit pair up:
+  1. Same name once leading zeros are ignored: `VAV 0101` matches `VAV-101`.
+  2. Same letters and trailing number: `VAV-14` matches `VAV-2-14`.
+  3. Same room or number: `FCU 405` matches `FCU-5` whose location is `Room 405`, and `Box 301` matches `VAV-301`.
+
+  These are guesses, so the unit gets a **Check scan** tag, and the open unit says how it was matched with **Looks right** and **Not this unit** buttons. **Not this unit** takes the scan off and moves the device back to **Scanned but not on the list**. Importing the same scan list again keeps the tag until someone confirms it.
 - **Empty list:** the scanned devices become units through the normal review step, grouped by model, with template points.
 - **EBO XML imported after a scan list:** units that came from the scan, with nothing checked yet, take the real points from the export and keep their scanned details.
 
-A **Scanned devices** panel then shows what matched, plus two lists to check before closeout:
+A **Scanned devices** panel then shows what matched, plus lists to check before closeout:
+- **Matched by number, check these**: each fallback match as `scanned name → unit`, with why it matched and the same **Looks right** / **Not this unit** buttons.
 - **Scanned but not on the list**: usually a name typed differently in the scanner. Fix it there and import again, or tap **Add as new units**.
 - **On the list but not scanned**: controllers nobody scanned yet.
 

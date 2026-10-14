@@ -118,6 +118,14 @@ h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;mar
 .flag.fail{color:var(--bad);background:var(--bad-bg)}
 .flag.done{color:var(--ok);background:var(--ok-bg)}
 .flag.ex{color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,transparent)}
+.flag.chk{color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,transparent)}
+.fzbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 10px;padding:8px 14px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--accent) 10%,transparent);font-size:13px}
+.fzlist{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.fzlist li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;background:var(--sunk);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:5px;padding:6px 8px;font-size:13px}
+.fzlist code{font-family:var(--f-mono);font-size:12.5px}
+.fzbtns{display:flex;gap:6px}
+.fzbtns button{border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:600;font-size:12.5px;padding:5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.fzbtns button[data-ok="1"]{border-color:var(--ok);color:var(--ok)}
 
 .points{border-top:1px solid var(--line);display:flex;flex-direction:column}
 .pt{display:grid;grid-template-columns:4px 1fr auto;gap:0 10px;align-items:center;padding:8px 14px 8px 0;border-bottom:1px solid var(--line)}
@@ -359,6 +367,7 @@ footer{font-size:12px;color:var(--muted)}
   function cleanDev(d){
     if (!d || typeof d !== 'object') return null;
     const o = {did: d.did === '' || d.did == null ? '' : String(d.did), serial: String(d.serial||''), model: String(d.model||''), mac: String(d.mac||''), netmac: String(d.netmac||'')};
+    if (d.fuzzy) o.fuzzy = String(d.fuzzy);
     return (o.did || o.serial || o.mac || o.netmac) ? o : null;
   }
   const devLine = d => d ? [d.did !== '' ? 'ID ' + d.did : '', d.model, d.serial && 'S/N ' + d.serial, d.mac && 'BT ' + d.mac, d.netmac && 'MAC ' + d.netmac].filter(Boolean).join(' · ') : '';
@@ -421,12 +430,13 @@ footer{font-size:12px;color:var(--muted)}
     $('units').innerHTML = list.map(u => {
       const c = counts(u), st = unitState(c), isOpen = open.has(u.id);
       const w = v => c.total ? (v/c.total*100)+'%' : '0';
-      const flag = u.example ? '<span class="flag ex">Example</span>' : st==='fail' ? `<span class="flag fail">${c.fail} fail</span>` : st==='done' ? '<span class="flag done">Done</span>' : '';
+      const flag = (u.dev && u.dev.fuzzy ? '<span class="flag chk">Check scan</span>' : '') + (u.example ? '<span class="flag ex">Example</span>' : st==='fail' ? `<span class="flag fail">${c.fail} fail</span>` : st==='done' ? '<span class="flag done">Done</span>' : '');
       const bulkN = u.points.filter(p => p.bulk && p.s === 'pass').length;
       const openN = u.points.filter(p => !p.s).length;
       const passAll = isOpen && canWrite && (bulkN || openN) ? `<div class="pabar"><span class="pahint">${bulkN ? `${bulkN} point${bulkN===1?'':'s'} passed in bulk` : `${openN} open point${openN===1?'':'s'}`}</span><button type="button" class="pabtn" data-passall="${u.id}" aria-pressed="${!!bulkN}">${bulkN ? 'Undo pass all' : 'Pass all points'}</button></div>` : '';
       const devbar = isOpen && u.dev ? `<div class="devbar"><span class="devlbl">Device</span>${esc(devLine(u.dev))}</div>` : '';
-      const pts = isOpen ? devbar + passAll + `<div class="points">${u.points.map((p,i) => {
+      const fzbar = isOpen && u.dev && u.dev.fuzzy ? `<div class="fzbar"><span>Scan matched by ${esc(u.dev.fuzzy)}. Is this the right device?</span>${canWrite ? fzBtns(u.id) : ''}</div>` : '';
+      const pts = isOpen ? devbar + fzbar + passAll + `<div class="points">${u.points.map((p,i) => {
         const s = p.s || '';
         const who = p.by && names[p.by] ? names[p.by] + ' · ' : '';
         const meta = s ? `<div class="pmeta">${esc(who)}${esc(fmtTime(p.at))}</div>` : '';
@@ -527,6 +537,7 @@ footer{font-size:12px;color:var(--muted)}
       writeUnit(u); render();
       return;
     }
+    if (t.dataset.fz && canWrite) { scanCheck(t.dataset.fz, t.dataset.ok === '1'); return; }
     if (t.dataset.addpt) { addPoint(t.dataset.addpt); return; }
     if (t.dataset.del) {
       if (delArm === t.dataset.del) { const u = units.find(x => x.id === t.dataset.del); delArm = null; deleteUnit(t.dataset.del); toast(`Deleted ${u ? u.tag : 'unit'}`); }
@@ -750,40 +761,106 @@ footer{font-size:12px;color:var(--muted)}
   // ---------- scanned device list (from the Device Scanner) ----------
   // Matches each scanned device to a unit by name and attaches its device ID,
   // serial and MACs. Works whether the scan list or the EBO import comes first.
+  // Devices whose name doesn't match exactly get a fallback match by number
+  // (leading zeros, trailing number, or room number). Those carry dev.fuzzy
+  // until someone confirms or undoes them.
   const normTag = v => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  let scanLeft = [];
+  const unzero = v => normTag(v).replace(/\d+/g, n => String(+n));
+  const tailNum = v => { const m = String(v || '').match(/(\d+)(?!.*\d)/); return m ? String(+m[1]) : ''; };
+  const prefix = v => (normTag(v).match(/^[A-Z]+/) || [''])[0];
+  const rooms = v => (String(v || '').toUpperCase().match(/\d{2,}[A-Z]?(?![A-Z0-9])/g) || []).map(r => r.replace(/^0+(?=\d)/, ''));
+  let scanLeft = [], scan = null;
+  const fzBtns = id => `<span class="fzbtns"><button type="button" data-fz="${id}" data-ok="1">Looks right</button><button type="button" data-fz="${id}" data-ok="0">Not this unit</button></span>`;
+  function fuzzyMatch(devs, pool){
+    // Each tier only matches when exactly one device and one unit share the key.
+    const tiers = [
+      {why: () => 'name with leading zeros ignored', dk: d => [unzero(d.name), unzero(splitName(d.name, d.loc).tag)], uk: u => [unzero(u.tag), u.loc ? unzero(u.loc + u.tag) : '']},
+      {why: k => 'type and number ' + k.split('|')[1], dk: d => { const t = splitName(d.name, d.loc).tag, n = tailNum(t); return n && prefix(t) ? [prefix(t) + '|' + n] : []; }, uk: u => { const n = tailNum(u.tag); return n && prefix(u.tag) ? [prefix(u.tag) + '|' + n] : []; }},
+      {why: k => 'room or number ' + k, dk: d => { const t = splitName(d.name, d.loc).tag; return [...rooms(d.loc), ...(/\d{2,}/.test(t) ? [tailNum(t)] : [])]; }, uk: u => [...rooms(u.loc), ...(/\d{2,}/.test(u.tag) ? [tailNum(u.tag)] : [])]},
+    ];
+    const out = [];
+    let left = devs.slice();
+    for (const tier of tiers) {
+      const keyDevs = new Map(), keyUnits = new Map();
+      const add = (m, k, v) => { if (!k) return; if (!m.has(k)) m.set(k, new Set()); m.get(k).add(v); };
+      left.forEach(d => new Set(tier.dk(d)).forEach(k => add(keyDevs, k, d)));
+      pool.forEach(u => new Set(tier.uk(u)).forEach(k => add(keyUnits, k, u)));
+      const hit = new Map();
+      for (const [k, ds] of keyDevs) {
+        const us = keyUnits.get(k);
+        if (ds.size !== 1 || !us || us.size !== 1) continue;
+        const d = [...ds][0], u = [...us][0];
+        if (hit.has(d) && hit.get(d).u !== u) { hit.set(d, null); continue; }
+        if (!hit.has(d)) hit.set(d, {u, why: tier.why(k)});
+      }
+      const taken = new Map();
+      for (const [d, h] of hit) if (h) taken.set(h.u, taken.has(h.u) ? null : {d, why: h.why});
+      for (const [u, m] of taken) if (m) { out.push({d: m.d, u, why: m.why}); left = left.filter(x => x !== m.d); pool = pool.filter(x => x !== u); }
+    }
+    return {fuzzy: out, left};
+  }
   async function handleScanList(devs, fname){
     if (!devs.length) { toast('No devices in that file.', true); return; }
     if (!canWrite) { toast('This link is view-only. Import is off.', true); return; }
-    const toEntry = d => ({name: d.name, model: d.model ? modelName(d.model) : 'No model listed', descr: d.loc || '', points: null, dev: cleanDev(d)});
     const real = units.filter(u => !u.example);
-    if (!real.length) { $('scanPanel').hidden = true; previewFromEntries(devs.map(toEntry), fname); return; }
+    if (!real.length) { $('scanPanel').hidden = true; previewFromEntries(devs.map(scanEntry), fname); return; }
     const byTag = new Map(); real.forEach(u => { byTag.set(normTag(u.tag), u); if (u.loc) byTag.set(normTag(u.loc + u.tag), u); });
     const bySerial = new Map(); real.forEach(u => { if (u.dev && u.dev.serial) bySerial.set(u.dev.serial.toUpperCase(), u); });
-    const changed = new Set(), unmatched = [];
+    const changed = new Set(); let unmatched = [];
     devs.forEach(d => {
       const parts = splitName(d.name, d.loc);
-      const u = (d.serial && bySerial.get(d.serial.toUpperCase())) || byTag.get(normTag(d.name)) || byTag.get(normTag(parts.tag));
+      const byName = byTag.get(normTag(d.name)) || byTag.get(normTag(parts.tag));
+      const u = (d.serial && bySerial.get(d.serial.toUpperCase())) || byName;
       if (!u) { unmatched.push(d); return; }
-      u.dev = cleanDev(d); if (!u.loc && d.loc) u.loc = d.loc;
+      // A re-import of the same scan keeps an unconfirmed fallback match flagged.
+      const keep = u !== byName && u.dev && u.dev.fuzzy;
+      u.dev = cleanDev(keep ? {...d, fuzzy: u.dev.fuzzy} : d); if (!u.loc && d.loc) u.loc = d.loc;
       changed.add(u);
     });
-    const missing = real.filter(u => !u.dev).sort((a,b) => a.tag.localeCompare(b.tag, undefined, {numeric:true}));
-    scanLeft = unmatched.map(toEntry);
-    $('scanSummary').textContent = `${fname}: matched ${changed.size} of ${devs.length} scanned device${devs.length===1?'':'s'} to units on the list. Their device ID, serial and MACs now show on each unit.`;
-    const chip = t => `<li>${esc(t)}</li>`;
-    $('scanBody').innerHTML =
-      (unmatched.length ? `<div><p class="scanhead">Scanned but not on the list · ${unmatched.length}</p><ul class="scanlist">${unmatched.map(d => chip(d.name + (d.did ? ' (ID ' + d.did + ')' : ''))).join('')}</ul><p class="hint" style="margin-top:6px">Usually a name typed differently in the scanner, or a controller that isn't in the EBO export yet. Fix the name in the scanner and import again, or add them as new units.</p></div>` : '')
-      + (missing.length ? `<div><p class="scanhead">On the list but not scanned · ${missing.length}</p><ul class="scanlist">${missing.slice(0, 150).map(u => chip(u.tag)).join('')}${missing.length > 150 ? chip('+' + (missing.length - 150) + ' more') : ''}</ul></div>` : '')
-      + (!unmatched.length && !missing.length ? '<p class="hint">Every scanned device matched a unit, and every unit has a scan.</p>' : '');
-    $('scanAddBtn').hidden = !unmatched.length; $('scanAddBtn').textContent = `Add ${unmatched.length} as new unit${unmatched.length===1?'':'s'}`;
+    // Fallback only onto units that have no scan yet, so a guess never replaces a real match.
+    const fz = fuzzyMatch(unmatched, real.filter(u => !u.dev));
+    unmatched = fz.left;
+    fz.fuzzy.forEach(m => { m.hadLoc = !!m.u.loc; m.u.dev = cleanDev({...m.d, fuzzy: `${m.why} (scanned as ${m.d.name})`}); if (!m.u.loc && m.d.loc) m.u.loc = m.d.loc; changed.add(m.u); });
+    scan = {fname, total: devs.length, exact: changed.size - fz.fuzzy.length, fuzzy: fz.fuzzy, unmatched};
+    renderScan();
     $('xlPanel').hidden = true; $('addForm').hidden = true; $('scanPanel').hidden = false;
     render(); $('scanPanel').scrollIntoView({block:'start'});
     let n = 0; for (const u of changed) { n++; toast(`Saving ${n} of ${changed.size}…`, false, true); await writeWithRetry(u); }
-    toast(`Matched ${changed.size} device${changed.size===1?'':'s'}${unmatched.length ? `, ${unmatched.length} not on the list` : ''}`);
+    toast(`Matched ${changed.size} device${changed.size===1?'':'s'}${fz.fuzzy.length ? ` (${fz.fuzzy.length} by number, check them)` : ''}${unmatched.length ? `, ${unmatched.length} not on the list` : ''}`);
   }
-  $('scanDone').addEventListener('click', () => { $('scanPanel').hidden = true; scanLeft = []; });
-  $('scanAddBtn').addEventListener('click', () => { const e = scanLeft; $('scanPanel').hidden = true; scanLeft = []; if (e.length) previewFromEntries(e, 'Scanned devices'); });
+  const scanEntry = d => ({name: d.name, model: d.model ? modelName(d.model) : 'No model listed', descr: d.loc || '', points: null, dev: cleanDev(d)});
+  function renderScan(){
+    if (!scan) return;
+    const {fname, total, exact, fuzzy, unmatched} = scan;
+    const real = units.filter(u => !u.example);
+    const missing = real.filter(u => !u.dev).sort((a,b) => a.tag.localeCompare(b.tag, undefined, {numeric:true}));
+    scanLeft = unmatched.map(scanEntry);
+    $('scanSummary').textContent = `${fname}: matched ${exact + fuzzy.length} of ${total} scanned device${total===1?'':'s'} to units on the list${fuzzy.length ? `, ${fuzzy.length} of them by number instead of name` : ''}. Their device ID, serial and MACs now show on each unit.`;
+    const chip = t => `<li>${esc(t)}</li>`;
+    const open = fuzzy.filter(m => m.u.dev && m.u.dev.fuzzy);
+    $('scanBody').innerHTML =
+      (open.length ? `<div><p class="scanhead">Matched by number, check these · ${open.length}</p><p class="hint" style="margin:4px 0 8px">The names didn't match exactly, so these were paired by number. Confirm each one, or undo it if it's the wrong unit.</p><ul class="fzlist">${open.map(m => `<li><span><code>${esc(m.d.name)}</code> → <b>${esc(m.u.tag)}</b> <span class="hint">· ${esc(m.why)}${m.d.did ? ' · ID ' + esc(m.d.did) : ''}</span></span>${fzBtns(m.u.id)}</li>`).join('')}</ul></div>` : '')
+      + (unmatched.length ? `<div><p class="scanhead">Scanned but not on the list · ${unmatched.length}</p><ul class="scanlist">${unmatched.map(d => chip(d.name + (d.did ? ' (ID ' + d.did + ')' : ''))).join('')}</ul><p class="hint" style="margin-top:6px">Usually a name typed differently in the scanner, or a controller that isn't in the EBO export yet. Fix the name in the scanner and import again, or add them as new units.</p></div>` : '')
+      + (missing.length ? `<div><p class="scanhead">On the list but not scanned · ${missing.length}</p><ul class="scanlist">${missing.slice(0, 150).map(u => chip(u.tag)).join('')}${missing.length > 150 ? chip('+' + (missing.length - 150) + ' more') : ''}</ul></div>` : '')
+      + (!open.length && !unmatched.length && !missing.length ? '<p class="hint">Every scanned device matched a unit, and every unit has a scan.</p>' : '');
+    $('scanAddBtn').hidden = !unmatched.length; $('scanAddBtn').textContent = `Add ${unmatched.length} as new unit${unmatched.length===1?'':'s'}`;
+  }
+  // Confirm (ok) or undo a fallback match, from the panel or the unit card.
+  function scanCheck(id, ok){
+    const u = units.find(x => x.id === id); if (!u || !u.dev || !u.dev.fuzzy) return;
+    const m = scan && scan.fuzzy.find(x => x.u === u);
+    if (ok) { delete u.dev.fuzzy; toast(`Confirmed the scan on ${u.tag}`); }
+    else {
+      const d = m ? m.d : {name: (u.dev.fuzzy.match(/scanned as (.*)\)$/) || [, u.tag])[1], loc: '', model: u.dev.model, did: u.dev.did, serial: u.dev.serial, mac: u.dev.mac, netmac: u.dev.netmac};
+      u.dev = null; if (m && !m.hadLoc) u.loc = '';
+      if (scan) { scan.fuzzy = scan.fuzzy.filter(x => x !== m); scan.unmatched.push(d); }
+      toast(`Removed the scan from ${u.tag}${scan ? '. It moved to Scanned but not on the list.' : ''}`);
+    }
+    writeUnit(u); render(); renderScan();
+  }
+  $('scanBody').addEventListener('click', e => { const t = e.target.closest('button[data-fz]'); if (t && canWrite) scanCheck(t.dataset.fz, t.dataset.ok === '1'); });
+  $('scanDone').addEventListener('click', () => { $('scanPanel').hidden = true; scanLeft = []; scan = null; });
+  $('scanAddBtn').addEventListener('click', () => { const e = scanLeft; $('scanPanel').hidden = true; scanLeft = []; scan = null; if (e.length) previewFromEntries(e, 'Scanned devices'); });
 
   // ---------- XML (EBO export or similar) ----------
   const CTRL_RE = /(^|\.)udt\.|\.udt$|(^|[^a-z])(mp[cvx]|rp[cv]|as-?[pb]|mpx|b3|b4|ab|kmc|bcx|bcmd|uc\d|symbio|sc\+?)\d{0,4}[a-z]?($|[^a-z])|controller|bacnet\.device|\.device$/i;
