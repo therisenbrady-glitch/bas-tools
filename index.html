@@ -150,6 +150,8 @@ footer{font-size:12px;color:var(--muted)}
     <h2 id="tipsH">Tips</h2>
     <ul>
       <li><strong>iPhone:</strong> open this page in Safari and tap Share → <strong>Add to Home Screen</strong>. Do the same inside each tool you use so it opens like an app, and so Safari doesn't clear your saved jobs.</li>
+      <li><strong>Android:</strong> open this page in Chrome and tap <strong>⋮ → Add to home screen</strong> (or <strong>Install app</strong>). Do the same for each tool.</li>
+      <li>Camera, downloads, and file-picker help for both is in <a href="#manual-phones" id="phLink">Manuals → Phone setup</a>.</li>
       <li>Jobs save in the browser on your device. Use <strong>Export job</strong> to back one up or hand it to someone else.</li>
       <li>Typical flow: scan at install, then at checkout import the EBO XML and the scanner's <strong>Export for checkout</strong> file into the tracker. The <a href="#manuals" id="wfLink">Job workflow</a> manual walks through it step by step.</li>
     </ul>
@@ -162,6 +164,7 @@ footer{font-size:12px;color:var(--muted)}
       <button type="button" data-m="scanner" aria-pressed="false">Device Scanner</button>
       <button type="button" data-m="checkout" aria-pressed="false">Checkout Tracker</button>
       <button type="button" data-m="vav" aria-pressed="false">VAV Calculator</button>
+      <button type="button" data-m="phones" aria-pressed="false">Phone setup</button>
     </div>
     <article class="manual" id="manual" aria-live="polite"><p class="mstatus">Loading…</p></article>
     <div class="mopen" id="mopen"></div>
@@ -178,7 +181,8 @@ footer{font-size:12px;color:var(--muted)}
     workflow: {file: 'docs/workflow.md'},
     scanner:  {file: 'device-scanner/README.md', open: 'device-scanner/devicescanner.html', name: 'Device Scanner'},
     checkout: {file: 'point-checkout/README.md', open: 'point-checkout/checkouttool.html', name: 'Point Checkout Tracker'},
-    vav:      {file: 'vav-calculator/README.md', open: 'vav-calculator/', name: 'VAV Field Calculator'}
+    vav:      {file: 'vav-calculator/README.md', open: 'vav-calculator/', name: 'VAV Field Calculator'},
+    phones:   {file: 'docs/phones.md'}
   };
   const cache = {};
   let current = 'workflow';
@@ -232,6 +236,7 @@ footer{font-size:12px;color:var(--muted)}
   if (h === 'manuals') setTab('manuals');
   else if (h.startsWith('manual-') && MANUALS[h.slice(7)]) { current = h.slice(7); setTab('manuals'); }
   window.addEventListener('hashchange', () => { const h2 = (location.hash || '').slice(1); if (h2 === 'manuals') { current = 'workflow'; setTab('manuals'); } else if (h2.startsWith('manual-') && MANUALS[h2.slice(7)]) { current = h2.slice(7); setTab('manuals'); } else if (!h2) setTab('tools'); });
+  const ph = $('phLink'); if (ph) ph.addEventListener('click', e => { e.preventDefault(); current = 'phones'; setTab('manuals', true); window.scrollTo(0, 0); });
   const wf = $('wfLink'); if (wf) wf.addEventListener('click', e => { e.preventDefault(); current = 'workflow'; setTab('manuals', true); window.scrollTo(0, 0); });
 })();
 </script>

@@ -55,9 +55,10 @@ Matched units show their device ID in the header and a **Device** line (model, s
 - Split the work by unit (for example floor 2 vs floor 3). When the same unit is imported twice, the last import wins.
 
 ## Phone setup
-- Open the tools from the Field Tools page in **Safari**, not from an email attachment or the Files app.
-- Tap **Share → Add to Home Screen** for each tool you use. It opens like an app, and Safari won't clear its saved jobs.
+- Open the tools from the Field Tools page: in **Safari** on iPhone, in **Chrome** on Android. Don't open them from an email attachment or file preview.
+- Add each tool you use to your home screen: **Share → Add to Home Screen** on iPhone, **⋮ → Add to home screen** on Android.
 - Export your jobs regularly as a backup.
+- Step-by-step help with the camera, downloads, and importing files is in the [Phone setup](phones.md) manual.
 
 ## Starting a new job
 In the tracker and the scanner, **Clear job** / **Clear list** (next to the project name) erases everything on that device so you can start fresh. It takes three taps so it can't happen by accident. Export the old job first.

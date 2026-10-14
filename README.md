@@ -8,7 +8,7 @@ Direct links:
 - Device scanner: https://therisenbrady-glitch.github.io/bas-tools/device-scanner/devicescanner.html
 - VAV calculator: https://therisenbrady-glitch.github.io/bas-tools/vav-calculator/
 
-On an iPhone, open a link in Safari and tap **Share → Add to Home Screen** to get an app icon. The device scanner's live camera only works from these links.
+On an iPhone, open a link in Safari and tap **Share → Add to Home Screen** to get an app icon. On Android, open it in Chrome and tap **⋮ → Add to home screen**. Full phone instructions: [docs/phones.md](docs/phones.md). The device scanner's live camera only works from these links.
 
 Each tool is also a single HTML file you can download and open in Chrome, Edge, or Safari. Nothing to install.
 
