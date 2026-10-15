@@ -56,9 +56,13 @@ h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;mar
 .readout .bar{grid-column:1/-1;height:6px;border-radius:3px;background:#2c3a45;overflow:hidden;display:flex}
 .readout .bar i{display:block;height:100%}
 @media (max-width:420px){.readout{grid-template-columns:repeat(2,1fr)}}
-.typetabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;position:sticky;top:env(safe-area-inset-top, 0px);z-index:3;background:var(--bg);padding-block:8px;margin-block:-8px}
+.tabwrap{position:sticky;top:env(safe-area-inset-top, 0px);z-index:3;background:var(--bg);padding-block:8px;margin-block:-8px}
+.tabwrap:has(.typetabs:empty){display:none}
+.typetabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;scroll-behavior:smooth}
 .typetabs::-webkit-scrollbar{display:none}
-.typetabs:empty{display:none}
+.tabarrow{position:absolute;top:8px;bottom:8px;width:34px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;font:600 20px/1 system-ui,sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 0 12px 6px var(--bg)}
+.tabarrow[hidden]{display:none}
+.tabarrow.l{left:0}.tabarrow.r{right:0}
 .tt{flex:0 0 auto;display:flex;flex-direction:column;gap:3px;min-width:76px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:7px;padding:7px 11px 8px;text-align:left}
 .tt[aria-selected="true"]{background:var(--steel);border-color:var(--steel);color:var(--panel)}
 .tt .tn{display:flex;align-items:baseline;gap:6px;font-family:var(--f-display);font-weight:700;font-size:17px;letter-spacing:.04em;line-height:1}
@@ -263,7 +267,11 @@ footer{font-size:12px;color:var(--muted)}
     </div>
   </section>
 
-  <nav class="typetabs" id="typeTabs" role="tablist" aria-label="Unit type"></nav>
+  <div class="tabwrap">
+    <nav class="typetabs" id="typeTabs" role="tablist" aria-label="Unit type"></nav>
+    <button type="button" class="tabarrow l" id="tabL" aria-label="Scroll unit types left" hidden>‹</button>
+    <button type="button" class="tabarrow r" id="tabR" aria-label="Scroll unit types right" hidden>›</button>
+  </div>
 
   <section class="readout" aria-label="Progress">
     <div><span class="lbl" id="sUnitsLbl">Units</span><b id="sUnits">0</b></div>
@@ -407,6 +415,13 @@ footer{font-size:12px;color:var(--muted)}
     const btn = (key, label, b) => { const app = b.pts - b.na; const pct = app ? Math.round(b.pass/app*100) : 0;
       return `<button type="button" class="tt" role="tab" id="tab-${key}" data-tab="${key}" aria-selected="${typeTab===key}"><span class="tn">${label}<span class="tc">${b.n}</span></span><span class="tbar"><i style="width:${pct}%"></i></span><span class="tp">${pct}%${b.fail ? `<span class="tf">${b.fail} fail</span>` : ''}</span></button>`; };
     $('typeTabs').innerHTML = btn('all','All',tot) + tabs.map(t => btn(t, esc(t), by[t])).join('');
+    tabArrows();
+  }
+  // Type tabs scroll sideways when they don't fit: arrows on the ends, mouse wheel and swipe.
+  function tabArrows(){
+    const n = $('typeTabs'), max = n.scrollWidth - n.clientWidth;
+    $('tabL').hidden = n.scrollLeft <= 2;
+    $('tabR').hidden = n.scrollLeft >= max - 2;
   }
 
   function render(){
@@ -486,12 +501,22 @@ footer{font-size:12px;color:var(--muted)}
   });
 
   // ---------- events ----------
+  $('typeTabs').addEventListener('scroll', tabArrows, {passive: true});
+  window.addEventListener('resize', tabArrows);
+  $('typeTabs').addEventListener('wheel', e => {
+    const n = $('typeTabs');
+    if (n.scrollWidth <= n.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    n.scrollLeft += e.deltaY; e.preventDefault();
+  }, {passive: false});
+  $('tabL').addEventListener('click', () => { const n = $('typeTabs'); n.scrollLeft -= n.clientWidth * 0.7; });
+  $('tabR').addEventListener('click', () => { const n = $('typeTabs'); n.scrollLeft += n.clientWidth * 0.7; });
   $('typeTabs').addEventListener('click', e => {
     const b = e.target.closest('[data-tab]'); if (!b) return;
     typeTab = b.dataset.tab; delArm = null;
     try { localStorage.setItem('pct-tab', typeTab); } catch(err) {}
     render();
-    window.scrollTo({top: Math.min(window.scrollY, $('typeTabs').offsetTop - 8)});
+    window.scrollTo({top: Math.min(window.scrollY, $('typeTabs').parentElement.offsetTop - 8)});
+    const sel = $('tab-' + typeTab); if (sel) sel.scrollIntoView({block: 'nearest', inline: 'nearest'});
   });
   document.querySelector('.chips').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
