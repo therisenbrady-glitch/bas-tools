@@ -44,6 +44,13 @@ Points are pulled from the controller's actual database:
 
 Left out: trends, programs, functions, graphics, alarm objects, ports/Modbus/room bus, consumer values, PID tuning, limits, differentials, delays, and calculated values.
 
+**Hot water system on the AS-P.** HWS panels usually run on the AS-P with SmartX IO expansion modules, so the AS-P is handled differently from the MP controllers. Export the AS-P (or just its IO Bus and the HWS folder) and the importer builds one unit called **HWS** (or **Hot Water System**, after the folder's name), model **AS-P**:
+
+- Every point on the AS-P's IO modules is listed with its module slot and channel, for example `Blr1Ena — Boiler 1 Enable (Slot03 DO 1)` or `HwSTmp — HW Supply Temp To Building (Slot05 UI 4)`.
+- Software values come from the folder named `HWS` or `Hot Water System`: enables, setpoints, lead selections, fails, alarms, hand status, occupancy and modes, marked **◦**. Run hours, pump and boiler request values, and the Programs, Functions, Trends and Graphics folders are left out.
+- An IO-only export gives the unit with just its IO points; an HWS-folder-only export gives just the values. Import both and they merge into the same unit.
+- The AS-P itself, script programs, functions and graphics never show up as units of their own.
+
 ### 2. Niagara export (`.bog`)
 In Workbench, right-click the BACnet device folder (or the whole BacnetNetwork) and choose **Export** to save a `.bog` file, then import it here. Each device that has a **Points** extension becomes a unit:
 

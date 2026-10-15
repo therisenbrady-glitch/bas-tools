@@ -988,10 +988,14 @@ footer{font-size:12px;color:var(--muted)}
     const kidsOf = el => [...el.children].filter(k => k.tagName === 'OI');
     let ctrls = ois.filter(el => kidsOf(el).some(k => /ApplicationProxy$/i.test(eboAttr(k,'TYPE'))));
     if (!ctrls.length) {
-      const isC = el => CTRL_RE.test(eboAttr(el,'TYPE')) && !HW_RE.test(eboAttr(el,'TYPE'));
+      // Skip AS-P/ES server roots (their IO and HWS folder are handled by hwsEntry),
+      // script programs, functions and graphics, and anything inside an HWS folder.
+      const NOT_CTRL_RE = /script|program|function|graphic|trend|alarm|schedule|folder/i;
+      const inHwsOrApp = el => { for (let p = el; p && p !== root; p = p.parentElement) if (p.tagName === 'OI' && (HWS_FOLDER_RE.test(eboAttr(p,'NAME').trim()) || SKIP_FOLDER_RE.test(eboAttr(p,'NAME')))) return true; return false; };
+      const isC = el => { const t = eboAttr(el,'TYPE'); return CTRL_RE.test(t) && !HW_RE.test(t) && !/^(server|io)\./i.test(t) && !NOT_CTRL_RE.test(typeNames[t] || '') && !inHwsOrApp(el); };
       ctrls = ois.filter(el => { if (!isC(el)) return false; for (let p = el.parentElement; p && p !== root; p = p.parentElement) if (p.tagName === 'OI' && isC(p)) return false; return true; });
     }
-    return ctrls.map(el => {
+    const out = ctrls.map(el => {
       const ty = eboAttr(el,'TYPE');
       const model = typeNames[ty] || modelName(ty);
       const hw = [], vav = [], sens = [], vals = []; const seen = new Set(); let role = '';
@@ -1016,6 +1020,51 @@ footer{font-size:12px;color:var(--muted)}
       const points = hw.concat(vav, sens, vals.map(v => '◦ ' + v)).slice(0, 80);
       return {name: eboAttr(el,'NAME'), model, descr: eboAttr(el,'DESCR') || role, points, role};
     });
+    const hws = hwsEntry(ois, ctrls, kidsOf);
+    if (hws) out.push(hws);
+    return out;
+  }
+
+  // Hot water system on the AS-P: the field points are on the AS-P's IO modules
+  // (IO Bus, io.<module> objects such as Slot05:UI16), and the HWS application is a
+  // folder named "HWS" or "Hot Water System". Both become one unit.
+  const HWS_FOLDER_RE = /^(HWS|Hot Water System)$/i;
+  const IO_MODULE_RE = /^io\.(?!point\.)\w+$/i;
+  const IO_POINT_RE = /^io\.point\.\w*(Input|Output)$/i;
+  const SRV_VALUE_RE = /^server\.point\.(AV|BV|MV)$/i;
+  const HWS_KEEP_RE = /(Sp|Spt|Stp)$|Spt(High|Low|Hi|Lo)$|Alm$|Alarm$|Fail$|Fof$|Fon$|Halm$|InHand$|Ena$|Sts$|Sel$|^Lead|Ld$|Occ|Sched|Md$/i;
+  const HWS_SKIP_RE = /^(HwP|Blr)\w*(Req|Avl|Load|Val)$|Tm$|Hrs$|Hours/i;
+  function hwsEntry(ois, ctrls, kidsOf){
+    const inCtrl = el => { for (let p = el.parentElement; p; p = p.parentElement) if (ctrls.includes(p)) return true; return false; };
+    const io = [], vals = [], seen = new Set(); let name = '';
+    ois.filter(el => IO_MODULE_RE.test(eboAttr(el,'TYPE')) && !inCtrl(el)).forEach(mod => {
+      const slot = eboAttr(mod,'NAME').split(':')[0];
+      kidsOf(mod).forEach(k => {
+        const t = eboAttr(k,'TYPE'); if (!IO_POINT_RE.test(t)) return;
+        const nm = eboAttr(k,'NAME'), d = eboAttr(k,'DESCR').trim(), key = nm.toLowerCase();
+        if (seen.has(key)) return; seen.add(key);
+        const ch = [...k.children].find(c => c.tagName === 'PI' && /ChannelNumber$/.test(c.getAttribute('Name') || ''));
+        const kind = /Digital/i.test(t) ? (/Output$/i.test(t) ? 'DO' : 'DI') : (/Output$/i.test(t) ? 'AO' : 'UI');
+        const where = slot + ' ' + kind + (ch ? ' ' + ch.getAttribute('Value') : '');
+        io.push(nm + ' — ' + (d && d.toLowerCase() !== key ? d + ' ' : '') + '(' + where + ')');
+      });
+    });
+    ois.filter(el => HWS_FOLDER_RE.test(eboAttr(el,'NAME').trim()) && kidsOf(el).length && !inCtrl(el)).forEach(f => {
+      if (!name) name = eboAttr(f,'NAME').trim();
+      (function walk(node){
+        kidsOf(node).forEach(k => {
+          const nm = eboAttr(k,'NAME'), t = eboAttr(k,'TYPE'), d = eboAttr(k,'DESCR').trim(), key = nm.toLowerCase();
+          if (kidsOf(k).length) { if (!SKIP_FOLDER_RE.test(nm)) walk(k); return; }
+          if (seen.has(key)) return;
+          if (IO_POINT_RE.test(t)) { seen.add(key); io.push(nm + (d && d.toLowerCase() !== key ? ' — ' + d : '')); return; }
+          if (!SRV_VALUE_RE.test(t) && !VALUE_RE.test(t)) return;
+          if (!HWS_KEEP_RE.test(nm) || HWS_SKIP_RE.test(nm) || SP_SKIP_RE.test(d)) return;
+          seen.add(key); vals.push('◦ ' + nm + (d && d.toLowerCase() !== key ? ' — ' + d : ''));
+        });
+      })(f);
+    });
+    if (!io.length && !vals.length) return null;
+    return {name: name || 'HWS', model: 'AS-P', descr: 'Hot Water System', points: io.concat(vals).slice(0, 120), role: 'Hot Water System'};
   }
 
   function previewFromEntries(entries, fname){
@@ -1081,6 +1130,15 @@ footer{font-size:12px;color:var(--muted)}
     xl.groups.forEach(g => { if (!g.on) return; g.rows.forEach(r => { if (r.off) return;
       const useFile = g.type === 'FILE';
       const k = normTag(r.tag), ex = have.get(k);
+      if (ex && useFile && r.points && ex.model === 'AS-P' && g.model === 'AS-P') {
+        // AS-P HWS: the IO export and the HWS folder export arrive as separate files, so
+        // a second import adds its points to the unit and keeps the checks already made.
+        const pkey = n => String(n).split(' — ')[0].replace(/^◦\s*/, '').toLowerCase();
+        const got = new Set(ex.points.map(p => pkey(p.n)));
+        const add = r.points.filter(n => !got.has(pkey(n)));
+        if (add.length) { ex.points.push(...add.map(n => ({n, s:''}))); refreshed.push(ex); } else skipped++;
+        return;
+      }
       if (ex) {
         // A unit created from the scan list (template points, nothing checked yet) takes
         // the real points from the EBO export and keeps its scanned details.
@@ -1099,7 +1157,7 @@ footer{font-size:12px;color:var(--muted)}
     }); });
     xl = null; $('xlPanel').hidden = true;
     for (const u of refreshed) await writeWithRetry(u);
-    if (!fresh.length) { render(); toast(refreshed.length ? `Loaded points for ${refreshed.length} scanned unit${refreshed.length===1?'':'s'}${skipped ? `, skipped ${skipped} already on the list` : ''}` : skipped ? `All ${skipped} units are already on the list.` : 'No groups were selected.', !refreshed.length); return; }
+    if (!fresh.length) { render(); toast(refreshed.length ? `Loaded points for ${refreshed.length} existing unit${refreshed.length===1?'':'s'}${skipped ? `, skipped ${skipped} already on the list` : ''}` : skipped ? `All ${skipped} units are already on the list.` : 'No groups were selected.', !refreshed.length); return; }
     units.push(...fresh); render();
     window.scrollTo({top: $('units').offsetTop - 80});
     let ok = 0, failed = 0;
@@ -1108,7 +1166,7 @@ footer{font-size:12px;color:var(--muted)}
       if (await writeWithRetry(u)) ok++; else failed++;
     }
     if (failed) toast(`Saved ${ok} of ${fresh.length}. ${failed} did not save. Run Import again with the same file to add the rest.`, true);
-    else toast(`Added ${ok} unit${ok===1?'':'s'}${refreshed.length ? `, loaded points for ${refreshed.length} scanned` : ''}${skipped ? `, skipped ${skipped} already on the list` : ''}`);
+    else toast(`Added ${ok} unit${ok===1?'':'s'}${refreshed.length ? `, loaded points for ${refreshed.length} existing` : ''}${skipped ? `, skipped ${skipped} already on the list` : ''}`);
   }
 
   function fallbackCopy(text, done){
