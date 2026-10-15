@@ -33,7 +33,7 @@ Some choices only appear when they make sense (a return fan VFD that tracks supp
 **CV AHU**
 | Option | Choices |
 |---|---|
-| Heating | None · Hot water valve · Hot water valve + face & bypass damper |
+| Heating | None · Hot water valve · Hot water valve + face & bypass damper · Gas-fired modulating · Gas-fired 1 stage · Gas-fired 2 stages (see Gas heat below) |
 | Cooling | None · DX 1 stage · DX 2 stages · Chilled water valve (cooling loop on space temp, occupied cooling mode and night setup) |
 | Outside air | Economizer (OA/RA dampers, mixed air sensor) · Minimum position damper · Two-position damper · None |
 | Outside air temp | Sensor wired to this controller · From the network |
@@ -45,12 +45,14 @@ Some choices only appear when they make sense (a return fan VFD that tracks supp
 |---|---|
 | Supply fan | VFD on duct static · Vortex damper on duct static · Constant volume |
 | Return / relief | Return fan VFD tracking supply speed · Return fan start/stop · Relief fan · Relief damper · None |
-| Heating | None · Hot water valve · Hot water valve + face & bypass damper |
+| Heating | None · Hot water valve · Hot water valve + face & bypass damper · Gas-fired modulating · Gas-fired 1 stage · Gas-fired 2 stages (see Gas heat below) |
 | Cooling | None · DX 1 to 4 stages (staged on discharge temp) · Chilled water valve (cooling loop on discharge temp) · Packaged cooling enable |
 | Discharge air setpoint | Reset from outside air temp · Reset from room temp · Fixed |
 | Room temp | None · Wired sensor · From the network |
 | Outside air temp | Sensor wired to this controller · From the network |
 | Checkboxes | Return air CO2 raises the minimum OA · Night heat on room temp · OA isolation damper · Freezestat · Smoke detectors · Dirty filter switch · Condensate switch locks out cooling · Return air temp sensor |
+
+**Gas heat** (CV AHU and VAV AHU): the AHU program writes a heating request, `HtgReq` 0-100 %, where a hot water unit would position its valve. `Prog_GasHeat` turns it into `Htg1Cmd` (enable or stage 1), `Htg2Cmd` (stage 2) or `HtgFireRate` (0-10 V), and keeps the supply fan running for `HtgFanDof` after the burner stops. The burner only runs with fan status proven and the discharge air below `HtgTmpHlmt`. A modulating burner lights at 10 % request, holds low fire for `HtgLowFireDly`, then follows the request. A staged burner adds stage 2 at 60 % after `HtgStgDly` and drops it at 40 %. Minimum on and off times apply, and an optional alarm contact (burner lockout) drops the enable. The burner's own flame safeguard and limits stay in charge of combustion safety. This sequence was built from published gas furnace and rooftop sequences, not from a team program, so check it against the job's sequence of operations.
 
 **VAV box**: the MP-V already runs Schneider's stock VAV application. The file doesn't copy or change its programs. It merges into the stock objects by name: it sets the reheat and fan selections (`RhtSelect`, `FanSelect`), puts the stock field points on the terminals you pick, switches the optional room sensor readings on, and can set the airflow limits. Perimeter radiation, if the box has it, comes in as one new component, `Components/PerimRad`, with its own program on the stock room temp (`RmTmp99`) and heating setpoint.
 | Option | Choices |

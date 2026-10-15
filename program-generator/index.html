@@ -383,6 +383,296 @@ const TA = {
 // Programs are the team's Bower Hill AHU-B/C/D programs made generic. Lines between
 // #if FLAG / #elif / #else / #endif are kept only when the unit has that option.
 // @MODE KEY expands to the mode number and its text.
+// ---------- Gas-fired heat, shared by the AHU types ----------
+// The AHU program writes HtgReq (0-100 %) where a HW unit would position its
+// valve; Prog_GasHeat turns that into burner commands and asks the AHU program
+// to keep the fan running (HtgFanReq) while the burner fires and for a
+// cool-down after. Built from published gas furnace / rooftop sequences (no
+// team program yet): low fire start, minimum on/off times, stage delay, fan
+// proof and post-purge, discharge high temp cutout.
+const GAS = {
+  flags(o, F){
+    F.GAS = o.heat === 'gasmod' || o.heat === 'gas1' || o.heat === 'gas2';
+    F.GASMOD = o.heat === 'gasmod'; F.GAS2 = o.heat === 'gas2'; F.GASSTG = F.GAS && !F.GASMOD;
+    F.GALM = F.GAS && !!o.galm;
+  },
+  choices: [['gasmod', 'Gas-fired, modulating'], ['gas1', 'Gas-fired, 1 stage'], ['gas2', 'Gas-fired, 2 stages']],
+  check: {id: 'galm', label: 'Gas heat alarm contact (burner lockout)', type: 'check', def: true, needs: o => /^gas/.test(o.heat)},
+  points: [
+    {name: 'Htg1Cmd',     descr: 'Gas Heat Enable / Stage 1',   io: 'do', cond: 'GAS'},
+    {name: 'Htg2Cmd',     descr: 'Gas Heat Stage 2',            io: 'do', cond: 'GAS2'},
+    {name: 'HtgFireRate', descr: 'Gas Heat Firing Rate',        io: 'ao', cond: 'GASMOD'},
+    {name: 'HtgAlm',      descr: 'Gas Heat Alarm',              io: 'di', text: 'alarm', cond: 'GALM'}
+  ],
+  values: [
+    {folder: 'Numerics', name: 'HtgReq', descr: 'Gas Heat Request', kind: 'av', unit: '%', cond: 'GAS'},
+    {folder: 'Numerics', name: 'HtgFanReq', descr: 'Gas Heat Fan Request', kind: 'bv', cond: 'GAS'},
+    {folder: 'Numerics', name: 'HtgMd', descr: 'Gas Heat Mode', kind: 'msv', states: 'gas', cond: 'GAS'},
+    {folder: 'Parameters', name: 'HtgFireRateMin', descr: 'Gas Heat Low Fire', kind: 'av', unit: '%', def: 30, param: true, cond: 'GASMOD'},
+    {folder: 'Parameters', name: 'HtgLowFireDly', descr: 'Gas Heat Low Fire Start Hold', kind: 'av', unit: 's', def: 120, param: true, cond: 'GASMOD'},
+    {folder: 'Parameters', name: 'HtgStgDly', descr: 'Gas Heat Stage 2 Delay', kind: 'av', unit: 's', def: 300, param: true, cond: 'GAS2'},
+    {folder: 'Parameters', name: 'HtgCmdMinOn', descr: 'Gas Heat Minimum On Time', kind: 'av', unit: 's', def: 180, param: true, cond: 'GAS'},
+    {folder: 'Parameters', name: 'HtgCmdMinOff', descr: 'Gas Heat Minimum Off Time', kind: 'av', unit: 's', def: 180, param: true, cond: 'GAS'},
+    {folder: 'Parameters', name: 'HtgFanDof', descr: 'Fan Run-On After Gas Heat', kind: 'av', unit: 's', def: 120, param: true, cond: 'GAS'},
+    {folder: 'Parameters', name: 'HtgTmpHlmt', descr: 'Gas Heat Discharge Cutout', kind: 'av', unit: 'F', def: 140, param: true, cond: 'GAS'}
+  ],
+  alarms: [
+    {name: 'HtgAlm', descr: 'Gas Heat Alarm', src: 'Inputs/HtgAlm', cond: 'GALM'}
+  ],
+  trends: ['Htg1Cmd', 'Htg2Cmd', 'HtgFireRate', 'HtgReq', 'HtgMd'],
+  states(F){
+    if (!F.GAS) return {};
+    const s = ['Off'].concat(F.GASMOD ? ['Low fire start', 'Modulating'] : F.GAS2 ? ['Stage 1', 'Stage 2'] : ['Stage 1'], ['Cool-down', 'High temp cutout']);
+    if (F.GALM) s.push('Burner alarm');
+    return {gas: s};
+  },
+  // Mode numbers for the program text, matching states() above.
+  vars(F){
+    const st = GAS.states(F).gas || [], n = t => String(st.indexOf(t) + 1);
+    return {S2: F.GAS2 ? ', Htg2Cmd' : '', MDTXT: st.map((t, i) => `${i + 1} ${t.toUpperCase()}`).reduce((a, t, i) => a + (i === 0 ? '' : i % 3 ? '  ' : '\n\'        ') + t, ''), MD_OFF: n('Off'), MD_LF: n('Low fire start'), MD_RUN: n(F.GASMOD ? 'Modulating' : 'Stage 1'), MD_S2: n('Stage 2'), MD_CD: n('Cool-down'), MD_HL: n('High temp cutout'), MD_ALM: n('Burner alarm')};
+  },
+  program: {name: 'Prog_GasHeat', descr: 'Gas Heat Program', src: 'gas', cond: 'GAS'},
+  assumption(P, sat){
+    return `Gas heat (Prog_GasHeat, built from published gas furnace sequences, not a team program yet): the burner runs only with supply fan status On and ${sat} below HtgTmpHlmt (a cutout; it restarts 20 F below). ` +
+      (P.F.GASMOD ? 'It lights at HtgReq 10 %, holds HtgFireRateMin for HtgLowFireDly, then fires at HtgReq (never below low fire) and shuts off at HtgReq 1 %. ' :
+        P.F.GAS2 ? 'Stage 1 on at HtgReq 10 %, off at 1 %; stage 2 on at 60 % after HtgStgDly on stage 1, off at 40 %. ' : 'Stage 1 on at HtgReq 10 %, off at 1 %. ') +
+      'Minimum on and off times are HtgCmdMinOn / HtgCmdMinOff. The fan keeps running HtgFanDof after the burner stops. The burner\'s own flame safeguard, limits and inducer stay in charge of safety; the DDC only enables and modulates.' +
+      (P.F.GALM ? ' HtgAlm On (burner lockout) drops the enable until it clears.' : '');
+  }
+};
+
+const GAS_SRC = `' ===========================================================================
+' Prog_GasHeat  -  {UNIT} gas-fired heat
+' Turns the heating request from Prog_AhuControl (HtgReq, 0-100 %) into
+#if GASMOD
+' a burner enable (Htg1Cmd) and firing rate (HtgFireRate).
+#else
+' burner stage commands (Htg1Cmd{S2}).
+#endif
+' Interlocks, checked every scan:
+'   supply fan status Off          -> burner off right away
+'   {SAT} above HtgTmpHlmt         -> burner off, fan keeps running; restarts
+'                                     once {SAT} is 20 F below the cutout
+#if GALM
+'   HtgAlm On (burner lockout)     -> enable off until it clears
+#endif
+#if GASMOD
+' Firing: lights at HtgReq 10 %, holds low fire (HtgFireRateMin) for
+' HtgLowFireDly, then follows HtgReq (never below low fire while lit). Off
+' at HtgReq 1 % once it has run HtgCmdMinOn.
+#elif GAS2
+' Stages: stage 1 on at HtgReq 10 %; stage 2 on at 60 % after stage 1 has
+' run HtgStgDly, off at 40 %. Stage 1 off at 1 % once it has run HtgCmdMinOn.
+#else
+' Stage: on at HtgReq 10 %, off at 1 % once it has run HtgCmdMinOn.
+#endif
+' After the burner stops the fan runs on for HtgFanDof (HtgFanReq to
+' Prog_AhuControl) to cool the heat exchanger, and the burner stays off for
+' HtgCmdMinOff. The burner's own flame safeguard, inducer and limits stay in
+' charge of combustion safety; this program only enables and modulates.
+' HtgMd: {MDTXT}
+' Built by the BAS Field Tools program generator from published gas heat
+' sequences (no team program yet). Names follow EBO 3 SEBA Naming Convention.
+' ===========================================================================
+
+Numeric Input  HtgReq           ' from Prog_AhuControl: heating request, 0-100 %
+Numeric Input  SaFanSts         ' supply fan status (current switch), On = running
+Numeric Input  {SAT}            ' discharge air temp, deg F
+#if GALM
+Numeric Input  HtgAlm           ' gas heat alarm contact, On = burner lockout
+#endif
+Numeric Input  HtgTmpHlmt       ' discharge cutout, deg F (value object)
+Numeric Input  HtgCmdMinOn      ' minimum on time, s (value object)
+Numeric Input  HtgCmdMinOff     ' minimum off time, s (value object)
+Numeric Input  HtgFanDof        ' fan run-on after the burner stops, s (value object)
+#if GASMOD
+Numeric Input  HtgFireRateMin   ' low fire, % (value object)
+Numeric Input  HtgLowFireDly    ' low fire start hold, s (value object)
+#endif
+#if GAS2
+Numeric Input  HtgStgDly        ' stage 2 delay after stage 1, s (value object)
+#endif
+Numeric Output Htg1Cmd          ' burner enable / stage 1
+#if GAS2
+Numeric Output Htg2Cmd          ' stage 2
+#endif
+#if GASMOD
+Numeric Output HtgFireRate      ' firing rate, 0-100 %
+#endif
+Numeric Output HtgFanReq        ' to Prog_AhuControl: On = keep the supply fan running
+Numeric Output HtgMd            ' mode number, see above
+
+Init:
+  Htg1Cmd = Off
+#if GAS2
+  Htg2Cmd = Off
+#endif
+#if GASMOD
+  HtgFireRate = 0
+#endif
+  HtgFanReq = Off
+  Goto Off
+
+Off:
+  HtgMd = {MD_OFF}
+  Htg1Cmd = Off
+#if GAS2
+  Htg2Cmd = Off
+#endif
+#if GASMOD
+  HtgFireRate = 0
+#endif
+  HtgFanReq = Off
+#if GALM
+  If HtgAlm = On Then
+    Goto Alarm
+  Endif
+#endif
+  If HtgReq >= 10 And SaFanSts = On And {SAT} < HtgTmpHlmt - 20 And TS >= HtgCmdMinOff Then
+#if GASMOD
+    Goto LowFire
+#else
+    Goto Stage1
+#endif
+  Endif
+
+#if GASMOD
+LowFire:
+  HtgMd = {MD_LF}
+  Htg1Cmd = On
+  HtgFireRate = HtgFireRateMin
+  HtgFanReq = On
+#if GALM
+  If HtgAlm = On Then
+    Goto Alarm
+  Endif
+#endif
+  If SaFanSts = Off Then
+    Goto Off
+  Endif
+  If {SAT} > HtgTmpHlmt Then
+    Goto HiTmp
+  Endif
+  If TS >= HtgLowFireDly Then
+    Goto Modulate
+  Endif
+
+Modulate:
+  HtgMd = {MD_RUN}
+  Htg1Cmd = On
+  HtgFireRate = Maximum(HtgFireRateMin, HtgReq)
+  HtgFanReq = On
+#if GALM
+  If HtgAlm = On Then
+    Goto Alarm
+  Endif
+#endif
+  If SaFanSts = Off Then
+    Goto Off
+  Endif
+  If {SAT} > HtgTmpHlmt Then
+    Goto HiTmp
+  Endif
+  If HtgReq < 1 And TS >= HtgCmdMinOn Then
+    Goto CoolDown
+  Endif
+
+#else
+Stage1:
+  HtgMd = {MD_RUN}
+  Htg1Cmd = On
+#if GAS2
+  Htg2Cmd = Off
+#endif
+  HtgFanReq = On
+#if GALM
+  If HtgAlm = On Then
+    Goto Alarm
+  Endif
+#endif
+  If SaFanSts = Off Then
+    Goto Off
+  Endif
+  If {SAT} > HtgTmpHlmt Then
+    Goto HiTmp
+  Endif
+#if GAS2
+  If HtgReq >= 60 And TS >= HtgStgDly Then
+    Goto Stage2
+  Endif
+#endif
+  If HtgReq < 1 And TS >= HtgCmdMinOn Then
+    Goto CoolDown
+  Endif
+
+#if GAS2
+Stage2:
+  HtgMd = {MD_S2}
+  Htg1Cmd = On
+  Htg2Cmd = On
+  HtgFanReq = On
+#if GALM
+  If HtgAlm = On Then
+    Goto Alarm
+  Endif
+#endif
+  If SaFanSts = Off Then
+    Goto Off
+  Endif
+  If {SAT} > HtgTmpHlmt Then
+    Goto HiTmp
+  Endif
+  If HtgReq < 40 And TS >= HtgCmdMinOn Then
+    Goto Stage1
+  Endif
+
+#endif
+#endif
+CoolDown:
+  HtgMd = {MD_CD}
+  Htg1Cmd = Off
+#if GAS2
+  Htg2Cmd = Off
+#endif
+#if GASMOD
+  HtgFireRate = 0
+#endif
+  HtgFanReq = On
+  If TS >= HtgFanDof Then
+    Goto Off
+  Endif
+
+HiTmp:
+  HtgMd = {MD_HL}
+  Htg1Cmd = Off
+#if GAS2
+  Htg2Cmd = Off
+#endif
+#if GASMOD
+  HtgFireRate = 0
+#endif
+  HtgFanReq = On
+  If {SAT} < HtgTmpHlmt - 20 Then
+    Goto CoolDown
+  Endif
+#if GALM
+
+Alarm:
+  HtgMd = {MD_ALM}
+  Htg1Cmd = Off
+#if GAS2
+  Htg2Cmd = Off
+#endif
+#if GASMOD
+  HtgFireRate = 0
+#endif
+  HtgFanReq = Off
+  If HtgAlm = Off Then
+    Goto Off
+  Endif
+#endif
+`;
+
 const AHU = {
   label: 'CV AHU',
   title: 'Constant volume AHU (single zone, space temperature)',
@@ -396,7 +686,8 @@ const AHU = {
   assumptions(P){
     const s = ['Setpoint defaults above are the team\'s Bower Hill starting values.',
       'Loop gains are written into Prog_ControlLoops: space loops KP 0.1 / KI 0.0002, limit loops KP 0.05 / KI 0.0004. Tune on site.'];
-    if (P.F.FRZ) s.push('The freezestat is hardwired into the fan safety circuit; the program only reports and positions.' + (P.F.CHW ? ' A trip opens the HW valve full and closes the CHW valve.' : ''));
+    if (P.F.GAS) s.push(GAS.assumption(P, 'SaTmp'), 'Gas heat: the heating loop (held back by the SaTmpHlmt loop) sets HtgReq; night setback asks for 100 % while the fan cycles on. A freezestat trip drops HtgReq to 0.');
+    if (P.F.FRZ) s.push('The freezestat is hardwired into the fan safety circuit; the program only reports and positions.' + (P.F.CHW ? (P.F.HW ? ' A trip opens the HW valve full and closes the CHW valve.' : ' A trip closes the CHW valve.') : ''));
     if (P.F.CHW) s.push('Chilled water: the cooling loop (Prog_ControlLoops, KP 0.1 / KI 0.0002) modulates ClgVlvPos on space temp against ClgTmpSpt in occupied cooling mode and night setup. Chilled water availability is left to the plant (no OAT lockout here).');
     return s;
   },
@@ -414,16 +705,18 @@ const AHU = {
     ['OCC_ECON_SAT', 'OCC HEAT - ECON (SAT LIMIT)'],
     ['OCC_FB',       'OCC HEAT - F&B MODULATING'],
     ['OCC_HW',       'OCC HEAT - HW MODULATING'],
+    ['OCC_GAS',      'OCC HEAT - GAS'],
     ['OCC_FAN',      'OCC FAN ONLY']
   ],
 
   // Options shown on the page. Flags derived from them are in flags() below.
   options: [
-    {id: 'heat', label: 'Heating', type: 'select', def: 'hw', choices: [['none', 'None'], ['hw', 'Hot water valve'], ['hwfb', 'Hot water valve + face & bypass damper']]},
+    {id: 'heat', label: 'Heating', type: 'select', def: 'hw', choices: [['none', 'None'], ['hw', 'Hot water valve'], ['hwfb', 'Hot water valve + face & bypass damper']].concat(GAS.choices)},
     {id: 'cool', label: 'Cooling', type: 'select', def: 'dx2', choices: [['none', 'None'], ['dx1', 'DX, 1 stage'], ['dx2', 'DX, 2 stages'], ['chw', 'Chilled water valve']]},
     {id: 'oa', label: 'Outside air', type: 'select', def: 'econ', choices: [['econ', 'Economizer (OA/RA dampers, mixed air sensor)'], ['min', 'Modulating OA damper, fixed minimum'], ['twopos', 'Two-position OA damper'], ['none', 'No OA damper']]},
     {id: 'rf', label: 'Return fan', type: 'check', def: false},
     {id: 'frz', label: 'Freezestat (low limit)', type: 'check', def: true},
+    GAS.check,
     {id: 'flt', label: 'Dirty filter switch', type: 'check', def: true},
     {id: 'ra', label: 'Return air temp sensor', type: 'check', def: true},
     {id: 'oat', label: 'Outside air temp', type: 'select', def: 'local', choices: [['local', 'Sensor wired to this controller'], ['network', 'Network value (written from the AS-P)']]},
@@ -436,7 +729,8 @@ const AHU = {
     const F = {};
     F.HW = o.heat === 'hw' || o.heat === 'hwfb';
     F.FB = o.heat === 'hwfb';
-    F.HTG = F.HW;
+    GAS.flags(o, F);
+    F.HTG = F.HW || F.GAS;
     F.DX = o.cool === 'dx1' || o.cool === 'dx2';
     F.DX2 = o.cool === 'dx2';
     F.CHW = o.cool === 'chw';
@@ -474,7 +768,7 @@ const AHU = {
     {name: 'HwVlvPos', descr: 'Hot Water Valve Command', io: 'ao', cond: 'HW'},
     {name: 'FbDprPos', descr: 'Face/Bypass Damper Position', io: 'ao', cond: 'FB'},
     {name: 'ClgVlvPos', descr: 'Chilled Water Valve Command', io: 'ao', cond: 'CHW'}
-  ],
+  ].concat(GAS.points),
 
   // Value objects. kind: av (analog), bv (Off/On), alm (Normal/Alarm), occ (binary, no text),
   // msv (multistate, states), csv (string). sensor: bind Priority9 to the room sensor.
@@ -539,7 +833,7 @@ const AHU = {
     {folder: 'Parameters', name: 'RaFanAlmDly', descr: 'Return Air Fan Alarm Delay', kind: 'av', unit: 's', def: 30, param: true, cond: 'RF'},
     {folder: 'Parameters', name: 'RmTmpLlmt', descr: 'Lowest Believable Room Temp', kind: 'av', unit: 'F', def: 40, param: true},
     {folder: 'Parameters', name: 'RmTmpHlmt', descr: 'Highest Believable Room Temp', kind: 'av', unit: 'F', def: 100, param: true}
-  ],
+  ].concat(GAS.values),
 
   alarms: [
     {name: 'SaFanAlm', descr: 'Supply Air Fan Alarm', src: 'Numerics/SaFanAlm'},
@@ -547,10 +841,11 @@ const AHU = {
     {name: 'TmpLlmt', descr: 'Low Temp Alarm', src: 'Inputs/TmpLlmt', cond: 'FRZ'},
     {name: 'FltrSwt', descr: 'Dirty Filter Alarm', src: 'Inputs/FltrSwt', cond: 'FLT'},
     {name: 'RmTmpAlm', descr: 'Room Sensor Failure Alarm', src: 'Numerics/RmTmpAlm'}
-  ],
+  ].concat(GAS.alarms),
 
   // Key points only: analog on an interval, digital on change.
-  trends: ['OaTmp', 'SaTmp', 'MaTmp', 'RaTmp', 'RmTmpCtl', 'HwVlvPos', 'FbDprPos', 'OaDprPos', 'SaFanSts', 'RaFanSts', 'OaDprCmd', 'Dx1Cmd', 'Dx2Cmd', 'ClgVlvPos', 'AhuHvacMd'],
+  trends: ['OaTmp', 'SaTmp', 'MaTmp', 'RaTmp', 'RmTmpCtl', 'HwVlvPos', 'FbDprPos', 'OaDprPos', 'SaFanSts', 'RaFanSts', 'OaDprCmd', 'Dx1Cmd', 'Dx2Cmd', 'ClgVlvPos', 'AhuHvacMd'].concat(GAS.trends),
+  states: F => GAS.states(F),
 
   programs: [
     {name: 'Prog_Occupancy', descr: 'Occupancy Program', src: 'occ'},
@@ -559,6 +854,7 @@ const AHU = {
     {name: 'Prog_AhuControl', descr: 'AHU Control Program', src: 'ahu'},
     {name: 'Prog_ControlLoops', descr: 'Control Loops Program', src: 'loops', cond: 'LOOPS'},
     {name: 'Prog_CoolingControl', descr: 'Cooling Control Program', src: 'dx', cond: 'DX'},
+    Object.assign({vars: F => Object.assign({SAT: 'SaTmp'}, GAS.vars(F))}, GAS.program),
     {name: 'Prog_SaFanAlarm', descr: 'Supply Fan Alarm Program', src: 'safan'},
     {name: 'Prog_RaFanAlarm', descr: 'Return Fan Alarm Program', src: 'rafan', cond: 'RF'}
   ],
@@ -576,6 +872,8 @@ AHU.src.ahu = `' ===============================================================
 #endif
 #if HW
 '   HwVlvPos   0-100 %   100 = full flow to the coil
+#elif GAS
+'   HtgReq     0-100 %   gas heat request, to Prog_GasHeat
 #endif
 #if FB
 '   FbDprPos   0-100 %   0 = full FACE, 100 = full BYPASS
@@ -606,6 +904,9 @@ Numeric Input  SaLlmt           ' from Prog_ControlLoops: most OA the supply air
 #if CHW
 Numeric Input  ClgLoad          ' from Prog_ControlLoops: space cooling, 0-100 %
 #endif
+#if GAS
+Numeric Input  HtgFanReq        ' from Prog_GasHeat: On = keep the fan running
+#endif
 
 Numeric Output SaFanCmd         ' supply fan start/stop
 #if RF
@@ -619,6 +920,8 @@ Numeric Output OaDprCmd         ' outside air damper, On = open
 #endif
 #if HW
 Numeric Output HwVlvPos         ' hot water valve, 0-100 %
+#elif GAS
+Numeric Output HtgReq           ' gas heat request 0-100 %, to Prog_GasHeat
 #endif
 #if FB
 Numeric Output FbDprPos         ' face & bypass damper, 0-100 %
@@ -750,6 +1053,8 @@ Main:
 #endif
 #if HW
     HwVlvPos = 100
+#elif GAS
+    HtgReq = 0
 #endif
 #if FB
     FbDprPos = 0
@@ -789,7 +1094,11 @@ Main:
 #if CMD
       If ClgMd = Off Then
 #endif
+#if GAS
+        ' Heating season: fan and gas heat cycle on night setback.
+#else
         ' Heating season: HW valve open, fan cycles on night setback.
+#endif
 #if CLG
         SuClgCall = Off
 #endif
@@ -810,6 +1119,12 @@ Main:
         SaFanCmd = SbHtgCall
 #if HW
         HwVlvPos = 100
+#elif GAS
+        If SbHtgCall = On Then
+          HtgReq = 100
+        Else
+          HtgReq = 0
+        Endif
 #endif
         If SbHtgCall = On Then
           @MODE UNOCC_HEAT
@@ -832,6 +1147,8 @@ Main:
 #endif
 #if HW
         HwVlvPos = 0
+#elif GAS
+        HtgReq = 0
 #endif
 #if CLG
         If RmTmpCtl > RmTmpSptSu Then
@@ -886,6 +1203,8 @@ Main:
 #endif
 #if HW
         HwVlvPos = 0
+#elif GAS
+        HtgReq = 0
 #endif
 #if FB
         FbDprPos = 0
@@ -931,6 +1250,8 @@ Main:
             EconEna = On
 #if HW
             HwVlvPos = HtgDmd
+#elif GAS
+            HtgReq = HtgDmd
 #endif
             ' Mixed air dampers modulate on space temp, held back by the mixed
             ' air and supply air low limit loops.
@@ -973,6 +1294,9 @@ Main:
 #elif HW
           HwVlvPos = HtgDmd
           @MODE OCC_HW
+#elif GAS
+          HtgReq = HtgDmd
+          @MODE OCC_GAS
 #else
           @MODE OCC_FAN
 #endif
@@ -1000,6 +1324,17 @@ Main:
     OaDprCmd = Off
   Endif
 #endif
+#if GAS
+
+  ' ---- Fan runs on while the gas burner fires and cools down ----------------
+#if FRZ
+  If HtgFanReq = On And TmpLlmt = Off Then
+#else
+  If HtgFanReq = On Then
+#endif
+    SaFanCmd = On
+  Endif
+#endif
 #if RF
 
   ' ---- Return fan follows the supply fan ------------------------------------
@@ -1010,7 +1345,11 @@ Main:
 AHU.src.loops = `' ===========================================================================
 ' Prog_ControlLoops  -  {UNIT} heating, economizer and limit loops
 #if HTG
+#if GAS
+'   HtgLoad   RmTmpCtl vs RmTmpSptHtg, reverse acting. Gas heat request.
+#else
 '   HtgLoad   RmTmpCtl vs RmTmpSptHtg, reverse acting. HW valve (or F&B).
+#endif
 '   SaHlmt    SaTmp vs SaTmpHlmt, reverse acting, bias 1. Most heating the
 '             supply air high limit allows. 100 when off.
 #endif
@@ -1285,6 +1624,7 @@ NoSts:
   Endif
 `;
 AHU.src.safan = fanAlarm('Sa', 'Sa');
+AHU.src.gas = GAS_SRC;
 AHU.src.rafan = fanAlarm('Ra', 'Ra');
 
 AHU.src.occ = `' ===========================================================================
@@ -1521,7 +1861,7 @@ const VAHU = {
   options: [
     {id: 'fan', label: 'Supply fan', type: 'select', def: 'vfd', choices: [['vfd', 'VFD on duct static'], ['vortex', 'Inlet vane / vortex damper on duct static'], ['cv', 'Constant volume (no static control)']]},
     {id: 'ret', label: 'Return / relief', type: 'select', def: 'rfvfd', choices: [['rfvfd', 'Return fan VFD, tracks supply speed', o => o.fan === 'vfd'], ['rfss', 'Return fan, start/stop'], ['rlffan', 'Relief fan, runs when the OA damper is open'], ['rlfdpr', 'Relief damper, follows the OA damper'], ['none', 'None']]},
-    {id: 'heat', label: 'Heating', type: 'select', def: 'hw', choices: [['hw', 'Hot water valve'], ['hwfb', 'Hot water valve + face & bypass damper'], ['none', 'None']]},
+    {id: 'heat', label: 'Heating', type: 'select', def: 'hw', choices: [['hw', 'Hot water valve'], ['hwfb', 'Hot water valve + face & bypass damper']].concat(GAS.choices, [['none', 'None']])},
     {id: 'cool', label: 'Cooling', type: 'select', def: 'dx4', choices: [['dx1', 'DX, 1 stage'], ['dx2', 'DX, 2 stages'], ['dx3', 'DX, 3 stages'], ['dx4', 'DX, 4 stages'], ['chw', 'Chilled water valve'], ['pkg', 'Cooling enable to a packaged unit'], ['none', 'None']]},
     {id: 'dat', label: 'Discharge air setpoint', type: 'select', def: 'oa', choices: [['oa', 'Reset from outside air temp'], ['room', 'Reset from room temp', o => o.room !== 'none'], ['fixed', 'Fixed']]},
     {id: 'room', label: 'Room temp', type: 'select', def: 'none', choices: [['none', 'None'], ['wired', 'Thermistor wired to this controller'], ['network', 'Average room temp (written from the AS-P)']]},
@@ -1530,6 +1870,7 @@ const VAHU = {
     {id: 'nht', label: 'Night heat on room temp', type: 'check', def: true, needs: o => o.room !== 'none' && o.heat !== 'none'},
     {id: 'oaiso', label: 'OA isolation damper (opens with the fan)', type: 'check', def: false},
     {id: 'frz', label: 'Freezestat (low limit)', type: 'check', def: true},
+    GAS.check,
     {id: 'smk', label: 'Smoke detectors, supply and return', type: 'check', def: true},
     {id: 'flt', label: 'Dirty filter switch', type: 'check', def: true},
     {id: 'cond', label: 'Condensate switch locks out cooling', type: 'check', def: false, needs: o => o.cool !== 'none'},
@@ -1542,7 +1883,7 @@ const VAHU = {
     F.RFVFD = o.ret === 'rfvfd' && F.VFD;
     F.RF = o.ret === 'rfss' || o.ret === 'rfvfd';
     F.RLFFAN = o.ret === 'rlffan'; F.RLFDPR = o.ret === 'rlfdpr';
-    F.HW = o.heat === 'hw' || o.heat === 'hwfb'; F.FB = o.heat === 'hwfb'; F.HTG = F.HW;
+    F.HW = o.heat === 'hw' || o.heat === 'hwfb'; F.FB = o.heat === 'hwfb'; GAS.flags(o, F); F.HTG = F.HW || F.GAS;
     const n = /^dx(\d)$/.exec(o.cool); F.NDX = n ? +n[1] : 0;
     F.DX = F.NDX >= 1; F.DX2 = F.NDX >= 2; F.DX3 = F.NDX >= 3; F.DX4 = F.NDX >= 4;
     F.PKG = o.cool === 'pkg'; F.CHW = o.cool === 'chw'; F.CLG = F.DX || F.PKG || F.CHW;
@@ -1555,7 +1896,7 @@ const VAHU = {
     F.OATNET = o.oat === 'network';
     return F;
   },
-  states(F){ const s = ['Off']; for (let i = 1; i <= F.NDX; i++) s.push('Stage ' + i); return {dx: s}; },
+  states(F){ const s = ['Off']; for (let i = 1; i <= F.NDX; i++) s.push('Stage ' + i); return Object.assign({dx: s}, GAS.states(F)); },
 
   points: [
     {name: 'OaTmp',       descr: 'Outside Air Temp',          io: 'ai', cond: '!OATNET'},
@@ -1589,7 +1930,7 @@ const VAHU = {
     {name: 'HwVlvPos',    descr: 'Hot Water Valve Command',   io: 'ao', cond: 'HW'},
     {name: 'FbDprPos',    descr: 'Face/Bypass Damper Position', io: 'ao', cond: 'FB'},
     {name: 'ClgVlvPos',   descr: 'Chilled Water Valve Command', io: 'ao', cond: 'CHW'}
-  ],
+  ].concat(GAS.points),
 
   values: [
     {folder: 'Inputs', name: 'OaTmp', descr: 'Outside Air Temp', kind: 'av', unit: 'F', cond: 'OATNET'},
@@ -1647,7 +1988,7 @@ const VAHU = {
     {folder: 'Parameters', name: 'RaFanAlmDly', descr: 'Return Air Fan Alarm Delay', kind: 'av', unit: 's', def: 30, param: true, cond: 'RF'},
     {folder: 'Parameters', name: 'DaTmpAlmDif', descr: 'Discharge Alarm, Off Setpoint By', kind: 'av', unit: 'dF', def: 10, param: true},
     {folder: 'Parameters', name: 'DaTmpAlmDly', descr: 'Discharge Alarm Delay', kind: 'av', unit: 's', def: 900, param: true}
-  ],
+  ].concat(GAS.values),
 
   alarms: [
     {name: 'SaFanAlm', descr: 'Supply Air Fan Alarm', src: 'Numerics/SaFanAlm'},
@@ -1658,10 +1999,10 @@ const VAHU = {
     {name: 'RaSmkDet', descr: 'Return Smoke Detector Alarm', src: 'Inputs/RaSmkDet', cond: 'SMK'},
     {name: 'FltrSwt', descr: 'Dirty Filter Alarm', src: 'Inputs/FltrSwt', cond: 'FLT'},
     {name: 'CondSwt', descr: 'Condensate Overflow Alarm', src: 'Inputs/CondSwt', cond: 'COND'}
-  ],
+  ].concat(GAS.alarms),
 
   trends: ['OaTmp', 'DaTmp', 'DaTmpSpt', 'MaTmp', 'RaTmp', 'RmTmp', 'SaStPr', 'RaCO2', 'SaFanSpd', 'SaVorDprPos', 'RaFanSpd', 'OaDprPos', 'RlfDprPos', 'HwVlvPos', 'FbDprPos', 'ClgVlvPos',
-    'SaFanSts', 'RaFanSts', 'RlfFanCmd', 'Dx1Cmd', 'Dx2Cmd', 'Dx3Cmd', 'Dx4Cmd', 'ClgEnaCmd', 'AhuHvacMd'],
+    'SaFanSts', 'RaFanSts', 'RlfFanCmd', 'Dx1Cmd', 'Dx2Cmd', 'Dx3Cmd', 'Dx4Cmd', 'ClgEnaCmd', 'AhuHvacMd'].concat(GAS.trends),
 
   programs: [
     {name: 'Prog_Occupancy', descr: 'Occupancy Program', src: 'occ'},
@@ -1669,6 +2010,7 @@ const VAHU = {
     {name: 'Prog_AhuControl', descr: 'AHU Control Program', src: 'ahu'},
     {name: 'Prog_ControlLoops', descr: 'Control Loops Program', src: 'loops'},
     {name: 'Prog_CoolingControl', descr: 'Cooling Control Program', src: 'dx', cond: 'DX', vars: F => ({NDX: F.NDX})},
+    Object.assign({vars: F => Object.assign({SAT: 'DaTmp'}, GAS.vars(F))}, GAS.program),
     {name: 'Prog_ReliefFan', descr: 'Relief Fan Program', src: 'rlf', cond: 'RLFFAN'},
     {name: 'Prog_SaFanAlarm', descr: 'Supply Fan Alarm Program', src: 'safan'},
     {name: 'Prog_RaFanAlarm', descr: 'Return Fan Alarm Program', src: 'rafan', cond: 'RF'},
@@ -1690,6 +2032,7 @@ const VAHU = {
     if (P.F.DX) s.push('DX stages on discharge air temp with Func_Staging and is off while the economizer is enabled (as the Airport units run).');
     if (P.F.CHW) s.push('Chilled water: the cooling loop (Prog_ControlLoops, KP 0.05 / KI 0.0004) modulates ClgVlvPos on discharge air temp. Like DX, it runs only while the economizer is off and OAT is above ClgOaTmpLocSpt.' + (P.F.FRZ ? ' A freezestat trip closes it.' : ''));
     if (P.F.RFVFD) s.push('Return fan speed tracks supply speed minus RaFanSpdOfs; no building pressure control.');
+    if (P.F.GAS) s.push(GAS.assumption(P, 'DaTmp'), 'Gas heat: the discharge heating loop (HtgLoad) sets HtgReq while heating is enabled; smoke, freezestat and fan-off modes drop it to 0.');
     return s;
   },
 
@@ -1697,6 +2040,7 @@ const VAHU = {
 };
 
 VAHU.src.occ = AHU.src.occ;
+VAHU.src.gas = GAS_SRC;
 VAHU.src.safan = fanAlarm('Sa', 'Sa');
 VAHU.src.rafan = fanAlarm('Ra', 'Ra');
 
@@ -1777,6 +2121,8 @@ VAHU.src.ahu = `' ==============================================================
 '   OaDprPos   0-100 %   0 = outside air closed (return damper opposite)
 #if HW
 '   HwVlvPos   0-100 %   100 = full flow to the coil
+#elif GAS
+'   HtgReq     0-100 %   gas heat request, to Prog_GasHeat
 #endif
 #if FB
 '   FbDprPos   0-100 %   0 = full FACE, 100 = full BYPASS
@@ -1792,6 +2138,9 @@ Numeric Input  OaTmp          ' outside air temp, deg F
 Numeric Input  DaTmp          ' discharge air temp, deg F
 Numeric Input  SaFanSts       ' supply fan status (current switch), On = running
 Numeric Input  OccCmd         ' from Prog_Occupancy, On = occupied
+#if GAS
+Numeric Input  HtgFanReq      ' from Prog_GasHeat: On = keep the fan running
+#endif
 #if FRZ
 Numeric Input  TmpLlmt        ' low limit freezestat, On = TRIPPED
 #endif
@@ -1807,7 +2156,9 @@ Numeric Input  RmTmpSptSbDif  ' night heat differential (value object)
 #if HTG
 Numeric Input  HtgLoad        ' from Prog_ControlLoops: heating, 0-100 %
 Numeric Input  HtgOaLocSpt    ' no heating above this OAT (value object)
+#if HW
 Numeric Input  FrzPrtOaTmp    ' fan off: HW valve open below this OAT (value object)
+#endif
 #endif
 #if FB
 Numeric Input  FbDprOaEnaSpt  ' below this OAT: HW 100 %, F&B modulates (value object)
@@ -1861,6 +2212,8 @@ Numeric Output RlfDprPos      ' relief damper, follows the OA damper
 #endif
 #if HW
 Numeric Output HwVlvPos       ' hot water valve, 0-100 %
+#elif GAS
+Numeric Output HtgReq         ' gas heat request 0-100 %, to Prog_GasHeat
 #endif
 #if FB
 Numeric Output FbDprPos       ' face & bypass damper, 0-100 %
@@ -1958,6 +2311,8 @@ Main:
     OaPos = 0
 #if HW
     HwVlvPos = 100
+#elif GAS
+    HtgReq = 0
 #endif
 #if FB
     FbDprPos = 0
@@ -1980,6 +2335,8 @@ Main:
     OaPos = 0
 #if HW
     HwVlvPos = 100
+#elif GAS
+    HtgReq = 0
 #endif
 #if FB
     FbDprPos = 0
@@ -2003,6 +2360,8 @@ Main:
 #endif
 #if HW
       HwVlvPos = HtgLoad
+#elif GAS
+      HtgReq = HtgLoad
 #endif
     Else
 #endif
@@ -2027,6 +2386,8 @@ Main:
       Else
         HwVlvPos = 0
       Endif
+#elif GAS
+      HtgReq = 0
 #endif
 #if NHT
     Endif
@@ -2050,6 +2411,8 @@ Main:
       Else
         HwVlvPos = 0
       Endif
+#elif GAS
+      HtgReq = 0
 #endif
 #if FB
       FbDprPos = 0
@@ -2096,9 +2459,15 @@ Main:
 #if HTG
       If AhuHtgEna = On And HtgLoad > 0 Then
         @MODE OCC_HEAT
+#if GAS
+        HtgReq = HtgLoad
+      Else
+        HtgReq = 0
+#else
         HwVlvPos = HtgLoad
       Else
         HwVlvPos = 0
+#endif
 #endif
 #if CLG
         If ClgEna = On Then
@@ -2143,6 +2512,21 @@ Main:
 #if OAISO
   OaIsoDprCmd = SaFanCmd
 #endif
+#if GAS
+
+  ' ---- Fan runs on while the gas burner fires and cools down ----------------
+#if SMK&FRZ
+  If HtgFanReq = On And SaSmkDet = Off And RaSmkDet = Off And TmpLlmt = Off Then
+#elif SMK
+  If HtgFanReq = On And SaSmkDet = Off And RaSmkDet = Off Then
+#elif FRZ
+  If HtgFanReq = On And TmpLlmt = Off Then
+#else
+  If HtgFanReq = On Then
+#endif
+    SaFanCmd = On
+  Endif
+#endif
 #if RF
   RaFanCmd = SaFanCmd
 #endif
@@ -2184,7 +2568,11 @@ Main:
 VAHU.src.loops = `' ===========================================================================
 ' Prog_ControlLoops  -  {UNIT} discharge air, mixed air, CO2 and static loops
 #if HTG
+#if GAS
+'   HtgLoad   DaTmp vs DaTmpSpt, reverse acting. Gas heat request.
+#else
 '   HtgLoad   DaTmp vs DaTmpSpt, reverse acting. Heating valve.
+#endif
 #endif
 '   EconLoad  DaTmp vs DaTmpSpt, direct acting. Economizer dampers.
 #if CHW
