@@ -230,7 +230,7 @@ footer{font-size:12px;color:var(--muted)}
         <select id="fType">
           <option value="VAV">VAV · reheat</option><option value="VAVC">VAV · cooling only</option>
           <option value="AHU">AHU</option><option value="RTU">RTU</option>
-          <option value="FCU">FCU</option><option value="UV">Unit ventilator</option><option value="EF">Exhaust fan</option>
+          <option value="FCU">FCU</option><option value="UV">Unit ventilator</option><option value="EF">Exhaust fan</option><option value="HWS">Hot water system</option>
           <option value="BLANK">Blank (no points)</option>
         </select></div>
       <div class="field wide"><label for="fLoc">Location / serves</label><input id="fLoc" placeholder="2nd floor, Rm 214" maxlength="80" autocomplete="off"></div>
@@ -303,9 +303,10 @@ footer{font-size:12px;color:var(--muted)}
     FCU: ['Controller online (BACnet)','Fan start/stop','Fan status','Fan speed','Space temp reading','Setpoint adjust','CHW valve command','HW valve command','Discharge air temp','Condensate overflow alarm','Occupancy / schedule'],
     UV: ['Controller online (BACnet)','Supply fan start/stop','Supply fan status','Space temp reading','Setpoint adjust','Discharge air temp','OA / economizer damper command','Face & bypass damper command','HW valve command','Cooling valve / DX command','Low limit (freezestat) trip','Occupancy / override','Sequence: occupied heating & cooling'],
     EF: ['Controller online (BACnet)','Fan start/stop','Fan status','Interlock with AHU / schedule','Alarms to front end'],
+    HWS: ['Controller online (BACnet)','Outside air temp','HW system enable','Boiler 1 enable','Boiler 1 status','Boiler 1 alarm','Boiler 2 enable','Boiler 2 status','Boiler 2 alarm','Boiler firing rate command','HW pump 1 start/stop & status','HW pump 2 start/stop & status','Pump lead/lag & failover','HW supply temp','HW return temp','HW supply setpoint / reset','Valve command','Alarms to front end'],
     BLANK: []
   };
-  const TYPE_LABEL = {VAV:'VAV',VAVC:'VAV',AHU:'AHU',RTU:'RTU',FCU:'FCU',UV:'UV',EF:'EF',BLANK:'—'};
+  const TYPE_LABEL = {VAV:'VAV',VAVC:'VAV',AHU:'AHU',RTU:'RTU',FCU:'FCU',UV:'UV',EF:'EF',HWS:'HWS',BLANK:'—'};
 
   // ---------- state ----------
   let units = [];               // [{id, tag, type, loc, example, points:[{n,s,note,by,at}], at}]
@@ -313,7 +314,7 @@ footer{font-size:12px;color:var(--muted)}
   let filter = 'all';
   let typeTab = 'all';
   try { typeTab = localStorage.getItem('pct-tab') || 'all'; } catch(e) {}
-  const TAB_ORDER = ['AHU','RTU','VAV','UV','FCU','EF','Other'];
+  const TAB_ORDER = ['AHU','RTU','VAV','UV','FCU','EF','HWS','Other'];
   const tabOf = u => { const l = TYPE_LABEL[u.type]; return !l || l === '—' ? 'Other' : l; };
   const inTab = u => typeTab === 'all' || tabOf(u) === typeTab;
   const open = new Set();
@@ -692,7 +693,7 @@ footer{font-size:12px;color:var(--muted)}
 
   // ---------- spreadsheet import ----------
   let xl = null;
-  const TYPE_OPTS = [['VAV','VAV · reheat'],['VAVC','VAV · cooling only'],['AHU','AHU'],['RTU','RTU'],['FCU','FCU'],['UV','Unit ventilator'],['EF','Exhaust fan'],['BLANK','Blank (no points)']];
+  const TYPE_OPTS = [['VAV','VAV · reheat'],['VAVC','VAV · cooling only'],['AHU','AHU'],['RTU','RTU'],['FCU','FCU'],['UV','Unit ventilator'],['EF','Exhaust fan'],['HWS','Hot water system'],['BLANK','Blank (no points)']];
   function guessType(s){
     s = s.toUpperCase();
     if (/\bAHU\b|AHU-?\d|AHU-[A-Z]/.test(s)) return 'AHU';
@@ -701,6 +702,7 @@ footer{font-size:12px;color:var(--muted)}
     if (/\bUV\b|UV-?\d|UNIT VENT/.test(s)) return 'UV';
     if (/\bFCU\b|FCU-?\d/.test(s)) return 'FCU';
     if (/\bEF\b|EF-?\d|EXHAUST/.test(s)) return 'EF';
+    if (/\bHWS\b|HOT WATER SYSTEM|\bBOILERS?\b|\bBLR-?\d/.test(s)) return 'HWS';
     return null;
   }
   function modelName(t){
@@ -1136,7 +1138,10 @@ footer{font-size:12px;color:var(--muted)}
         const pkey = n => String(n).split(' — ')[0].replace(/^◦\s*/, '').toLowerCase();
         const got = new Set(ex.points.map(p => pkey(p.n)));
         const add = r.points.filter(n => !got.has(pkey(n)));
-        if (add.length) { ex.points.push(...add.map(n => ({n, s:''}))); refreshed.push(ex); } else skipped++;
+        const nt = r.guess || g.guess, retype = nt && (!TYPE_LABEL[ex.type] || TYPE_LABEL[ex.type] === '—') && ex.type !== nt;
+        if (retype) ex.type = nt;
+        if (add.length) ex.points.push(...add.map(n => ({n, s:''})));
+        if (add.length || retype) refreshed.push(ex); else skipped++;
         return;
       }
       if (ex) {

@@ -112,7 +112,7 @@ Then tap **Add N units**. A counter at the bottom of the screen shows progress.
 
 ## Doing the checkout
 
-- **Type tabs** across the top (All, AHU, VAV, UV, FCU, Other…) split the job by unit type. Each tab shows its count, % complete, and fails. The progress panel below reflects the selected tab.
+- **Type tabs** across the top (All, AHU, VAV, UV, FCU, HWS, Other…) split the job by unit type. Each tab shows its count, % complete, and fails. The progress panel below reflects the selected tab.
 - **Show** (All / Open / Fails / Done), just above the unit list, filters within the current tab.
 - Tap a unit to open its point list, then mark each point:
   - **PASS**: verified
@@ -128,7 +128,7 @@ Then tap **Add N units**. A counter at the bottom of the screen shows progress.
 
 ### Standard templates
 Used for spreadsheet imports, hand-added units, or when you override "Points from file":
-VAV reheat, VAV cooling only, AHU, RTU, FCU, Unit ventilator, Exhaust fan, Blank.
+VAV reheat, VAV cooling only, AHU, RTU, FCU, Unit ventilator, Exhaust fan, Hot water system, Blank.
 
 ---
 
