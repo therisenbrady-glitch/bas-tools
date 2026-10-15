@@ -83,8 +83,13 @@ The terminals default to the Bower Hill RP-C-12A wiring (SaTmp Ub 1, fan status 
 | System pumps | 2, lead/standby · 1 |
 | Building supply | 3-way diverting valve with its own reset · Straight from the boilers |
 | Occupied / unoccupied reset | Schedule HWSOcc · Occupied curve only |
+| System enable | Below an outside air temp · Schedule HWSOcc + OAT, always on below 40 F |
+| Lead/lag swap (2 boilers or 2 pumps) | Every N days · On run hours, with run-hour counters (Func_Runtime) |
+| Lag boiler (2 boilers, firing rate) | Stages on load and loop temp · Split: lead fires over the first half of the loop signal, lag over the second |
 | Outside air temp | Sensor wired to the AS-P · From the network (bind by hand) |
-| Checkboxes | Boiler pressure transmitters and high pressure cutout · Boiler alarm contacts · Each boiler's supply temp and HW return temp (monitor only) · OA humidity · Emergency generator status and alarm · Panel pilot lights |
+| Checkboxes | Boiler pressure transmitters and high pressure cutout · Boiler alarm contacts · Each boiler's supply temp and HW return temp (monitor only) · OA humidity · Emergency generator status and alarm · Panel pilot lights · Low return water protection (adds Prog_BoilerLowReturn) · 3-way valve holds bypass until the return is warm and cools down after shutdown |
+
+The schedule enable, run-hour swap, split firing, low return ramp and valve cool-down come from the team's newer boiler program set (2026-10-15).
 
 ## 4. Points and terminals
 Terminals are assigned automatically:
@@ -99,10 +104,13 @@ Below the terminal table, **Add a point** covers anything the options don't: a n
 - AI 10k thermistor, AI 0-10 V transmitter (with units and what 0 V and 10 V read), DI, DO or AO 0-10 V. These get a terminal in the table above like any other point.
 - Analog value (with units) or binary value. These go in `Parameters`.
 
-DO, AO, analog and binary values take a **relinquish default**. Units include °F, Δ°F, %, %RH, in. w.c., psi, ppm, cfm, seconds and minutes. Added points are trended, marked "added" in the table, and listed with a **Remove** link. Each unit type keeps its own list on that device.
+DO, AO, analog and binary values take a **relinquish default**. Units include °F, Δ°F, %, %RH, in. w.c., psi, ppm, cfm, seconds, minutes and hours. Added points are trended, marked "added" in the table, and listed with a **Remove** link. Each unit type keeps its own list on that device.
 
 ## 5. Setpoint defaults
-These become the relinquish defaults of the value objects in `Parameters`, and the operator can still change them in WorkStation. The starting values are the team's numbers from the job each type was built from (Bower Hill or Airport). **Analog trend interval** defaults to 5 minutes; digital trends log on change.
+These become the relinquish defaults of the value objects in `Parameters`, and the operator can still change them in WorkStation. The starting values are the team's numbers from the job each type was built from (Bower Hill or Airport).
+
+## 6. Trends
+Tick what to trend. The key points start ticked; **Key points**, **All** and **None** reset the list. Points and calculated values are listed, and setpoints are under a fold. Each unit type remembers its own picks on that device. **Analog trend interval** defaults to 5 minutes; digital trends log on change. The VAV box has no list: Schneider's stock application already trends its own points.
 
 ## Saving
 The dark readout counts points, programs, setpoints, alarms and trends, and says whether the file is ready. Fix anything it lists first.
@@ -132,10 +140,10 @@ Test a new option mix on a spare or offline controller first. For the VAV box, i
 | IO Bus | Boiler only, in the separate IO file: the SmartX modules and their points; outputs are written by the programs in `Application/<unit>` |
 | Parameters | Setpoints as value objects with relinquish defaults |
 | Numerics | Values the programs calculate (loads, mode, mode text) |
-| Programs | Only the ones the options need (empty with Points only). CV AHU: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_AhuControl, Prog_ControlLoops, Prog_CoolingControl, fan alarms. VAV AHU adds Prog_DischargeSetpoint and Prog_ReliefFan. Unit Vent: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_UvControl, Prog_UvHeatCool, Prog_OaDamper, Prog_SaFanAlarm, and Prog_CoolingControl with DX. Boiler: Prog_HwSysEnable, Prog_HwPumps, Prog_HwReset, Prog_HwLoops, Prog_BoilerStaging, Prog_Boiler1/2, Prog_PanelLights. VAV box: Prog_RadControl, only with radiation. |
+| Programs | Only the ones the options need (empty with Points only). CV AHU: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_AhuControl, Prog_ControlLoops, Prog_CoolingControl, fan alarms. VAV AHU adds Prog_DischargeSetpoint and Prog_ReliefFan. Unit Vent: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_UvControl, Prog_UvHeatCool, Prog_OaDamper, Prog_SaFanAlarm, and Prog_CoolingControl with DX. Boiler: Prog_HwSysEnable, Prog_HwPumps, Prog_HwReset, Prog_HwLoops, Prog_BoilerStaging, Prog_BoilerLowReturn (low return option), Prog_Boiler1/2, Prog_PanelLights. VAV box: Prog_RadControl, only with radiation. |
 | Functions | Func_PID (team standard), Func_Ratio (linear reset, VAV AHU and Unit Vent), Func_Staging (DX stages) and Func_TwoPosition (night heat), as the unit needs. Skipped if the controller already has them. |
 | Alarms | Fan failure, freezestat, smoke, dirty filter, discharge temp, room sensor failure, as the options need; they auto-clear |
-| Trends | Key points, `<Point>Tlog` |
+| Trends | The points ticked in step 6, `<Point>Tlog` |
 | Occupancy | OccCmdTs, for binding to the schedule |
 
 Programs follow the team's conventions: EBO Script, EBO 3 SEBA names, program inputs named exactly like the objects that feed them, Goto state machines on `TS` timers, Func_PID called with 9 arguments, and mode text of 32 characters or less.

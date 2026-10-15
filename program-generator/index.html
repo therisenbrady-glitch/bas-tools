@@ -68,6 +68,13 @@ header p{margin:2px 0 0;color:var(--muted);font-size:14px}
 .chk{display:flex;align-items:center;gap:9px;font-size:14px;padding:6px 0}
 .chk input{width:18px;height:18px;accent-color:var(--steel);margin:0}
 .chk.dis{opacity:.45}
+.trgrp{margin:10px 0 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+#trendList details summary{cursor:pointer;padding:6px 0}
+@media (min-width:900px){.trchecks{grid-template-columns:1fr 1fr 1fr}}
+.trchecks .chk{align-items:flex-start}
+.trchecks .chk input{margin-top:1px;flex:none}
+.trchecks .chk b{font-family:var(--f-mono);font-weight:600;font-size:13px}
+.trchecks .chk span{display:block;font-size:12px;color:var(--muted)}
 
 .btn{border:1px solid var(--line);background:var(--sunk);color:var(--ink);font-weight:600;font-size:13.5px;padding:9px 14px;border-radius:6px}
 .btn:hover{border-color:var(--steel)}
@@ -237,7 +244,14 @@ footer{font-size:12px;color:var(--muted)}
       <thead><tr><th>Value</th><th class="ds">Description</th><th>Default</th></tr></thead>
       <tbody id="sptBody"></tbody>
     </table></div>
-    <div class="field" id="trendMinF" style="max-width:220px"><label for="trendMin">Analog trend interval</label>
+  </section>
+
+  <section class="panel" id="p6">
+    <h2><span class="n">6</span>Trends</h2>
+    <p class="hint" id="trendHint">Tick what to trend. The key points are ticked to start; each unit type remembers its own picks.</p>
+    <div class="btns" style="margin:0 0 6px"><button type="button" class="link" data-tr="def">Key points</button><button type="button" class="link" data-tr="all">All</button><button type="button" class="link" data-tr="none">None</button></div>
+    <div id="trendList"></div>
+    <div class="field" id="trendMinF" style="max-width:220px;margin-top:12px"><label for="trendMin">Analog trend interval</label>
       <div class="row"><input id="trendMin" type="number" inputmode="numeric" min="1" max="60" value="5" style="font-family:var(--f-mono)"><span class="u" style="display:flex;align-items:center;padding:0 10px;border-left:1px solid var(--line)">min</span></div></div>
   </section>
 
@@ -349,7 +363,10 @@ Else
   op = (CV < (SP - Diff / 2)) or (CV < (SP + Diff / 2) and State)
   Return op
 Endif
-`}
+`},
+  Func_Range: {descr: "On/off with differential and delays function", code: "'RETURNS ON/OFF VALUE\n' Func_Range  -  on/off with a differential and optional delays.\n' On at OnVal, off at OffVal (either order); pass the output back in as stat.\n' From the team's boiler programs (Buddy, 2026-10-15).\n\nArg 1 Inpt ' Input Variable\nArg 2 OffVal ' Input Value To Turn OFF\nArg 3 OnVal ' Input Value To Turn ON\nArg 4 stat ' Current Status Of Object Calling Function\nArg 5 OffDly ' Time Delay OFF Interval (Minutes) - Optional\nArg 6 OnDly ' Time Delay ON Interval (Minutes) - Optional\nArg 7 StrtTm ' Delay Timer (Datetime Point) - Optional\n\nNumeric Otpt ' Returned Value\n\nIf (OnVal > OffVal) then\n  If ((Inpt >= OnVal) or ((stat = On) and (Inpt > OffVal))) then Otpt = On Else Otpt = Off\nElse\n  If ((Inpt <= OnVal) or ((stat = On) and (Inpt < OffVal))) then Otpt = On Else Otpt = Off\nEndif\nIf (not passed(5)) or (not passed(6)) or (not passed(7)) then Return (Otpt)\nIf (Otpt = Off) then\n  If (((Date - StrtTm) > (OffDly * 60)) or (stat = Off)) then\n    StrtTm = Date\n    Return (Off)\n  Else\n    Return (On)\n  Endif\nElse\n  If (((Date - StrtTm) > (OnDly * 60)) or (stat = On)) then\n    StrtTm = Date\n    Return (On)\n  Else\n    Return (Off)\n  Endif\nEndif\n"},
+  Func_Ramp: {descr: "Ramp over time function", code: "' Func_Ramp  -  ramps a value from StartValue to EndValue between StartTime\n' and EndTime (Datetime). From the team's boiler programs (Buddy, 2026-10-15).\n'    This function will ramp a point value (dpoint) from the StartValue\n'    to the EndValue over time specified by StartTime to EndTime\n\nArg 1 dPoint\nArg 2 StartValue\nArg 3 EndValue\nArg 4 StartTime\nArg 5 EndTime\n\nNumber slope, x\n\nFor x = 1 to 5  \n  If not passed(x) then Return (-1)\nNext x\nslope = (EndValue - StartValue) / (EndTime - StartTime)\nIf Date < EndTime then\n  dPoint = StartValue + (slope * (Date - StartTime))\n  Return (dPoint)\nElse\n  dPoint = EndValue\n  Return (dPoint)\nEndif\n"},
+  Func_Runtime: {descr: "Run time accumulator function", code: "' Func_Runtime  -  run time accumulator: Func_Runtime(Sts, Rst, Unit, Counter, RT).\n' Unit 0 = hours. Call every scan. From the team's boiler programs (Buddy, 2026-10-15).\n' Name: RT - Run Time Measurement\n' Description:\n' This function is used to accumulate the time \n' during which the binary signal (i) is activated (True). \n' The output time unit (seconds, hours, minutes, days, weeks, months, or years)\n' is selected with the parameter u. \n' The output is set to zero when the Reset (rs) input is activated. \n' When the Reset input is deactivated, the accumulation is resumed.\n\nArg 1 i  ' run indication (binary)\nArg 2 rs ' reset signal (binary\nArg 3 u  ' time unit (integer)\nArg 4 c  ' counter\nArg 5 RT ' R/W (real)\n\nNumeric s, t\n\nt = Scan * 10\ns =(Round(t)/10)\n\nif u < 0 or u > 6 then u = 2 ' default to seconds\nif rs = true then \n c = 0\n RT = 0\nendif\nif i = true then\n if s = 0 then s = 1\n if u = 2 then\n  c = (RT/s) + 1\n  RT = c * s ' seconds\n endif\n if u = 1 then \n  c = (RT/(s/60)) + 1\n  RT = c * (s/60) ' minutes \n endif\n if u = 0 then \n  c = (RT/(s/3600)) + 1\n  RT = c * (s/3600) ' hours\n endif\n if u = 3 then \n  c = (RT/(s/86400)) + 1\n  RT = c * (s/86400)' days\n endif\n if u = 4 then \n  c = (RT/(s/(86400*7))) + 1\n  RT = c * (s/(86400*7))' weeks\n endif\n if u = 5 then \n  c  = (RT/(s/(86400*30.4368))) + 1\n  RT = c * (s/(86400*30.4368)) ' months\n endif\n if u = 6 then \n  c = (RT/(s/(86400*365.242))) + 1\n  RT = c * (s/(86400*365.242)) ' years\n endif\n return RT\nelse\n if c > 0 then return RT\nendif\n"}
 };
 
 // SmartX / AS-P Script object type templates, copied from a team AS-P import (EBO 7.1.2.171)
@@ -3370,13 +3387,18 @@ const BLR = {
     {id: 'pumps', label: 'System pumps', type: 'select', def: '2', choices: [['2', '2, lead/standby'], ['1', '1']]},
     {id: 'div', label: 'Building supply', type: 'select', def: 'div', choices: [['div', '3-way diverting valve, own reset'], ['none', 'Straight from the boilers']]},
     {id: 'sched', label: 'Occupied / unoccupied reset', type: 'select', def: 'sched', choices: [['sched', 'Schedule HWSOcc', o => o.div === 'div'], ['none', 'Occupied curve only']]},
+    {id: 'ena', label: 'System enable', type: 'select', def: 'oat', choices: [['oat', 'Below an outside air temp'], ['sched', 'Schedule + OAT, on below 40 F']]},
+    {id: 'rot', label: 'Lead/lag swap', type: 'select', def: 'days', choices: [['days', 'Every N days'], ['hours', 'On run hours (with counters)']], needs: o => o.n !== '1' || o.pumps !== '1'},
+    {id: 'lag', label: 'Lag boiler', type: 'select', def: 'stage', choices: [['stage', 'Stages on load and loop temp'], ['split', 'Split: lead 0-50 %, lag 50-100 %']], needs: o => o.n !== '1' && o.fire === 'mod'},
     {id: 'oat', label: 'Outside air temp', type: 'select', def: 'local', choices: [['local', 'Sensor wired to the AS-P'], ['network', 'From the network (bind by hand)']]},
     {id: 'pres', label: 'Boiler pressure transmitters, high pressure cutout', type: 'check', def: true},
     {id: 'balm', label: 'Boiler alarm contacts', type: 'check', def: true},
     {id: 'mon', label: 'Each boiler\'s supply temp and HW return temp (monitor only)', type: 'check', def: true},
     {id: 'oarh', label: 'OA humidity (monitor only)', type: 'check', def: true},
     {id: 'gen', label: 'Emergency generator status and alarm', type: 'check', def: true},
-    {id: 'lights', label: 'Panel pilot lights', type: 'check', def: true}
+    {id: 'lights', label: 'Panel pilot lights', type: 'check', def: true},
+    {id: 'lowrt', label: 'Low return water protection (ramp firing while the return is cold)', type: 'check', def: false, needs: o => o.fire === 'mod'},
+    {id: 'vlvprt', label: '3-way valve holds bypass until the return is warm, cools down after shutdown', type: 'check', def: false, needs: o => o.div === 'div'}
   ],
   flags(o){
     const F = {};
@@ -3384,6 +3406,10 @@ const BLR = {
     F.DIV = o.div === 'div'; F.SCHED = F.DIV && o.sched === 'sched';
     F.OATLOC = o.oat !== 'network'; F.OATNET = !F.OATLOC;
     F.PRES = !!o.pres; F.BALM = !!o.balm; F.MON = !!o.mon; F.OARH = !!o.oarh; F.GEN = !!o.gen; F.LIGHTS = !!o.lights;
+    F.ENASCH = o.ena === 'sched'; F.OCC = F.SCHED || F.ENASCH;
+    F.ROTHRS = o.rot === 'hours'; F.PHRS = F.ROTHRS && F.P2; F.BHRS = F.ROTHRS && F.N2;
+    F.SPLIT = F.N2 && F.MOD && o.lag === 'split';
+    F.LOWRT = F.MOD && !!o.lowrt; F.VLVPRT = F.DIV && !!o.vlvprt; F.RTMP = F.MON || F.LOWRT || F.VLVPRT;
     F.LTP2 = F.LIGHTS && F.P2; F.LTPRES = F.LIGHTS && F.PRES; F.LTN2 = F.LIGHTS && F.N2;
     return F;
   },
@@ -3405,7 +3431,7 @@ const BLR = {
     p.push({name: 'HwBypVlvPos', descr: 'HW 3-Way Diverting Valve Position', io: 'ao', term: 'S04 AO 1', cond: 'DIV'});
     p.push({name: 'BlrHwSTmp', descr: 'Boiler Loop HW Supply Temp', io: 'ai', term: 'S05 UI 3'});
     p.push({name: 'HwSTmp', descr: 'HW Supply Temp To Building', io: 'ai', term: 'S05 UI 4', cond: 'DIV'});
-    p.push({name: 'HwRTmp', descr: 'HW Return Temp From Building', io: 'ai', term: 'S05 UI 5', cond: 'MON'});
+    p.push({name: 'HwRTmp', descr: 'HW Return Temp From Building', io: 'ai', term: 'S05 UI 5', cond: 'RTMP'});
     p.push({name: 'OaTmp', descr: 'Outdoor Air Temp', io: 'ai', term: 'S05 UI 6', cond: 'OATLOC'});
     p.push({name: 'OaRh', descr: 'Outdoor Air Relative Humidity', io: 'vi', unit: 'rh', range: [0, 100], term: 'S05 UI 7', cond: 'OARH'});
     p.push({name: 'GenSts', descr: 'Emergency Generator Status', io: 'di', text: 'onoff', term: 'S06 DI 7', cond: 'GEN'});
@@ -3421,19 +3447,24 @@ const BLR = {
     const nb = F.N2 ? 2 : 1;
     const v = [
       {folder: 'Inputs', name: 'OaTmp', descr: 'Outside Air Temp (bind to the building OAT)', kind: 'av', unit: 'F', cond: 'OATNET'},
-      {ext: 'NwkScheduling/HWSOcc', name: 'OccCmd', descr: 'HWS Schedule', cond: 'SCHED'},
+      {ext: 'NwkScheduling/HWSOcc', name: 'OccCmd', descr: 'HWS Schedule', cond: 'OCC'},
       {folder: 'Numerics', name: 'HwSysEna', descr: 'HW System Enable', kind: 'bv'},
       {folder: 'Numerics', name: 'HwPReq', descr: 'HW Pumps Requested', kind: 'bv'},
       {folder: 'Numerics', name: 'HwFlSts', descr: 'HW Flow Proven', kind: 'bv'},
       {folder: 'Numerics', name: 'HwP1Fof', descr: 'HW Pump 1 Fail Alarm', kind: 'alm'},
       {folder: 'Numerics', name: 'HwP2Fof', descr: 'HW Pump 2 Fail Alarm', kind: 'alm', cond: 'P2'},
       {folder: 'Numerics', name: 'HwPLd', descr: 'Lead HW Pump (1 or 2)', kind: 'av', cond: 'P2'},
-      {folder: 'Numerics', name: 'HwPRotTm', descr: 'Last HW Pump Rotation (s)', kind: 'av', cond: 'P2'},
+      {folder: 'Numerics', name: 'HwPRotTm', descr: 'Last HW Pump Rotation (s)', kind: 'av', cond: 'P2&!ROTHRS'},
+      {folder: 'Numerics', name: 'HwPLdHrs', descr: 'Lead Pump Hours Since Swap', kind: 'av', unit: 'h', cond: 'PHRS'},
+      {folder: 'Numerics', name: 'HwP1RunHrs', descr: 'HW Pump 1 Run Hours', kind: 'av', unit: 'h', cond: 'ROTHRS'},
+      {folder: 'Numerics', name: 'HwP2RunHrs', descr: 'HW Pump 2 Run Hours', kind: 'av', unit: 'h', cond: 'PHRS'},
       {folder: 'Numerics', name: 'BlrHwSTmpSpt', descr: 'Boiler Loop Supply Temp Setpoint', kind: 'av', unit: 'F'},
       {folder: 'Numerics', name: 'HwSTmpSpt', descr: 'Building HW Supply Temp Setpoint', kind: 'av', unit: 'F', cond: 'DIV'},
       {folder: 'Numerics', name: 'BlrLoad', descr: 'Boiler Firing Signal', kind: 'av', unit: '%', cond: 'MOD'},
       {folder: 'Numerics', name: 'BlrLd', descr: 'Lead Boiler (1 or 2)', kind: 'av', cond: 'N2'},
-      {folder: 'Numerics', name: 'BlrRotTm', descr: 'Last Boiler Rotation (s)', kind: 'av', cond: 'N2'},
+      {folder: 'Numerics', name: 'BlrRotTm', descr: 'Last Boiler Rotation (s)', kind: 'av', cond: 'N2&!ROTHRS'},
+      {folder: 'Numerics', name: 'BlrLdHrs', descr: 'Lead Boiler Hours Since Swap', kind: 'av', unit: 'h', cond: 'BHRS'},
+      {folder: 'Numerics', name: 'BlrRtLmt', descr: 'Low Return Water Firing Limit', kind: 'av', unit: '%', cond: 'LOWRT'},
       {folder: 'Numerics', name: 'HwSysSts', descr: 'Plant Mode (see README)', kind: 'av'},
       {folder: 'Numerics', name: 'HwSysPrHalm', descr: 'High System Pressure Alarm', kind: 'alm', cond: 'PRES'}
     ];
@@ -3443,27 +3474,37 @@ const BLR = {
       v.push({folder: 'Numerics', name: `Blr${i}Fon`, descr: `Boiler ${i} Running With Enable Off`, kind: 'alm'});
       v.push({folder: 'Numerics', name: `Blr${i}Avl`, descr: `Boiler ${i} Available`, kind: 'bv'});
       v.push({folder: 'Numerics', name: `Blr${i}Md`, descr: `Boiler ${i} Mode (see README)`, kind: 'av'});
+      v.push({folder: 'Numerics', name: `Blr${i}RunHrs`, descr: `Boiler ${i} Run Hours`, kind: 'av', unit: 'h', cond: 'ROTHRS'});
+      v.push({folder: 'Numerics', name: `Blr${i}Load`, descr: `Boiler ${i} Firing Signal`, kind: 'av', unit: '%', cond: 'SPLIT'});
     }
     const P = (name, descr, unit, def, cond) => v.push({folder: 'Parameters', name, descr, kind: 'av', unit, def, param: true, cond});
     P('HwSysOaTmpLocSpt', 'HW System Enable Below OAT', 'F', 55);
     P('HwSysOaTmpLocDif', 'HW System Disable Differential', 'dF', 2);
-    P('HwPCmdDof', 'HW Pump Post-Run', 's', 120);
+    P('HwSysFrzOaTmp', 'HW System Always On Below OAT', 'F', 40, 'ENASCH');
+    P('HwPCmdDof', 'HW Pump Post-Run', 's', F.VLVPRT ? 720 : 120);
     P('HwPRotSel', 'Lead Pump Select (0 Auto, 1, 2)', 'none', 0, 'P2');
-    P('HwPRotDays', 'Pump Rotation Period (days)', 'none', 30, 'P2');
+    P('HwPRotDays', 'Pump Rotation Period (days)', 'none', 30, 'P2&!ROTHRS');
+    P('HwPRotHrs', 'Pump Swap After Lead Run Hours', 'h', 150, 'PHRS');
     P('HwPFofDly', 'Pump Fail Delay', 's', 30);
     P('BlrRotSel', 'Lead Boiler Select (0 Auto, 1, 2)', 'none', 0, 'N2');
-    P('BlrRotDays', 'Boiler Rotation Period (days)', 'none', 30, 'N2');
+    P('BlrRotDays', 'Boiler Rotation Period (days)', 'none', 30, 'N2&!ROTHRS');
+    P('BlrRotHrs', 'Boiler Swap After Lead Run Hours', 'h', 30, 'BHRS');
     P('BlrOnDif', 'Lead Boiler On Below Setpoint', 'dF', 5);
     P('BlrOffDif', 'Boilers Off Above Setpoint', 'dF', 10);
-    P('BlrStgUpLoad', 'Lag On Above Firing Signal', '%', 90, 'N2&MOD');
-    P('BlrStgUpDif', 'Lag On Below / Off Above Setpoint', 'dF', 3, 'N2');
-    P('BlrStgUpDly', 'Lag On Delay', 's', 600, 'N2');
-    P('BlrStgDnLoad', 'Lag Off Below Firing Signal', '%', 40, 'N2&MOD');
-    P('BlrStgDnDly', 'Lag Off Delay', 's', 600, 'N2');
+    P('BlrStgUpLoad', 'Lag On Above Firing Signal', '%', F.SPLIT ? 95 : 90, 'N2&MOD');
+    P('BlrStgUpDif', 'Lag On Below / Off Above Setpoint', 'dF', 3, 'N2&!SPLIT');
+    P('BlrStgUpDly', 'Lag On Delay', 's', F.SPLIT ? 7200 : 600, 'N2');
+    P('BlrStgDnLoad', 'Lag Off Below Firing Signal', '%', F.SPLIT ? 80 : 40, 'N2&MOD');
+    P('BlrStgDnDly', 'Lag Off Delay', 's', F.SPLIT ? 60 : 600, 'N2');
     P('BlrFireRateMin', 'Low Fire Signal', '%', 20, 'MOD');
     P('BlrLowFireDly', 'Low Fire Hold', 's', 300, 'MOD');
     P('BlrRampDly', 'Time At Each Ramp Limit', 's', 300, 'MOD');
     P('BlrFofDly', 'Boiler Fail Delay', 's', 300);
+    P('BlrLowRtTmp', 'Low Return Water Below', 'F', 130, 'LOWRT');
+    P('BlrLowRtStep', 'Low Return Firing Limit Step', '%', 5, 'LOWRT');
+    P('BlrLowRtDly', 'Low Return Time Per Step', 's', 600, 'LOWRT');
+    P('HwRTmpMin', 'Valve Opens To Building Above Return Temp', 'F', 105, 'VLVPRT');
+    P('HwVlvCoolDly', 'Valve Cool-Down After Shutdown', 's', 600, 'VLVPRT');
     P('HwSysPrHlmt', 'Boilers Off Above Pressure', 'psi', 25, 'PRES');
     v.push({folder: 'Parameters', name: 'HwSysAlmRst', descr: 'Fail Alarm Reset (On then Off)', kind: 'bv', def: 0, param: false});
     return v;
@@ -3486,8 +3527,8 @@ const BLR = {
   },
   trends(o, F){
     const nb = F.N2 ? 2 : 1, t = ['OaTmp', 'BlrHwSTmp', 'BlrHwSTmpSpt', 'HwSTmp', 'HwSTmpSpt', 'HwRTmp'];
-    for (let i = 1; i <= nb; i++) t.push(`Blr${i}STmp`, `Blr${i}Pres`, `Blr${i}FireRate`);
-    t.push('BlrLoad', 'HwBypVlvPos', 'HwSysEna', 'HwSysSts');
+    for (let i = 1; i <= nb; i++) t.push(`Blr${i}STmp`, `Blr${i}Pres`, `Blr${i}FireRate`, `Blr${i}Load`);
+    t.push('BlrLoad', 'HwBypVlvPos', 'HwSysEna', 'HwSysSts', 'BlrRtLmt');
     for (let i = 1; i <= nb; i++) t.push(`Blr${i}Md`, `Blr${i}Ena`, `Blr${i}Sts`);
     t.push('HwP1Cmd', 'HwP2Cmd', 'HwP1Sts', 'HwP2Sts', 'GenSts');
     return t;
@@ -3501,7 +3542,8 @@ const BLR = {
       {name: 'Prog_HwLoops', descr: 'Boiler Firing and Diverting Valve Loops Program', src: 'loops', cond: 'MOD|DIV'},
       {name: 'Prog_BoilerStaging', descr: 'Boiler Staging Program', src: 'stg'}
     ];
-    for (let i = 1; i <= nb; i++) p.push({name: `Prog_Boiler${i}`, descr: `Boiler ${i} Program`, src: 'blr', vars: {N: i}});
+    p.push({name: 'Prog_BoilerLowReturn', descr: 'Boiler Low Return Water Program', src: 'lowrt', cond: 'LOWRT'});
+    for (let i = 1; i <= nb; i++) p.push({name: `Prog_Boiler${i}`, descr: `Boiler ${i} Program`, src: 'blr', vars: {N: i, LOAD: F.SPLIT ? `Blr${i}Load` : 'BlrLoad', LOADSRC: F.SPLIT ? 'Prog_BoilerStaging' : 'Prog_HwLoops'}});
     p.push({name: 'Prog_PanelLights', descr: 'Panel Lights Program', src: 'lights', cond: 'LIGHTS'});
     return p;
   },
@@ -3521,21 +3563,25 @@ const BLR = {
       `In WorkStation, right-click the AS-P's IO Bus and choose Import. Pick "${P.unit} IO - import.xml". It adds the SmartX modules and their points (modules that already exist are merged by name).`,
       `Right-click Application and choose Import. Pick "${P.unit} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml". It adds the ${P.unit} folder.`
     ];
-    if (!P.pointsOnly) s.push('Programs arrive uncompiled. Open and save Func_PID first, then each program.');
-    if (P.F.SCHED) s.push('Make sure Application/NwkScheduling/HWSOcc exists (a digital schedule, On = occupied), or rebind Prog_HwReset.OccCmd to your schedule.');
+    if (!P.pointsOnly) s.push(`Programs arrive uncompiled. Open and save ${P.newFns.length ? P.newFns.join(', ') : 'the functions'} first, then each program.`);
+    if (P.F.OCC) s.push(`Make sure Application/NwkScheduling/HWSOcc exists (a digital schedule, On = occupied), or rebind ${[P.F.SCHED ? 'Prog_HwReset.OccCmd' : '', P.F.ENASCH ? 'Prog_HwSysEnable.OccCmd' : ''].filter(Boolean).join(' and ')} to your schedule.`);
     if (P.F.OATNET) s.push(`Bind ${P.unit}/Inputs/OaTmp to the building OAT.`);
     s.push('Check every output stroke and every status contact before putting the plant in auto.');
     return s;
   },
   assumptions(P){
     const s = ['Sequence and gains are the Bower Hill HWS plant\'s. Firing loop KP 0.04 / KI 0.0003, diverting valve loop KP 0.05 / KI 0.0005 (starting values, tune on site).',
-      'Enabled below HwSysOaTmpLocSpt; disabled HwSysOaTmpLocDif above it, pumps keep running HwPCmdDof after the boilers stop.',
+      P.F.ENASCH ? 'Enabled while the HWSOcc schedule is on and OAT is below HwSysOaTmpLocSpt, and always below HwSysFrzOaTmp; disabled HwSysOaTmpLocDif past those. Pumps keep running HwPCmdDof after the boilers stop.' : 'Enabled below HwSysOaTmpLocSpt; disabled HwSysOaTmpLocDif above it, pumps keep running HwPCmdDof after the boilers stop.',
       'Boiler loop reset: OA 60 F -> 160 F, OA 0 F -> 200 F (in Prog_HwReset Init).'];
     if (P.F.DIV) s.push('Building supply reset (in Prog_HwReset Init): occupied 120/135/150/175/200 F and unoccupied 100/120/135/160/185 F at OA 60/45/30/15/0 F. Diverting valve 100 % = all boiler water to the building; verify ports and stroke.');
     if (P.F.MOD) s.push('Each boiler starts at low fire (BlrFireRateMin), holds BlrLowFireDly after status proves, then is limited to 50 % and 75 % for BlrRampDly each.');
     if (P.F.ONOFF) s.push('Enable only: the boiler\'s own controls fire it. The DDC holds the enable while the boiler loop is below setpoint + BlrOffDif.');
-    if (P.F.N2) s.push('Lag boiler: on when the lead is ' + (P.F.MOD ? 'modulating, BlrLoad >= BlrStgUpLoad and ' : 'running and ') + 'the loop is BlrStgUpDif below setpoint for BlrStgUpDly; off ' + (P.F.MOD ? 'at BlrLoad <= BlrStgDnLoad or ' : 'when ') + 'the loop is BlrStgUpDif above setpoint for BlrStgDnDly.');
+    if (P.F.SPLIT) s.push('Split firing: the lead fires 0-100 % over firing signal 0-50 % and the lag 0-100 % over 50-100 %. The lag is requested once the signal has been at BlrStgUpLoad or more for BlrStgUpDly, and released at BlrStgDnLoad or less for BlrStgDnDly.');
+    else if (P.F.N2) s.push('Lag boiler: on when the lead is ' + (P.F.MOD ? 'modulating, BlrLoad >= BlrStgUpLoad and ' : 'running and ') + 'the loop is BlrStgUpDif below setpoint for BlrStgUpDly; off ' + (P.F.MOD ? 'at BlrLoad <= BlrStgDnLoad or ' : 'when ') + 'the loop is BlrStgUpDif above setpoint for BlrStgDnDly.');
     if (P.F.PRES) s.push('High pressure: either boiler above HwSysPrHlmt shuts the boilers off; auto reset 2 psi below. Pressure transmitters 0-5 V = 0-100 psi.');
+    if (P.F.ROTHRS) s.push('Run hours count while each unit\'s status is On. Auto lead swap after the lead has run ' + [P.F.BHRS ? 'BlrRotHrs (boilers; waits for the plant to be off, or 24 h overdue)' : '', P.F.PHRS ? 'HwPRotHrs (pumps)' : ''].filter(Boolean).join(' or ') + ' since the last swap.');
+    if (P.F.LOWRT) s.push('Low return water: while HwRTmp is below BlrLowRtTmp the firing rate is held to BlrRtLmt, which starts at low fire and rises BlrLowRtStep every BlrLowRtDly. It clears 5 F above BlrLowRtTmp.');
+    if (P.F.VLVPRT) s.push('3-way valve: all bypass (0 %) until HwRTmp reaches HwRTmpMin, back to bypass 10 F below it. After the system disables, the valve goes 100 % to the building for HwVlvCoolDly to dump boiler heat; HwPCmdDof defaults to 720 s so the pumps run through it.');
     s.push('Fail alarms latch until HwSysAlmRst is set On, then Off. Alarms auto-clear otherwise.');
     s.push('SmartX outputs: DO-FC-8 for relays, AO-8 for 0-10 V. Inputs: UI-16 (10k Continuum thermistors), DI-16.');
     return s;
@@ -3545,17 +3591,31 @@ const BLR = {
 
 BLR.src.ena = `' ===========================================================================
 ' Prog_HwSysEnable  -  {UNIT} hot water system enable
+#if ENASCH
+' The HW system is enabled (system pumps run, boilers may fire) while the
+' HWSOcc schedule is On and OAT is below HwSysOaTmpLocSpt, and always while
+' OAT is below HwSysFrzOaTmp. It disables when neither holds, with
+' HwSysOaTmpLocDif of differential on each OAT limit: the boilers stop right
+' away and the pumps keep running for HwPCmdDof.
+#else
 ' Below HwSysOaTmpLocSpt the HW system is enabled: system pumps run and the
 ' boilers may fire. Above HwSysOaTmpLocSpt + HwSysOaTmpLocDif the boilers
 ' are disabled right away and the pumps keep running for HwPCmdDof.
+#endif
 ' HwSysEna -> Prog_BoilerStaging; HwPReq -> Prog_HwPumps.
 ' From the team's Bower Hill HWS programs. Names follow EBO 3 SEBA Naming
 ' Convention.
 ' ===========================================================================
 
 Numeric Input  OaTmp              ' outside air temp, deg F
+#if ENASCH
+Numeric Input  OccCmd             ' HWSOcc schedule, On = occupied
+#endif
 Numeric Input  HwSysOaTmpLocSpt   ' enable below this OAT, deg F
 Numeric Input  HwSysOaTmpLocDif   ' disable above setpoint + this, deg F
+#if ENASCH
+Numeric Input  HwSysFrzOaTmp      ' always enabled below this OAT, deg F
+#endif
 Numeric Input  HwPCmdDof          ' pump post-run after disable, s
 Numeric Output HwSysEna           ' On = HW system enabled (boilers allowed)
 Numeric Output HwPReq             ' On = system pumps requested
@@ -3568,21 +3628,33 @@ Init:
 Off:
   HwSysEna = Off
   HwPReq = Off
+#if ENASCH
+  If (OccCmd = On And OaTmp < HwSysOaTmpLocSpt) Or OaTmp < HwSysFrzOaTmp Then
+#else
   If OaTmp < HwSysOaTmpLocSpt Then
+#endif
     Goto Ena
   Endif
 
 Ena:
   HwSysEna = On
   HwPReq = On
+#if ENASCH
+  If (OccCmd = Off Or OaTmp > HwSysOaTmpLocSpt + HwSysOaTmpLocDif) And OaTmp > HwSysFrzOaTmp + HwSysOaTmpLocDif Then
+#else
   If OaTmp > HwSysOaTmpLocSpt + HwSysOaTmpLocDif Then
+#endif
     Goto PostRun
   Endif
 
 PostRun:
   HwSysEna = Off
   HwPReq = On
+#if ENASCH
+  If (OccCmd = On And OaTmp < HwSysOaTmpLocSpt) Or OaTmp < HwSysFrzOaTmp Then
+#else
   If OaTmp < HwSysOaTmpLocSpt Then
+#endif
     Goto Ena
   Endif
   If TS >= HwPCmdDof Then
@@ -3596,7 +3668,12 @@ BLR.src.pumps = `' =============================================================
 ' The lead runs whenever HwPReq is On, the other is standby. If the lead is
 ' commanded with no current switch status for HwPFofDly, its fail alarm
 ' latches and the standby starts. Fail alarms clear with HwSysAlmRst.
+#if ROTHRS
+' Lead selection (HwPRotSel): 0 = auto, swap once the lead has run
+'                                 HwPRotHrs since the last swap
+#else
 ' Lead selection (HwPRotSel): 0 = auto, swap every HwPRotDays days
+#endif
 '                             1 = Pump 1 lead, 2 = Pump 2 lead
 ' HwFlSts (flow proven, to the boilers) is On while either pump has status
 ' and drops 15 s after both lose it, so a lead swap does not drop the boilers.
@@ -3607,6 +3684,10 @@ BLR.src.pumps = `' =============================================================
 ' HwFlSts (flow proven, to the boilers) is On while the pump has status and
 ' drops 15 s after it loses it.
 #endif
+#if ROTHRS
+' Run hours (HwPnRunHrs) count while each pump's status is On, using the
+' team's Func_Runtime.
+#endif
 ' From the team's Bower Hill HWS programs. Names follow EBO 3 SEBA Naming
 ' Convention.
 ' ===========================================================================
@@ -3616,7 +3697,11 @@ Numeric Input  HwP1Sts        ' pump 1 current switch, On = running
 #if P2
 Numeric Input  HwP2Sts        ' pump 2 current switch, On = running
 Numeric Input  HwPRotSel      ' 0 = auto rotate, 1 = pump 1 lead, 2 = pump 2 lead
+#if ROTHRS
+Numeric Input  HwPRotHrs      ' swap after the lead runs this long, h
+#else
 Numeric Input  HwPRotDays     ' auto rotation period, days
+#endif
 #endif
 Numeric Input  HwPFofDly      ' commanded with no status this long = fail, s
 Numeric Input  HwSysAlmRst    ' operator alarm reset, On = reset
@@ -3628,9 +3713,22 @@ Numeric Output HwP1Fof        ' pump 1 fail alarm
 #if P2
 Numeric Output HwP2Fof        ' pump 2 fail alarm
 Numeric Output HwPLd          ' selected lead pump, 1 or 2
+#if ROTHRS
+Numeric Output HwPLdHrs       ' lead pump run hours since the last swap, h
+#else
 Numeric Output HwPRotTm       ' time of last auto rotation (Date, seconds)
 #endif
+#endif
+#if ROTHRS
+Numeric Output HwP1RunHrs     ' pump 1 run hours, h
+#if P2
+Numeric Output HwP2RunHrs     ' pump 2 run hours, h
+#endif
+#endif
 Numeric Output HwFlSts        ' HW flow proven, to the boiler programs
+#if ROTHRS
+Function Func_Runtime         ' team run time accumulator
+#endif
 
 #if P2
 Numeric ActLd                 ' lead actually running (standby if lead failed)
@@ -3641,9 +3739,26 @@ Numeric P2OkTm                ' last time pump 2 was OK (Date)
 #endif
 Numeric FlOkTm                ' last time a pump had status (Date)
 Numeric FlOffDly              ' flow proof drop-out delay, s
+#if ROTHRS
+Numeric P1Cnt                 ' Func_Runtime counter, pump 1
+#if P2
+Numeric P2Cnt                 ' Func_Runtime counter, pump 2
+Numeric LdCnt                 ' Func_Runtime counter, lead hours
+Numeric LdSts                 ' selected lead pump's status
+#endif
+#endif
 
 Init:
   FlOffDly = 15
+#if ROTHRS
+  ' Counters start at 1 so Func_Runtime keeps the stored hours after a
+  ' restart while the pump is off.
+  P1Cnt = 1
+#if P2
+  P2Cnt = 1
+  LdCnt = 1
+#endif
+#endif
   P1OkTm = Date
 #if P2
   P2OkTm = Date
@@ -3654,9 +3769,11 @@ Init:
   If HwPLd <> 1 And HwPLd <> 2 Then
     HwPLd = 1
   Endif
+#if !ROTHRS
   If HwPRotTm = 0 Then
     HwPRotTm = Date
   Endif
+#endif
 #endif
   Goto Main
 
@@ -3669,10 +3786,24 @@ Main:
   If HwPRotSel = 2 Then
     HwPLd = 2
   Endif
+#if ROTHRS
+  If HwPLd = 1 Then
+    LdSts = HwP1Sts
+  Else
+    LdSts = HwP2Sts
+  Endif
+  HwPLdHrs = Func_Runtime(LdSts, 0, 0, LdCnt, HwPLdHrs)
+  If HwPRotSel = 0 And HwPLdHrs >= HwPRotHrs Then
+    HwPLd = 3 - HwPLd
+    HwPLdHrs = 0
+    LdCnt = 1
+  Endif
+#else
   If HwPRotSel = 0 And Date - HwPRotTm >= HwPRotDays * 86400 Then
     HwPLd = 3 - HwPLd
     HwPRotTm = Date
   Endif
+#endif
 
   ' ---- Standby takes over if the lead has failed ---------------------------
   ActLd = HwPLd
@@ -3738,6 +3869,14 @@ Main:
       HwFlSts = Off
     Endif
   Endif
+#if ROTHRS
+
+  ' ---- Run hours (Func_Runtime, unit 0 = hours) ----------------------------
+  HwP1RunHrs = Func_Runtime(HwP1Sts, 0, 0, P1Cnt, HwP1RunHrs)
+#if P2
+  HwP2RunHrs = Func_Runtime(HwP2Sts, 0, 0, P2Cnt, HwP2RunHrs)
+#endif
+#endif
 `;
 
 BLR.src.reset = `' ===========================================================================
@@ -3881,7 +4020,16 @@ BLR.src.loops = `' =============================================================
 '   HwBypVlvPos  HwSTmp vs HwSTmpSpt, reverse acting. 100 % = all boiler
 '                water to the building, 0 % = all bypassed back to the
 '                boilers. Verify valve ports and stroke at startup. Runs while
+#if VLVPRT
 '                flow is proven, else 0.
+'                Return protection: the valve stays at 0 % (all bypass)
+'                until HwRTmp reaches HwRTmpMin, and goes back to 0 % if it
+'                falls 10 F below. After the system disables, the valve
+'                goes to 100 % for HwVlvCoolDly to dump the boilers' heat
+'                into the building, then 0 %.
+#else
+'                flow is proven, else 0.
+#endif
 #endif
 ' Gains are starting values; tune on site.
 ' From the team's Bower Hill HWS programs. Names follow EBO 3 SEBA Naming
@@ -3900,6 +4048,12 @@ Numeric Input  Blr2Req        ' from Prog_BoilerStaging
 Numeric Input  HwSTmp         ' HW supply temp to the building, deg F
 Numeric Input  HwSTmpSpt      ' from Prog_HwReset
 Numeric Input  HwFlSts        ' from Prog_HwPumps, On = flow proven
+#if VLVPRT
+Numeric Input  HwSysEna       ' from Prog_HwSysEnable
+Numeric Input  HwRTmp         ' HW return temp from the building, deg F
+Numeric Input  HwRTmpMin      ' valve opens to the building above this return, deg F
+Numeric Input  HwVlvCoolDly   ' valve cool-down after the system disables, s
+#endif
 #endif
 #if MOD
 Numeric Output BlrLoad        ' boiler firing signal, 0-100 %
@@ -3915,6 +4069,10 @@ Numeric BlrIntg               ' firing loop integral
 #if DIV
 Numeric VlvLErr               ' valve loop last error
 Numeric VlvIntg               ' valve loop integral
+#if VLVPRT
+Numeric RtOk                  ' On once the return has reached HwRTmpMin
+Numeric EnaTm                 ' last time the system was enabled (Date)
+#endif
 #endif
 
 Main:
@@ -3935,6 +4093,30 @@ Main:
 #if DIV
 
   ' ---- Diverting valve loop: reverse acting (Actn 0), bias 0 ---------------
+#if VLVPRT
+  If HwSysEna = On Then
+    EnaTm = Date
+    If HwRTmp >= HwRTmpMin Then
+      RtOk = On
+    Endif
+    If HwRTmp <= HwRTmpMin - 10 Then
+      RtOk = Off
+    Endif
+  Else
+    RtOk = Off
+  Endif
+  If HwSysEna = On And RtOk = On And HwFlSts = On Then
+    HwBypVlvPos = Func_PID(HwSTmp, HwSTmpSpt, 0.05, 0.0005, 0, 0, 0, VlvLErr, VlvIntg)
+  Else
+    VlvLErr = 0
+    VlvIntg = 0
+    If HwSysEna = Off And EnaTm > 0 And Date - EnaTm < HwVlvCoolDly Then
+      HwBypVlvPos = 100
+    Else
+      HwBypVlvPos = 0
+    Endif
+  Endif
+#else
   If HwFlSts = On Then
     HwBypVlvPos = Func_PID(HwSTmp, HwSTmpSpt, 0.05, 0.0005, 0, 0, 0, VlvLErr, VlvIntg)
   Else
@@ -3943,6 +4125,7 @@ Main:
     VlvIntg = 0
   Endif
 #endif
+#endif
 `;
 
 BLR.src.stg = `' ===========================================================================
@@ -3950,7 +4133,15 @@ BLR.src.stg = `' ===============================================================
 ' Prog_BoilerStaging  -  {UNIT} boiler lead/lag, staging and rotation
 ' Boilers are allowed when HwSysEna is On and HW flow is proven (HwFlSts).
 '   Off      Lead starts when BlrHwSTmp drops BlrOnDif below BlrHwSTmpSpt.
-#if MOD
+#if SPLIT
+'   Lead     Lag starts when the lead is modulating (Md 6) and BlrLoad has
+'            been at BlrStgUpLoad or more for BlrStgUpDly. All off
+'            BlrOffDif above setpoint.
+'   LeadLag  Lag drops when BlrLoad has been at BlrStgDnLoad or less for
+'            BlrStgDnDly.
+' Split firing: the lead's signal (BlrnLoad) goes 0-100 % over BlrLoad
+' 0-50 %, the lag's 0-100 % over BlrLoad 50-100 % (team Func_Ratio).
+#elif MOD
 '   Lead     Lag starts when the lead is modulating (Md 6), BlrLoad >=
 '            BlrStgUpLoad and the loop is BlrStgUpDif below setpoint, held
 '            for BlrStgUpDly. All off BlrOffDif above setpoint.
@@ -3965,9 +4156,17 @@ BLR.src.stg = `' ===============================================================
 #endif
 ' If the lead is not available (failed or boiler alarm) the other boiler
 ' acts as lead right away.
+#if ROTHRS
+' Lead selection (BlrRotSel): 0 = auto, swap once the lead has run
+'                                 BlrRotHrs since the last swap
+'                             1 = Boiler 1 lead, 2 = Boiler 2 lead
+' An auto swap waits until the plant is Off; 24 run hours overdue it swaps
+' in Lead.
+#else
 ' Lead selection (BlrRotSel): 0 = auto, swap every BlrRotDays days
 '                             1 = Boiler 1 lead, 2 = Boiler 2 lead
 ' An auto swap waits until the plant is Off; a day overdue it swaps in Lead.
+#endif
 ' HwSysSts: 1 OFF   2 LEAD BOILER   3 LEAD + LAG BOILER
 #else
 ' Prog_BoilerStaging  -  {UNIT} boiler request
@@ -3975,6 +4174,10 @@ BLR.src.stg = `' ===============================================================
 ' It is requested when BlrHwSTmp drops BlrOnDif below BlrHwSTmpSpt and
 ' released BlrOffDif above it.
 ' HwSysSts: 1 OFF   2 BOILER ON
+#endif
+#if ROTHRS
+' Run hours (BlrnRunHrs) count while each burner status is On, using the
+' team's Func_Runtime.
 #endif
 #if PRES
 '           4 HIGH PRESSURE - BOILERS OFF
@@ -3991,6 +4194,9 @@ Numeric Input  BlrHwSTmp      ' boiler loop supply temp, deg F
 Numeric Input  BlrHwSTmpSpt   ' from Prog_HwReset
 Numeric Input  BlrOnDif       ' lead on this far below setpoint, deg F
 Numeric Input  BlrOffDif      ' all off this far above setpoint, deg F
+#if ROTHRS
+Numeric Input  Blr1Sts        ' boiler 1 burner status, On = firing
+#endif
 #if N2
 #if MOD
 Numeric Input  BlrLoad        ' from Prog_HwLoops, 0-100 %
@@ -3999,12 +4205,21 @@ Numeric Input  Blr1Avl        ' from Prog_Boiler1, On = available
 Numeric Input  Blr2Avl        ' from Prog_Boiler2, On = available
 Numeric Input  Blr1Md         ' from Prog_Boiler1, 6 = proven and released
 Numeric Input  Blr2Md         ' from Prog_Boiler2, 6 = proven and released
+#if ROTHRS
+Numeric Input  Blr2Sts        ' boiler 2 burner status, On = firing
+#endif
 Numeric Input  BlrRotSel      ' 0 = auto rotate, 1 = boiler 1 lead, 2 = boiler 2 lead
+#if ROTHRS
+Numeric Input  BlrRotHrs      ' swap after the lead runs this long, h
+#else
 Numeric Input  BlrRotDays     ' auto rotation period, days
+#endif
 #if MOD
 Numeric Input  BlrStgUpLoad   ' lag on above this firing signal, %
 #endif
+#if !SPLIT
 Numeric Input  BlrStgUpDif    ' lag on below / lag off above setpoint by this, deg F
+#endif
 Numeric Input  BlrStgUpDly    ' lag on delay, s
 #if MOD
 Numeric Input  BlrStgDnLoad   ' lag off below this firing signal, %
@@ -4022,11 +4237,29 @@ Numeric Output Blr1Req        ' to Prog_Boiler1
 #if N2
 Numeric Output Blr2Req        ' to Prog_Boiler2
 Numeric Output BlrLd          ' selected lead boiler, 1 or 2
+#if ROTHRS
+Numeric Output BlrLdHrs       ' lead boiler run hours since the last swap, h
+#else
 Numeric Output BlrRotTm       ' time of last auto rotation (Date, seconds)
+#endif
+#if SPLIT
+Numeric Output Blr1Load       ' to Prog_Boiler1, firing signal 0-100 %
+Numeric Output Blr2Load       ' to Prog_Boiler2, firing signal 0-100 %
+#endif
 #endif
 Numeric Output HwSysSts       ' plant mode number, see above
 #if PRES
 Numeric Output HwSysPrHalm    ' high pressure alarm
+#endif
+#if ROTHRS
+Numeric Output Blr1RunHrs     ' boiler 1 run hours, h
+#if N2
+Numeric Output Blr2RunHrs     ' boiler 2 run hours, h
+#endif
+Function Func_Runtime         ' team run time accumulator
+#endif
+#if SPLIT
+Function Func_Ratio           ' team linear reset
 #endif
 
 #if N2
@@ -4034,6 +4267,18 @@ Numeric ActLd                 ' boiler acting as lead
 Numeric LdMd                  ' acting lead's Md
 Numeric UpOkTm                ' last time stage up was not called (Date)
 Numeric DnOkTm                ' last time stage down was not called (Date)
+#endif
+#if ROTHRS
+Numeric B1Cnt                 ' Func_Runtime counter, boiler 1
+#if N2
+Numeric B2Cnt                 ' Func_Runtime counter, boiler 2
+Numeric LdCnt                 ' Func_Runtime counter, lead hours
+Numeric LdSts                 ' selected lead boiler's burner status
+#endif
+#endif
+#if SPLIT
+Numeric LdLoad                ' acting lead's firing signal, %
+Numeric LgLoad                ' lag's firing signal, %
 #endif
 
 Init:
@@ -4048,9 +4293,20 @@ Init:
   If BlrLd <> 1 And BlrLd <> 2 Then
     BlrLd = 1
   Endif
+#if !ROTHRS
   If BlrRotTm = 0 Then
     BlrRotTm = Date
   Endif
+#endif
+#endif
+#if ROTHRS
+  ' Counters start at 1 so Func_Runtime keeps the stored hours after a
+  ' restart while the boiler is off.
+  B1Cnt = 1
+#if N2
+  B2Cnt = 1
+  LdCnt = 1
+#endif
 #endif
   Goto Main
 
@@ -4063,6 +4319,21 @@ Main:
   If BlrRotSel = 2 Then
     BlrLd = 2
   Endif
+#if ROTHRS
+  If BlrLd = 1 Then
+    LdSts = Blr1Sts
+  Else
+    LdSts = Blr2Sts
+  Endif
+  BlrLdHrs = Func_Runtime(LdSts, 0, 0, LdCnt, BlrLdHrs)
+  If BlrRotSel = 0 Then
+    If (HwSysSts = 1 And BlrLdHrs >= BlrRotHrs) Or (HwSysSts = 2 And BlrLdHrs >= BlrRotHrs + 24) Then
+      BlrLd = 3 - BlrLd
+      BlrLdHrs = 0
+      LdCnt = 1
+    Endif
+  Endif
+#else
   If BlrRotSel = 0 Then
     If HwSysSts = 1 And Date - BlrRotTm >= BlrRotDays * 86400 Then
       BlrLd = 3 - BlrLd
@@ -4073,6 +4344,7 @@ Main:
       BlrRotTm = Date
     Endif
   Endif
+#endif
 
   ' ---- Acting lead: selected lead unless it is down and the other is OK ----
   ActLd = BlrLd
@@ -4140,7 +4412,9 @@ Main:
     If HwSysSts = 2 Then
       ' stage up timer
       DnOkTm = Date
-#if MOD
+#if SPLIT
+      If LdMd = 6 And BlrLoad >= BlrStgUpLoad Then
+#elif MOD
       If LdMd = 6 And BlrLoad >= BlrStgUpLoad And BlrHwSTmp < BlrHwSTmpSpt - BlrStgUpDif Then
 #else
       If LdMd = 6 And BlrHwSTmp < BlrHwSTmpSpt - BlrStgUpDif Then
@@ -4155,7 +4429,9 @@ Main:
     If HwSysSts = 3 Then
       ' stage down timer
       UpOkTm = Date
-#if MOD
+#if SPLIT
+      If BlrLoad <= BlrStgDnLoad Then
+#elif MOD
       If BlrLoad <= BlrStgDnLoad Or BlrHwSTmp > BlrHwSTmpSpt + BlrStgUpDif Then
 #else
       If BlrHwSTmp > BlrHwSTmpSpt + BlrStgUpDif Then
@@ -4196,6 +4472,91 @@ Main:
     Blr1Req = Off
   Endif
 #endif
+#if SPLIT
+
+  ' ---- Split firing signals (Func_Ratio) -----------------------------------
+  LdLoad = Func_Ratio(BlrLoad, 0, 50, 0, 100)
+  LgLoad = 0
+  If HwSysSts = 3 Then
+    LgLoad = Func_Ratio(BlrLoad, 50, 100, 0, 100)
+  Endif
+  If ActLd = 1 Then
+    Blr1Load = LdLoad
+    Blr2Load = LgLoad
+  Else
+    Blr1Load = LgLoad
+    Blr2Load = LdLoad
+  Endif
+#endif
+#if ROTHRS
+
+  ' ---- Run hours (Func_Runtime, unit 0 = hours) ----------------------------
+  Blr1RunHrs = Func_Runtime(Blr1Sts, 0, 0, B1Cnt, Blr1RunHrs)
+#if N2
+  Blr2RunHrs = Func_Runtime(Blr2Sts, 0, 0, B2Cnt, Blr2RunHrs)
+#endif
+#endif
+`;
+
+BLR.src.lowrt = `' ===========================================================================
+' Prog_BoilerLowReturn  -  {UNIT} low return water protection
+' Keeps cold return water from condensing in the boilers. When a boiler is
+' firing and HwRTmp is below BlrLowRtTmp, the firing limit BlrRtLmt drops
+' to low fire (BlrFireRateMin) and rises BlrLowRtStep every BlrLowRtDly.
+' It clears to 100 % once HwRTmp is 5 F above BlrLowRtTmp, and resets when
+' no boiler is firing. BlrRtLmt -> each Prog_Boiler, which holds its
+' firing rate at or below it (never below low fire).
+' After the team's boiler low temp and ramp programs (Buddy, 2026-10-15).
+' Names follow EBO 3 SEBA Naming Convention.
+' ===========================================================================
+
+Numeric Input  HwRTmp           ' HW return temp from the building, deg F
+Numeric Input  Blr1Sts          ' boiler 1 burner status, On = firing
+#if N2
+Numeric Input  Blr2Sts          ' boiler 2 burner status, On = firing
+#endif
+Numeric Input  BlrLowRtTmp      ' low return below this, deg F
+Numeric Input  BlrLowRtStep     ' firing limit step, %
+Numeric Input  BlrLowRtDly      ' time per step, s
+Numeric Input  BlrFireRateMin   ' low fire signal, %
+Numeric Output BlrRtLmt         ' firing limit, %
+
+Numeric LowRt                   ' On = low return limit active
+Numeric StepTm                  ' time of the last step (Date)
+
+Init:
+  BlrRtLmt = 100
+  LowRt = Off
+  StepTm = Date
+  Goto Main
+
+Main:
+#if N2
+  If Blr1Sts = Off And Blr2Sts = Off Then
+#else
+  If Blr1Sts = Off Then
+#endif
+    ' no boiler firing: reset
+    LowRt = Off
+    BlrRtLmt = 100
+  Else
+    If LowRt = Off And HwRTmp < BlrLowRtTmp Then
+      LowRt = On
+      BlrRtLmt = BlrFireRateMin
+      StepTm = Date
+    Endif
+    If LowRt = On Then
+      If HwRTmp > BlrLowRtTmp + 5 Then
+        LowRt = Off
+        BlrRtLmt = 100
+      Else
+        If Date - StepTm >= BlrLowRtDly Then
+          BlrRtLmt = Minimum(100, BlrRtLmt + BlrLowRtStep)
+          StepTm = Date
+        Endif
+      Endif
+    Endif
+  Endif
 `;
 
 BLR.src.blr = `' ===========================================================================
@@ -4204,8 +4565,12 @@ BLR.src.blr = `' ===============================================================
 ' When Blr{N}Req comes on, Blr{N}Ena closes with the firing rate at low fire
 ' (BlrFireRateMin). Once burner status proves, the boiler holds low fire
 ' for BlrLowFireDly, then is limited to 50 % for BlrRampDly, then 75 % for
-' BlrRampDly, then follows BlrLoad. It never goes below low fire while
+' BlrRampDly, then follows {LOAD}. It never goes below low fire while
 ' enabled.
+#if LOWRT
+' While the return water is cold the firing rate is also held to BlrRtLmt
+' (from Prog_BoilerLowReturn).
+#endif
 #else
 ' When Blr{N}Req comes on, Blr{N}Ena closes and the boiler's own controls
 ' fire it. Md 6 (running) once burner status proves.
@@ -4238,7 +4603,10 @@ Numeric Input  Blr{N}Sts          ' burner status from the boiler, On = firing
 Numeric Input  Blr{N}Alm          ' boiler alarm contact, On = in alarm
 #endif
 #if MOD
-Numeric Input  BlrLoad          ' from Prog_HwLoops, 0-100 %
+Numeric Input  {LOAD}          ' from {LOADSRC}, 0-100 %
+#if LOWRT
+Numeric Input  BlrRtLmt         ' from Prog_BoilerLowReturn, firing limit %
+#endif
 Numeric Input  BlrFireRateMin   ' low fire signal, %
 Numeric Input  BlrLowFireDly    ' low fire hold after status proves, s
 Numeric Input  BlrRampDly       ' time at the 50 % and at the 75 % limit, s
@@ -4331,7 +4699,11 @@ LowFire:
 Ramp50:
   Blr{N}Md = 4
   Blr{N}Ena = On
-  Blr{N}FireRate = Maximum(BlrFireRateMin, Minimum(50, BlrLoad))
+#if LOWRT
+  Blr{N}FireRate = Maximum(BlrFireRateMin, Minimum(Minimum(50, BlrRtLmt), {LOAD}))
+#else
+  Blr{N}FireRate = Maximum(BlrFireRateMin, Minimum(50, {LOAD}))
+#endif
 #if BALM
   If Blr{N}Alm = On Then
     Goto Alarm
@@ -4350,7 +4722,11 @@ Ramp50:
 Ramp75:
   Blr{N}Md = 5
   Blr{N}Ena = On
-  Blr{N}FireRate = Maximum(BlrFireRateMin, Minimum(75, BlrLoad))
+#if LOWRT
+  Blr{N}FireRate = Maximum(BlrFireRateMin, Minimum(Minimum(75, BlrRtLmt), {LOAD}))
+#else
+  Blr{N}FireRate = Maximum(BlrFireRateMin, Minimum(75, {LOAD}))
+#endif
 #if BALM
   If Blr{N}Alm = On Then
     Goto Alarm
@@ -4371,7 +4747,11 @@ Running:
   Blr{N}Md = 6
   Blr{N}Ena = On
 #if MOD
-  Blr{N}FireRate = Maximum(BlrFireRateMin, BlrLoad)
+#if LOWRT
+  Blr{N}FireRate = Maximum(BlrFireRateMin, Minimum(BlrRtLmt, {LOAD}))
+#else
+  Blr{N}FireRate = Maximum(BlrFireRateMin, {LOAD})
+#endif
 #endif
 #if BALM
   If Blr{N}Alm = On Then
@@ -4497,7 +4877,7 @@ Main:
 `.replace(`${'#'}BA#`, '');
 
 // ---------- engine: controller parsing, IO assignment, program and XML building ----------
-const UNITS = {cfmv: '0xF0004', F: '0x280003', dF: '0x290002', '%': '0x200001', s: '0x2E0007', min: '0x2E0006', inwc: '0x230005', ppm: '0x200002', cfm: '0x1C0001', psi: '0x230003', rh: '0x170001', none: '0x10001'};
+const UNITS = {cfmv: '0xF0004', F: '0x280003', dF: '0x290002', '%': '0x200001', s: '0x2E0007', min: '0x2E0006', h: '0x2E0005', inwc: '0x230005', ppm: '0x200002', cfm: '0x1C0001', psi: '0x230003', rh: '0x170001', none: '0x10001'};
 // Lists in a template may be arrays or functions of (options, flags), for repeated equipment.
 const LIST = (x, o, F) => typeof x === 'function' ? x(o, F) : (x || []);
 // Path of target (relative to Application) as seen from an object in folder `from`.
@@ -4719,13 +5099,14 @@ async function codeFile(code, objType){
 }
 
 // ---------- plan: everything the unit needs, before any XML ----------
-// Drop choices whose condition fails (a choice is [value, label, needs(opts)]) and unticks checks whose needs fail.
+// Drop choices whose condition fails (a choice is [value, label, needs(opts)]), reset selects whose needs fail to their default, and untick checks whose needs fail.
 function fixOpts(tpl, o){
   o = Object.assign({}, o);
   tpl.options.forEach(op => {
     if (op.type === 'select') {
       const ok = op.choices.filter(c => !c[2] || c[2](o));
       if (!ok.some(c => c[0] === String(o[op.id]))) o[op.id] = ok.some(c => c[0] === op.def) ? op.def : ok[0][0];
+      if (op.needs && !op.needs(o)) o[op.id] = op.def;
     } else if (op.needs && !op.needs(o)) o[op.id] = false;
   });
   return o;
@@ -4825,7 +5206,13 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   const exRoot = root && ctrl.paths ? ctrl.paths : null;
   // points only: alarms only on hardware inputs (nothing writes the calculated ones)
   const alarms = LIST(tpl.alarms, opts, F).filter(a => cond(a.cond, F) && !ex[a.name] && (!pointsOnly || (reg[a.src.split('/')[1]] || {}).kind === 'point'));
-  const trends = LIST(tpl.trends, opts, F).concat(points.filter(p => p.custom).map(p => p.name)).filter(t => reg[t] && reg[t].kind !== 'ext' && !ex[t + 'Tlog']);
+  // trends: the template's key points are ticked by default; opts.trendSel (name -> true/false)
+  // holds the user's ticks. Any point or value the file creates can be trended.
+  const canTrend = t => reg[t] && reg[t].kind !== 'ext' && !reg[t].stock && !(reg[t].kind === 'value' && reg[t].v.kind === 'csv') && !ex[t + 'Tlog'];
+  const trendDef = LIST(tpl.trends, opts, F).concat(points.filter(p => p.custom).map(p => p.name)).filter(canTrend);
+  const trendCands = Object.keys(reg).filter(canTrend);
+  const tsel = opts.trendSel || {}, picked = t => t in tsel ? !!tsel[t] : trendDef.includes(t);
+  const trends = trendDef.filter(picked).concat(trendCands.filter(t => !trendDef.includes(t) && picked(t)));
   // functions the programs call
   const fnFolder = root ? sub('Functions') : uf + 'Functions';
   const fns = [...new Set([].concat(...progs.map(p => p.decl.fns)))];
@@ -4852,7 +5239,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   const progFolder = root ? sub('Programs') : uf + 'Programs';
   const clashes = root ? [] : progs.map(p => p.name).filter(n => ex[n]);
   const reused = Object.keys(reg).filter(n => reg[n].reused && reg[n].kind !== 'ext').concat(fns.filter(f => ex[f]));
-  return {F, root, asp, uf, pointsOnly, points, values, progs, modeMap, states, reg, writer, alarms, trends, issues, ioIssues, io, sig: sig || {}, sensor, clashes, reused, manual, pidFolder, fns, fnAt, newFns, progFolder, opts, ctrl, unit, tpl};
+  return {F, root, asp, uf, pointsOnly, points, values, progs, modeMap, states, reg, writer, alarms, trends, trendDef, trendCands, issues, ioIssues, io, sig: sig || {}, sensor, clashes, reused, manual, pidFolder, fns, fnAt, newFns, progFolder, opts, ctrl, unit, tpl};
 }
 
 // ---------- XML ----------
@@ -5083,7 +5470,7 @@ function stockXml(P){
 }
 
 // ---------- README ----------
-const UNIT_TXT = {cfmv: 'cfm', F: 'F', dF: 'F', '%': '%', s: 's', min: 'min', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', psi: 'psi', rh: '%RH', none: ''};
+const UNIT_TXT = {cfmv: 'cfm', F: 'F', dF: 'F', '%': '%', s: 's', min: 'min', h: 'h', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', psi: 'psi', rh: '%RH', none: ''};
 function ioLabel(p, P){
   if (p.io === 'ao') return 'AO ' + (P.sig[p.name] || p.sig || '0-10') + 'V';
   if (p.io === 'vi') return `AI 0-${p.etop || 10}V`;
@@ -5342,8 +5729,8 @@ async function buildAsp(P){
     {id: 'rtu', label: 'RTU'}, {id: 'fcu', label: 'FCU'}
   ];
   const IOLBL = {ai: 'AI 10k', vi: 'AI 0-10 V', di: 'DI', do: 'DO', ao: 'AO'};
-  const UNITLBL = {cfmv: 'cfm', F: '°F', dF: '°F', '%': '%', s: 's', min: 'min', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', psi: 'psi', rh: '%RH', none: ''};
-  const fresh = () => ({ctrl: null, sample: false, asp: {server: '/AS-P', modules: ASP_DEFAULT_MODS.map(m => Object.assign({}, m))}, type: 'ahu', unit: '', optsBy: {}, ioBy: {}, sigBy: {}, editsBy: {}, customBy: {}, pointsOnly: false, trendMin: 5, prog: 0});
+  const UNITLBL = {cfmv: 'cfm', F: '°F', dF: '°F', '%': '%', s: 's', min: 'min', h: 'h', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', psi: 'psi', rh: '%RH', none: ''};
+  const fresh = () => ({ctrl: null, sample: false, asp: {server: '/AS-P', modules: ASP_DEFAULT_MODS.map(m => Object.assign({}, m))}, type: 'ahu', unit: '', optsBy: {}, ioBy: {}, sigBy: {}, editsBy: {}, customBy: {}, trendBy: {}, pointsOnly: false, trendMin: 5, prog: 0});
   let S = fresh();
   let P = null, downloads = null;
 
@@ -5356,6 +5743,7 @@ async function buildAsp(P){
   // Options, terminals, signals and setpoint edits are kept per unit type.
   const by = k => { S[k] = S[k] || {}; return S[k][S.type] = S[k][S.type] || {}; };
   const O = () => by('optsBy'), IO = () => by('ioBy'), SIG = () => by('sigBy'), ED = () => by('editsBy');
+  const TR = () => { S.trendBy = S.trendBy || {}; return S.trendBy[S.type] = S.trendBy[S.type] || {}; };
   const CU = () => { S.customBy = S.customBy || {}; return S.customBy[S.type] = S.customBy[S.type] || []; };
   function load(){
     try {
@@ -5437,6 +5825,7 @@ async function buildAsp(P){
   function renderTypes(){
     $('types').innerHTML = TYPES.map(t => `<button type="button" data-t="${t.id}" aria-pressed="${t.id === S.type}" ${t.tpl ? '' : 'disabled'}>${t.label}${t.tpl ? '' : '<small>soon</small>'}</button>`).join('');
     const t = tpl();
+    $('trendHint').textContent = t.stock ? 'The stock VAV application already trends its own points (room temp, airflow, damper, reheat, fan). Tick any perimeter radiation points to trend.' : 'Tick what to trend. The key points are ticked to start; each unit type remembers its own picks.';
     $('typeHint').textContent = `${t.title}. Needs ${t.modelName}${t.stock ? '; the file sets the stock reheat and fan selections and wires the stock points, and perimeter radiation goes in a new Components/PerimRad folder' : t.root ? `; everything imports into one new component folder, Application/${t.root}, with the stock Points, Values, Parameters and Programs subfolders` : ''}. The greyed-out types are added once there is a finished, field-proven program set to build them from.`;
     if (typ().sample) $('sampleBtn').textContent = `Look around with a sample ${prettyModel(typ().sample().model)}`;
     $('trendMinF').hidden = isAsp();
@@ -5455,7 +5844,7 @@ async function buildAsp(P){
   function renderOpts(){
     const t = tpl(), o = fixOpts(t, O());  // the stored choices stay as picked; unavailable ones are only hidden
     const foc = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.o : null;
-    $('selOpts').innerHTML = t.options.filter(op => op.type === 'select').map(op => {
+    $('selOpts').innerHTML = t.options.filter(op => op.type === 'select' && (!op.needs || op.needs(o))).map(op => {
       const ch = op.choices.filter(c => !c[2] || c[2](o));
       return `<div class="field"><label for="o-${op.id}">${esc(op.label)}</label><div class="row"><select id="o-${op.id}" data-o="${op.id}">${ch.map(([v, l]) => `<option value="${v}" ${o[op.id] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div></div>`;
     }).join('');
@@ -5568,7 +5957,7 @@ async function buildAsp(P){
     const t = tpl();
     const C = CT();
     if (!C) { P = null; renderIO(); renderSpts(); renderReadout(); save(); return; }
-    const opts = fixOpts(t, Object.assign({}, O(), {unit: S.unit, trendMin: S.trendMin, custom: CU(), pointsOnly: !!S.pointsOnly}));
+    const opts = fixOpts(t, Object.assign({}, O(), {unit: S.unit, trendMin: S.trendMin, custom: CU(), pointsOnly: !!S.pointsOnly, trendSel: TR()}));
     const F = t.flags(opts);
     const ex = t.root ? {} : (C.existing || {});
     const pts0 = allPoints(t, opts, F).filter(p => !ex[p.name] || p.stock);
@@ -5580,8 +5969,30 @@ async function buildAsp(P){
     S.ioBy[S.type] = Object.assign({}, IO(), io);
     P = plan(t, opts, C2, io, SIG(), ED());
     renderIO(); if (!keepSpts) renderSpts(); else renderSptsSoft();
-    renderReadout(); renderCode(); save();
+    renderTrends(); renderReadout(); renderCode(); save();
   }
+  function renderTrends(){
+    if (!P) { $('trendList').innerHTML = '<p class="hint">Open a controller export to pick trends.</p>'; return; }
+    const on = new Set(P.trends), def = new Set(P.trendDef);
+    const d = n => { const r = P.reg[n]; return r.kind === 'point' ? r.p.descr : r.v.descr; };
+    // hardware points, calculated values, then setpoints (folded away unless one is ticked)
+    const grp = n => { const r = P.reg[n]; return r.kind === 'point' ? 0 : (r.v.param || r.v.folder === 'Parameters') ? 2 : 1; };
+    const box = n => `<label class="chk"><input type="checkbox" data-tn="${n}" ${on.has(n) ? 'checked' : ''}><div><b>${n}</b><span>${esc(d(n) || '')}</span></div></label>`;
+    const g = [0, 1, 2].map(k => P.trendCands.filter(n => grp(n) === k).sort((a, b) => !def.has(a) - !def.has(b)));
+    const open = $('trendList').querySelector('details[open]') || g[2].some(n => on.has(n));
+    const html = (g[0].length ? `<div class="trgrp">Points</div><div class="checks trchecks">${g[0].map(box).join('')}</div>` : '')
+      + (g[1].length ? `<div class="trgrp">Calculated values</div><div class="checks trchecks">${g[1].map(box).join('')}</div>` : '')
+      + (g[2].length ? `<details ${open ? 'open' : ''}><summary class="trgrp">Setpoints (${g[2].length})</summary><div class="checks trchecks">${g[2].map(box).join('')}</div></details>` : '');
+    $('trendList').innerHTML = html || '<p class="hint">Nothing in this file to trend.</p>';
+  }
+  $('trendList').addEventListener('change', e => { const n = e.target.dataset.tn; if (!n) return; TR()[n] = e.target.checked; recompute(true); });
+  document.querySelectorAll('[data-tr]').forEach(b => b.addEventListener('click', () => {
+    if (!P) return;
+    const m = b.dataset.tr, sel = TR();
+    Object.keys(sel).forEach(k => delete sel[k]);
+    if (m !== 'def') P.trendCands.forEach(n => { sel[n] = m === 'all'; });
+    recompute(true);
+  }));
   function renderSptsSoft(){ if (P && $('sptBody').children.length !== P.values.filter(v => v.isParam).length) renderSpts(); }
 
   function renderReadout(){
