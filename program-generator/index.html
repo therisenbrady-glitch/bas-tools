@@ -5194,6 +5194,8 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   // Objects the controller already has are reused: not re-created, programs bind to them where they are.
   const ex = root ? {} : (ctrl.existing || {});
   Object.keys(reg).forEach(n => { if (ex[n] && reg[n].kind !== 'ext') { reg[n].folder = ex[n]; reg[n].reused = true; } });
+  // points only: field points with their alarms and trends (no values or setpoints)
+  if (pointsOnly) Object.keys(reg).forEach(n => { if (reg[n].kind !== 'point') delete reg[n]; });
   // who writes each object (program output of the same name)
   const writer = {};
   progs.forEach(p => p.decl.outs.forEach(o => {
@@ -5204,7 +5206,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   }));
   progs.forEach(p => p.decl.ins.forEach(i => { if (!reg[i.name]) issues.push(`${p.name}.${i.name} has nothing to bind to`); }));
   const exRoot = root && ctrl.paths ? ctrl.paths : null;
-  // points only: alarms only on hardware inputs (nothing writes the calculated ones)
+  // points only: alarms on the field points (alarms on calculated values need the values and programs)
   const alarms = LIST(tpl.alarms, opts, F).filter(a => cond(a.cond, F) && !ex[a.name] && (!pointsOnly || (reg[a.src.split('/')[1]] || {}).kind === 'point'));
   // trends: the template's key points are ticked by default; opts.trendSel (name -> true/false)
   // holds the user's ticks. Any point or value the file creates can be trended.
@@ -5239,7 +5241,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   const progFolder = root ? sub('Programs') : uf + 'Programs';
   const clashes = root ? [] : progs.map(p => p.name).filter(n => ex[n]);
   const reused = Object.keys(reg).filter(n => reg[n].reused && reg[n].kind !== 'ext').concat(fns.filter(f => ex[f]));
-  return {F, root, asp, uf, pointsOnly, points, values, progs, modeMap, states, reg, writer, alarms, trends, trendDef, trendCands, issues, ioIssues, io, sig: sig || {}, sensor, clashes, reused, manual, pidFolder, fns, fnAt, newFns, progFolder, opts, ctrl, unit, tpl};
+  return {F, root, asp, uf, pointsOnly, points, values: pointsOnly ? [] : values, progs, modeMap, states, reg, writer, alarms, trends, trendDef, trendCands, issues, ioIssues, io, sig: sig || {}, sensor, clashes, reused, manual, pidFolder, fns, fnAt, newFns, progFolder, opts, ctrl, unit, tpl};
 }
 
 // ---------- XML ----------
@@ -5412,7 +5414,7 @@ async function buildXml(T, P){
     // one component folder laid out like the stock ones
     const leaf = P.root.split('/').pop(), at = n => folders[P.root + '/' + n] || [];
     const kids = [folder('Points', at('Points')), folder('Values', at('Values')), folder('Parameters', at('Parameters')),
-      folder('Programs', progObjs, null, P.pointsOnly), folder('Functions', fnObjs), folder('Alarms', alarmObjs), folder('Trends', trendItems)]
+      folder('Programs', progObjs), folder('Functions', fnObjs), folder('Alarms', alarmObjs), folder('Trends', trendItems)]
       .filter(Boolean).map(x => x.replace(/^/gm, '  '));
     body = kids.length ? folder(leaf, kids, P.tpl && P.tpl.rootDescr) : null;
     // settings and points merged into the stock application, by name
@@ -5423,7 +5425,7 @@ async function buildXml(T, P){
     body = [
       folder('Alarms', alarmObjs), folder('Functions', fnObjs),
       folder('Inputs', folders.Inputs), folder('Numerics', folders.Numerics), folder('Occupancy', folders.Occupancy),
-      folder('Outputs', folders.Outputs), folder('Parameters', folders.Parameters), folder('Programs', progObjs, null, P.pointsOnly),
+      folder('Outputs', folders.Outputs), folder('Parameters', folders.Parameters), folder('Programs', progObjs),
       folder('Trends', trendItems)
     ].filter(Boolean).join('\n');
   }
@@ -5484,7 +5486,7 @@ function readme(P, tpl){
   L.push(`Controller: ${P.ctrl.name} (${P.ctrl.model})   Server: ${P.ctrl.server}`);
   L.push(`Unit type: ${tpl.title}`);
   L.push(`Built ${today} by the BAS Field Tools program generator. Not compiled or run in EBO yet.`);
-  if (P.pointsOnly) L.push('POINTS ONLY: points, values, alarms and trends. The Programs folder is empty; nothing writes the calculated values until programs are added.');
+  if (P.pointsOnly) L.push('POINTS ONLY: field points with their alarms and trends. No programs, values or setpoints.');
   L.push('='.repeat(73), '');
   L.push('OPTIONS');
   tpl.options.forEach(op => {
@@ -5703,7 +5705,7 @@ async function buildAsp(P){
   void analog;
   const folder = (name, items, keep) => items.length || keep ? [`   <OI NAME="${xa(name)}" TYPE="system.base.Folder">`, ...items, '   </OI>'].join('\n') : null;
   const body = [`  <OI NAME="${xa(P.uf.slice(0, -1))}" TYPE="system.base.Folder">`,
-    folder('Functions', fnObjs), folder('Programs', progObjs, P.pointsOnly),
+    folder('Functions', fnObjs), folder('Programs', progObjs),
     folder('Inputs', folders.Inputs || []), folder('Numerics', folders.Numerics || []), folder('Parameters', folders.Parameters || []),
     folder('Alarms', alarmObjs), folder('Trends', trendObjs.concat([chart, list].filter(Boolean))), '  </OI>'].filter(Boolean).join('\n');
   const complete = `${meta}  <Types>\n${types.join('\n')}\n  </Types>\n<ExportedObjects>\n${body}\n</ExportedObjects>\n\n</ObjectSet>\n`;
@@ -5946,7 +5948,7 @@ async function buildAsp(P){
     const act = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.sp : null;
     const rows = P.values.filter(v => v.isParam);
     if (act && rows.length === $('sptBody').children.length) return;  // don't rebuild under the cursor
-    if (!rows.length) { $('sptBody').innerHTML = '<tr><td colspan="3" class="ds" style="display:table-cell">No setpoints for these options.</td></tr>'; return; }
+    if (!rows.length) { $('sptBody').innerHTML = `<tr><td colspan="3" class="ds" style="display:table-cell">${P.pointsOnly ? 'Points only: no setpoints in this file.' : 'No setpoints for these options.'}</td></tr>`; return; }
     $('sptBody').innerHTML = rows.map(v => `<tr><td class="nm">${v.name}</td><td class="ds">${esc(v.descr)}</td><td><input data-sp="${v.name}" type="number" inputmode="decimal" step="any" value="${v.def}" aria-label="${v.name}"><span class="u">${UNITLBL[v.unit || 'none']}</span></td></tr>`).join('');
   }
   $('sptBody').addEventListener('input', e => { const i = e.target; if (!i.dataset.sp) return; ED()[i.dataset.sp] = i.value; recompute(true); });
@@ -6014,7 +6016,7 @@ async function buildAsp(P){
     P.issues.forEach(s => pills.push(['bad', s]));
     if (P.clashes.length) pills.push(['bad', `${P.clashes.join(', ')} already in this controller. Rename or delete ${P.clashes.length > 1 ? 'them' : 'it'} before importing.`]);
     if (P.reused.length) pills.push(['warn', `Keeping ${P.reused.length} object${P.reused.length > 1 ? 's' : ''} the controller already has; the programs bind to them.${P.manual.length ? ` ${P.manual.length} need a binding by hand (see README).` : ''}`]);
-    if (P.pointsOnly) pills.push(['warn', 'Points only: the Programs folder is empty and nothing writes the calculated values yet.']);
+    if (P.pointsOnly) pills.push(['warn', 'Points only: field points with their alarms and trends. No programs, values or setpoints.']);
     const sample = S.sample && !P.asp;
     if (sample) pills.push(['warn', 'Sample controller. Open the real export before saving.']);
     if (P.F.SB && !P.ctrl.sensors.length && !sample) pills.push(['warn', 'No room sensor on this controller\'s Sensor Bus yet. Add it before importing, or the room values stay unbound.']);
@@ -6064,10 +6066,10 @@ async function buildAsp(P){
       if (P.asp) {
         const x = await buildAsp(P), nm = fname(P.unit);
         await saveFile(`${nm} IO - import.xml`, x.io, 'application/xml', `Saved the IO file (${P.points.length} points)`);
-        await saveFile(`${nm} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml`, x.complete, 'application/xml', P.pointsOnly ? 'Saved the points file, no programs' : `Saved ${P.progs.length} programs`);
+        await saveFile(`${nm} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml`, x.complete, 'application/xml', P.pointsOnly ? 'Saved the points file: points, alarms and trends' : `Saved ${P.progs.length} programs`);
         renderReadout(); return;
       }
-      const xml = await buildXml(T, P); await saveFile(`${fname(P.unit)} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml`, xml, 'application/xml', P.pointsOnly ? `Saved ${P.points.length} points, no programs` : `Saved ${P.progs.length} programs and ${P.points.length} points`); }
+      const xml = await buildXml(T, P); await saveFile(`${fname(P.unit)} ${P.pointsOnly ? 'Points' : 'Complete'} - import.xml`, xml, 'application/xml', P.pointsOnly ? `Saved ${P.points.length} points with their alarms and trends` : `Saved ${P.progs.length} programs and ${P.points.length} points`); }
     catch(e) { toast('Could not build the file: ' + e.message, true); }
     renderReadout();
   });

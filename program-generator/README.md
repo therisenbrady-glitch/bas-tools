@@ -114,7 +114,7 @@ Tick what to trend. The key points start ticked; **Key points**, **All** and **N
 
 ## Saving
 The dark readout counts points, programs, setpoints, alarms and trends, and says whether the file is ready. Fix anything it lists first.
-- **Programs + points** or **Points only** picks what goes in the file. Points only keeps the points, values (with their relinquish defaults), alarms on hardware inputs and trends, and leaves the `Programs` folder empty, for when you'll write or copy the programs yourself.
+- **Programs + points** or **Points only** picks what goes in the file. Points only exports just the field points with their alarms and trends: no programs, values or setpoints. The trend list in step 6 then shows only points.
 - **Save import file** saves `<unit> Complete - import.xml` (or `<unit> Points - import.xml`). The Boiler saves two files: `<unit> IO - import.xml` for the IO Bus and `<unit> Complete - import.xml` for `Application`.
 - **Save README** saves the plain-text README: options, import steps, IO map, programs, setpoints, mode text, alarms, trends, program-to-program bindings, assumptions to confirm, and the full program listings.
 
@@ -140,7 +140,7 @@ Test a new option mix on a spare or offline controller first. For the VAV box, i
 | IO Bus | Boiler only, in the separate IO file: the SmartX modules and their points; outputs are written by the programs in `Application/<unit>` |
 | Parameters | Setpoints as value objects with relinquish defaults |
 | Numerics | Values the programs calculate (loads, mode, mode text) |
-| Programs | Only the ones the options need (empty with Points only). CV AHU: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_AhuControl, Prog_ControlLoops, Prog_CoolingControl, fan alarms. VAV AHU adds Prog_DischargeSetpoint and Prog_ReliefFan. Unit Vent: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_UvControl, Prog_UvHeatCool, Prog_OaDamper, Prog_SaFanAlarm, and Prog_CoolingControl with DX. Boiler: Prog_HwSysEnable, Prog_HwPumps, Prog_HwReset, Prog_HwLoops, Prog_BoilerStaging, Prog_BoilerLowReturn (low return option), Prog_Boiler1/2, Prog_PanelLights. VAV box: Prog_RadControl, only with radiation. |
+| Programs | Only the ones the options need (none with Points only). CV AHU: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_AhuControl, Prog_ControlLoops, Prog_CoolingControl, fan alarms. VAV AHU adds Prog_DischargeSetpoint and Prog_ReliefFan. Unit Vent: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_UvControl, Prog_UvHeatCool, Prog_OaDamper, Prog_SaFanAlarm, and Prog_CoolingControl with DX. Boiler: Prog_HwSysEnable, Prog_HwPumps, Prog_HwReset, Prog_HwLoops, Prog_BoilerStaging, Prog_BoilerLowReturn (low return option), Prog_Boiler1/2, Prog_PanelLights. VAV box: Prog_RadControl, only with radiation. |
 | Functions | Func_PID (team standard), Func_Ratio (linear reset, VAV AHU and Unit Vent), Func_Staging (DX stages) and Func_TwoPosition (night heat), as the unit needs. Skipped if the controller already has them. |
 | Alarms | Fan failure, freezestat, smoke, dirty filter, discharge temp, room sensor failure, as the options need; they auto-clear |
 | Trends | The points ticked in step 6, `<Point>Tlog` |
