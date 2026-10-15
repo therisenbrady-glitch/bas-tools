@@ -189,7 +189,7 @@ footer{font-size:12px;color:var(--muted)}
       <div class="field" style="max-width:340px"><label for="aspServer">AS-P server</label><div class="row"><input id="aspServer" type="text" placeholder="/AS-P" autocomplete="off" style="font-family:var(--f-mono)"></div></div>
       <div class="field"><label>IO modules (slot and type)</label></div>
       <ul class="modlist" id="modList"></ul>
-      <div class="btns" style="margin-top:8px"><button type="button" class="btn" id="modAdd">Add module</button><button type="button" class="link" id="modReset">Use the Bower Hill HWS layout</button></div>
+      <div class="btns" style="margin-top:8px"><button type="button" class="btn" id="modAdd">Add module</button></div>
     </div>
     <input type="file" id="fileIn" accept=".xml,text/xml,application/xml" hidden>
   </section>
@@ -277,7 +277,7 @@ footer{font-size:12px;color:var(--muted)}
   </details>
 
   <div class="toast" id="toast" role="status"></div>
-  <footer>Programs follow the team's conventions: EBO Script, SEBA names, Func_PID called with 9 arguments, inputs named the same as the objects that feed them. The programs are generic versions of finished team jobs (Bower Hill, Airport). The README says where to import and what to bind. Open and save the functions before the programs. Nothing leaves this browser.</footer>
+  <footer>Programs follow the team's conventions: EBO Script, SEBA names, Func_PID called with 9 arguments, inputs named the same as the objects that feed them. The README says where to import and what to bind. Open and save the functions before the programs. Nothing leaves this browser.</footer>
 </div>
 
 <script>
@@ -5796,7 +5796,6 @@ async function buildAsp(P){
   });
   $('modList').addEventListener('click', e => { const b = e.target.closest('button[data-mrm]'); if (!b) return; S.asp.modules.splice(+b.dataset.mrm, 1); renderAsp(); recompute(); });
   $('modAdd').addEventListener('click', () => { const slot = Math.max(0, ...S.asp.modules.map(m => +m.slot || 0)) + 1; S.asp.modules.push({slot, type: 'UI16'}); renderAsp(); recompute(); });
-  $('modReset').addEventListener('click', () => { S.asp.modules = ASP_DEFAULT_MODS.map(m => Object.assign({}, m)); S.ioBy[S.type] = {}; renderAsp(); recompute(); toast('Modules set to the Bower Hill HWS layout'); });
 
   function loadText(text, name){
     let c;

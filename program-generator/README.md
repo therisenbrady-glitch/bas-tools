@@ -4,13 +4,13 @@ Builds a canned EBO 7.1 program set for one controller. You give it the controll
 
 It covers five unit types:
 
-| Type | Controller | Built from |
-|---|---|---|
-| **CV AHU**: single zone, space temperature | MP-C | Bower Hill AHU-B/C/D |
-| **VAV AHU**: discharge air temperature and duct static | MP-C | Airport AHU-1 to 4 and PAHU-1 |
-| **VAV box**: settings and points for the stock MP-V VAV application, plus optional perimeter radiation | MP-V | Bower Hill and Airport VAV boxes |
-| **Unit Vent**: classroom unit ventilator, discharge air reset from room temp | RP-C or MP-C | Bower Hill unit ventilators (Room 113 and the 50 like it) |
-| **Boiler**: hot water plant on an AS-P with SmartX IO modules | AS-P | Bower Hill HWS |
+| Type | Controller |
+|---|---|
+| **CV AHU**: single zone, space temperature | MP-C |
+| **VAV AHU**: discharge air temperature and duct static | MP-C |
+| **VAV box**: settings and points for the stock MP-V VAV application, plus optional perimeter radiation | MP-V |
+| **Unit Vent**: classroom unit ventilator, discharge air reset from room temp | RP-C or MP-C |
+| **Boiler**: hot water plant on an AS-P with SmartX IO modules | AS-P |
 
 RTU and FCU are greyed out until there's a finished, field-proven program set for each. New jobs add options to these types rather than new types, and the types share the same point names and loops: a chilled water valve is `ClgVlvPos` on a cooling loop, DX stages are `Dx1Cmd`, `Dx2Cmd` and so on, and a hot water valve is `HwVlvPos`, whichever unit they're on.
 
@@ -20,7 +20,7 @@ In WorkStation, right-click the MP-C and **Export**, then open that XML here (bu
 - the SpaceLogic sensor on the Sensor Bus, if there is one
 - anything already in `Application`
 
-For the Boiler there's no export to open: type the AS-P server name and list the SmartX IO modules by slot (or use **the Bower Hill HWS layout**). Any other type given a file with no MP controller gets a clear error. A unit type on the wrong controller (a VAV box on an MP-C, say) shows in red. **Look around with a sample controller** loads a sample that fits the unit type you picked, but saving is off with the sample.
+For the Boiler there's no export to open: type the AS-P server name and list the SmartX IO modules by slot (it starts with a typical boiler panel). Any other type given a file with no MP controller gets a clear error. A unit type on the wrong controller (a VAV box on an MP-C, say) shows in red. **Look around with a sample controller** loads a sample that fits the unit type you picked, but saving is off with the sample.
 
 Start from an empty controller when you can. If an object with the same name is already in `Application`, the generator **reuses** it instead of making a new one. The README lists any binding you then have to make by hand. A program with the same name as one already there is flagged as a clash, because importing over a built program drops renamed inputs.
 
@@ -73,9 +73,9 @@ The reheat choice picks the stock points: `RhtPos` for proportional types, `Rht1
 | Room sensor | SmartX sensor on the Sensor Bus · Wired thermistor |
 | Checkboxes | Setpoint adjust and override button (Sensor Bus only) · Fan status · Low limit switch · Night heat · Morning warm-up / cool-down · Dehumidify mode from the AS-P (chilled water only) |
 
-The terminals default to the Bower Hill RP-C-12A wiring (SaTmp Ub 1, fan status Ub 2, low limit Ub 3, OA damper Ub 4, HW valve Ub 5 at 10-2 V, CHW valve Ub 6, face & bypass Ub 7, fan DO 1). HtgEna, ClgEna, DehumMode, TimeToStart and the outside air temp are written from the AS-P; HtgEna and ClgEna default to On until something writes them.
+The terminals default to a typical RP-C-12A wiring (SaTmp Ub 1, fan status Ub 2, low limit Ub 3, OA damper Ub 4, HW valve Ub 5 at 10-2 V, CHW valve Ub 6, face & bypass Ub 7, fan DO 1). HtgEna, ClgEna, DehumMode, TimeToStart and the outside air temp are written from the AS-P; HtgEna and ClgEna default to On until something writes them.
 
-**Boiler**: an AS-P with SmartX IO modules. The points are named and laid out like the Bower Hill HWS (DOFC8H relays in slot 3, AO8H in slot 4, UI16 in slot 5, DI16 in slot 6, pilot lights on the second DOFC8H in slot 7); change the modules in step 1 and any terminal in step 4.
+**Boiler**: an AS-P with SmartX IO modules. The default panel has DOFC8H relays in slot 3, AO8H in slot 4, UI16 in slot 5, DI16 in slot 6, pilot lights on the second DOFC8H in slot 7; change the modules in step 1 and any terminal in step 4.
 | Option | Choices |
 |---|---|
 | Boilers | 2, lead/lag · 1 |
@@ -107,7 +107,7 @@ Below the terminal table, **Add a point** covers anything the options don't: a n
 DO, AO, analog and binary values take a **relinquish default**. Units include °F, Δ°F, %, %RH, in. w.c., psi, ppm, cfm, seconds, minutes and hours. Added points are trended, marked "added" in the table, and listed with a **Remove** link. Each unit type keeps its own list on that device.
 
 ## 5. Setpoint defaults
-These become the relinquish defaults of the value objects in `Parameters`, and the operator can still change them in WorkStation. The starting values are the team's numbers from the job each type was built from (Bower Hill or Airport).
+These become the relinquish defaults of the value objects in `Parameters`, and the operator can still change them in WorkStation. The starting values are the team's usual numbers; check them against the job's sequence.
 
 ## 6. Trends
 Tick what to trend. The key points start ticked; **Key points**, **All** and **None** reset the list. Points and calculated values are listed, and setpoints are under a fold. Each unit type remembers its own picks on that device. **Analog trend interval** defaults to 5 minutes; digital trends log on change. The VAV box has no list: Schneider's stock application already trends its own points.
