@@ -117,6 +117,7 @@ Then tap **Add N units**. A counter at the bottom of the screen shows progress.
 - Tap a unit to open its point list, then mark each point:
   - **PASS**: verified
   - **FAIL**: opens a note field. Describe the problem; it goes on the punch list.
+    Next to the note is a **Non-critical / Critical** toggle. Every fail starts as non-critical; tap it to mark the fail **Critical** (it turns solid red). A unit with critical fails shows a red **N critical** tag in its header. Changing the point off FAIL clears the rating.
   - **N/A**: not used on this unit (for example Rht2Cmd on a single-stage box)
   - Tap the same button again to clear it.
 - **Pass all points** (top of an open unit) marks every *open* point on that unit PASS in one tap. Points already marked FAIL or N/A are left alone.
@@ -137,9 +138,9 @@ VAV reheat, VAV cooling only, AHU, RTU, FCU, Unit ventilator, Exhaust fan, Hot w
 - **Save checkout CSV** saves a spreadsheet with **one row per controller**, ready for Excel or a closeout package:
   - At the top: project name, save time, and job totals (units, % complete, pass / fail / N/A / open).
   - Then a section per unit type (AHU, VAV, UV, FCU, …), each with its own header row.
-  - Each row: Unit, Location, Model, % complete, Pass, Fail, N/A, Open, Fail notes (every failed point with its note), Last checked (time and who), then one column per point showing PASS, FAIL, or N/A.
+  - Each row: Unit, Location, Model, % complete, Pass, Fail, N/A, Open, Fail notes (every failed point with its note, critical ones first and marked CRITICAL), Last checked (time and who), then one column per point showing PASS, FAIL, or N/A.
   - A blank point cell means not checked yet; **—** means that point isn't on that unit. The example unit is left out.
-- **Copy punch list** copies every FAIL across the whole job (not just the current tab) as a numbered list with unit, location, point, and your note, ready to paste into an email or text.
+- **Copy punch list** copies every FAIL across the whole job (not just the current tab) as a numbered list with unit, location, point, and your note, ready to paste into an email or text. Critical fails come first under a **CRITICAL** heading, then the rest under **NON-CRITICAL**; numbering runs straight through both.
 - **Export job** saves the entire job (project name, units, every status and note) as a dated `.json` file.
 
 **Choosing where files save:** in Chrome or Edge on a computer, **Export job** and **Save checkout CSV** open a save window so you can pick the folder and file name. Other browsers (Safari, Firefox, phones) and the claude.ai link save to the normal Downloads location. To be asked every time in those, turn on the browser's "Ask where to save each file" setting.
