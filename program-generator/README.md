@@ -38,7 +38,7 @@ Some choices only appear when they make sense (a return fan VFD that tracks supp
 | Outside air | Economizer (OA/RA dampers, mixed air sensor) · Minimum position damper · Two-position damper · None |
 | Outside air temp | Sensor wired to this controller · From the network |
 | Room sensor | SpaceLogic sensor on the Sensor Bus · Wired sensor |
-| Checkboxes | Return fan · Freezestat · Dirty filter switch · Return air temp sensor · Setpoint adjust and override button (SpaceLogic sensor only) |
+| Checkboxes | Return fan · Freezestat · Dirty filter switch · Return air temp sensor · Control on return air if the room sensor fails · Setpoint adjust and override button (SpaceLogic sensor only) |
 
 **VAV AHU**
 | Option | Choices |
@@ -50,7 +50,7 @@ Some choices only appear when they make sense (a return fan VFD that tracks supp
 | Discharge air setpoint | Reset from outside air temp · Reset from room temp · Fixed |
 | Room temp | None · Wired sensor · From the network |
 | Outside air temp | Sensor wired to this controller · From the network |
-| Checkboxes | Return air CO2 raises the minimum OA · Night heat on room temp · OA isolation damper · Freezestat · Smoke detectors · Dirty filter switch · Condensate switch locks out cooling · Return air temp sensor |
+| Checkboxes | Return air CO2 raises the minimum OA · Night heat on room temp · OA isolation damper · Freezestat · Smoke detectors · Dirty filter switch · Condensate switch locks out cooling · Return air temp sensor · Control on return air if the room sensor fails (when a room temp feeds the reset or night heat) |
 
 **Gas heat** (CV AHU and VAV AHU): the AHU program writes a heating request, `HtgReq` 0-100 %, where a hot water unit would position its valve. `Prog_GasHeat` turns it into `Htg1Cmd` (enable or stage 1), `Htg2Cmd` (stage 2) or `HtgFireRate` (0-10 V), and keeps the supply fan running for `HtgFanDof` after the burner stops. The burner only runs with fan status proven and the discharge air below `HtgTmpHlmt`. A modulating burner lights at 10 % request, holds low fire for `HtgLowFireDly`, then follows the request. A staged burner adds stage 2 at 60 % after `HtgStgDly` and drops it at 40 %. Minimum on and off times apply, and an optional alarm contact (burner lockout) drops the enable. The burner's own flame safeguard and limits stay in charge of combustion safety. This sequence was built from published gas furnace and rooftop sequences, not from a team program, so check it against the job's sequence of operations.
 
@@ -92,6 +92,8 @@ The terminals default to a typical RP-C-12A wiring (SaTmp Ub 1, fan status Ub 2,
 | Checkboxes | Boiler pressure transmitters and high pressure cutout · Boiler alarm contacts · Each boiler's supply temp and HW return temp (monitor only) · OA humidity · Emergency generator status and alarm · Panel pilot lights · Low return water protection (adds Prog_BoilerLowReturn) · 3-way valve holds bypass until the return is warm and cools down after shutdown |
 
 The schedule enable, run-hour swap, split firing, low return ramp and valve cool-down come from the team's newer boiler program set (2026-10-15).
+
+**Return air fallback** (CV AHU and VAV AHU; RTUs build with these types): Prog_RoomTemp checks the room reading. When it stays outside `RmTmpLlmt`..`RmTmpHlmt` (40 to 100 F) for 30 seconds, it raises the Room Sensor Failure alarm and the unit controls on return air temp until the reading is back in range; the alarm then clears on its own. Return air is used as-is, also at night with the fan off. Untick it and the unit holds the last good reading instead. Needs the return air temp sensor.
 
 ## 4. Points and terminals
 Terminals are assigned automatically:
@@ -142,7 +144,7 @@ Test a new option mix on a spare or offline controller first. For the VAV box, i
 | IO Bus | Boiler only, in the separate IO file: the SmartX modules and their points; outputs are written by the programs in `Application/<unit>` |
 | Parameters | Setpoints as value objects with relinquish defaults |
 | Numerics | Values the programs calculate (loads, mode, mode text) |
-| Programs | Only the ones the options need (none with Points only). CV AHU: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_AhuControl, Prog_ControlLoops, Prog_CoolingControl, fan alarms. VAV AHU adds Prog_DischargeSetpoint and Prog_ReliefFan. Unit Vent: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_UvControl, Prog_UvHeatCool, Prog_OaDamper, Prog_SaFanAlarm, and Prog_CoolingControl with DX. Boiler: Prog_HwSysEnable, Prog_HwPumps, Prog_HwReset, Prog_HwLoops, Prog_BoilerStaging, Prog_BoilerLowReturn (low return option), Prog_Boiler1/2, Prog_PanelLights. VAV box: Prog_RadControl, only with radiation. |
+| Programs | Only the ones the options need (none with Points only). CV AHU: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_AhuControl, Prog_ControlLoops, Prog_CoolingControl, fan alarms. VAV AHU adds Prog_DischargeSetpoint and Prog_ReliefFan, and uses Prog_RoomTemp only with the return air fallback. Unit Vent: Prog_Occupancy, Prog_RoomTemp, Prog_RoomSetpoint, Prog_UvControl, Prog_UvHeatCool, Prog_OaDamper, Prog_SaFanAlarm, and Prog_CoolingControl with DX. Boiler: Prog_HwSysEnable, Prog_HwPumps, Prog_HwReset, Prog_HwLoops, Prog_BoilerStaging, Prog_BoilerLowReturn (low return option), Prog_Boiler1/2, Prog_PanelLights. VAV box: Prog_RadControl, only with radiation. |
 | Functions | Func_PID (team standard), Func_Ratio (linear reset, VAV AHU and Unit Vent), Func_Staging (DX stages) and Func_TwoPosition (night heat), as the unit needs. Skipped if the controller already has them. |
 | Alarms | Fan failure, freezestat, smoke, dirty filter, discharge temp, room sensor failure, as the options need; they auto-clear |
 | Trends | The points ticked in step 6, `<Point>Tlog` |

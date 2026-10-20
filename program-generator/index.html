@@ -390,6 +390,12 @@ const TA = {
 // cool-down after. Built from published gas furnace / rooftop sequences (no
 // team program yet): low fire start, minimum on/off times, stage delay, fan
 // proof and post-purge, discharge high temp cutout.
+// Room sensor fallback, shared by the AHU types: Prog_RoomTemp (AHU.src.roomtemp) checks the
+// room reading and, with this option, controls on return air while the sensor reads out of range.
+const ROOM_FB = {
+  check: {id: 'rafb', label: 'Control on return air if the room sensor fails', type: 'check', def: true, needs: o => !!o.ra}
+};
+
 const GAS = {
   flags(o, F){
     F.GAS = o.heat === 'gasmod' || o.heat === 'gas1' || o.heat === 'gas2';
@@ -719,6 +725,7 @@ const AHU = {
     GAS.check,
     {id: 'flt', label: 'Dirty filter switch', type: 'check', def: true},
     {id: 'ra', label: 'Return air temp sensor', type: 'check', def: true},
+    ROOM_FB.check,
     {id: 'oat', label: 'Outside air temp', type: 'select', def: 'local', choices: [['local', 'Sensor wired to this controller'], ['network', 'Network value (written from the AS-P)']]},
     {id: 'room', label: 'Room sensor', type: 'select', def: 'sb', choices: [['sb', 'SpaceLogic sensor on the Sensor Bus'], ['wired', 'Thermistor wired to this controller']]},
     {id: 'spt', label: 'Setpoint adjust from the room sensor', type: 'check', def: true, needs: o => o.room === 'sb'},
@@ -740,7 +747,7 @@ const AHU = {
     F.OA2P = o.oa === 'twopos';
     F.CMD = F.CLG || F.ECON;         // OAT changeover to an occupied cooling mode
     F.LOOPS = F.HTG || F.ECON || F.CHW; // Prog_ControlLoops needed
-    F.RF = !!o.rf; F.FRZ = !!o.frz; F.FLT = !!o.flt; F.RA = !!o.ra;
+    F.RF = !!o.rf; F.FRZ = !!o.frz; F.FLT = !!o.flt; F.RA = !!o.ra; F.RAFB = F.RA && !!o.rafb;
     F.SB = o.room === 'sb';
     F.SPT = F.SB && !!o.spt;
     F.OVR = F.SB && !!o.ovr;
@@ -1741,7 +1748,7 @@ AHU.src.roomtemp = `' ==========================================================
 ' Prog_RoomTemp  -  {UNIT} room temperature in use
 ' RmTmpCtl is the room sensor reading. If the reading is outside
 ' RmTmpLlmt..RmTmpHlmt it holds the last good value for 30 seconds, then
-#if RA
+#if RAFB
 ' alarms (RmTmpAlm) and follows return air until the sensor reads in range.
 #else
 ' alarms (RmTmpAlm) and keeps the last good value until the sensor reads in
@@ -1751,7 +1758,7 @@ AHU.src.roomtemp = `' ==========================================================
 ' ===========================================================================
 
 Numeric Input  RmTmp         ' room sensor temp, deg F
-#if RA
+#if RAFB
 Numeric Input  RaTmp         ' return air temp, deg F
 #endif
 Numeric Output RmTmpCtl      ' temperature the other programs control to
@@ -1787,7 +1794,7 @@ Chk:
 
 Fail:
   RmTmpAlm = On
-#if RA
+#if RAFB
   RmTmpCtl = RaTmp
 #else
   RmTmpCtl = RmTmpLast
@@ -1874,7 +1881,8 @@ const VAHU = {
     {id: 'smk', label: 'Smoke detectors, supply and return', type: 'check', def: true},
     {id: 'flt', label: 'Dirty filter switch', type: 'check', def: true},
     {id: 'cond', label: 'Condensate switch locks out cooling', type: 'check', def: false, needs: o => o.cool !== 'none'},
-    {id: 'ra', label: 'Return air temp sensor', type: 'check', def: true}
+    {id: 'ra', label: 'Return air temp sensor', type: 'check', def: true},
+    Object.assign({}, ROOM_FB.check, {needs: o => !!o.ra && o.room !== 'none' && ((!!o.nht && o.heat !== 'none') || o.dat === 'room')})
   ],
 
   flags(o){
@@ -1893,6 +1901,7 @@ const VAHU = {
     F.RMUSE = F.NHT || F.RMRST;
     F.CO2 = !!o.co2; F.OAISO = !!o.oaiso; F.FRZ = !!o.frz; F.SMK = !!o.smk; F.FLT = !!o.flt;
     F.COND = !!o.cond && F.CLG; F.RA = !!o.ra;
+    F.RAFB = F.RA && F.RMUSE && !!o.rafb;
     F.OATNET = o.oat === 'network';
     return F;
   },
@@ -1940,6 +1949,8 @@ const VAHU = {
     {folder: 'Numerics', name: 'HvacSts', descr: 'AHU Mode Text', kind: 'csv'},
     {folder: 'Numerics', name: 'DaTmpSpt', descr: 'Discharge Air Temp Setpoint In Use', kind: 'av', unit: 'F'},
     {folder: 'Numerics', name: 'NgtHtgCall', descr: 'Night Heat Call', kind: 'bv', cond: 'NHT'},
+    {folder: 'Numerics', name: 'RmTmpCtl', descr: 'Room Temp In Use', kind: 'av', unit: 'F', cond: 'RAFB'},
+    {folder: 'Numerics', name: 'RmTmpAlm', descr: 'Room Sensor Failure', kind: 'alm', cond: 'RAFB'},
     {folder: 'Numerics', name: 'AhuHtgEna', descr: 'Heating Enable', kind: 'bv', cond: 'HTG'},
     {folder: 'Numerics', name: 'EconEna', descr: 'Economizer Enable', kind: 'bv'},
     {folder: 'Numerics', name: 'ClgEna', descr: 'Mechanical Cooling Enable', kind: 'bv', cond: 'CLG'},
@@ -1967,6 +1978,8 @@ const VAHU = {
     {folder: 'Parameters', name: 'DaTmpSptNgt', descr: 'Night Heat Discharge Setpoint', kind: 'av', unit: 'F', def: 90, param: true, cond: 'NHT'},
     {folder: 'Parameters', name: 'RmTmpSptSb', descr: 'Night Heat Room Setpoint', kind: 'av', unit: 'F', def: 60, param: true, cond: 'NHT'},
     {folder: 'Parameters', name: 'RmTmpSptSbDif', descr: 'Night Heat Differential', kind: 'av', unit: 'dF', def: 3, param: true, cond: 'NHT'},
+    {folder: 'Parameters', name: 'RmTmpLlmt', descr: 'Lowest Believable Room Temp', kind: 'av', unit: 'F', def: 40, param: true, cond: 'RAFB'},
+    {folder: 'Parameters', name: 'RmTmpHlmt', descr: 'Highest Believable Room Temp', kind: 'av', unit: 'F', def: 100, param: true, cond: 'RAFB'},
     {folder: 'Parameters', name: 'SaStPrSpt', descr: 'Duct Static Setpoint', kind: 'av', unit: 'inwc', def: 1.5, param: true, cond: 'STAT'},
     {folder: 'Parameters', name: 'SaFanSpdMin', descr: 'Supply Fan Minimum Speed', kind: 'av', unit: '%', def: 20, param: true, cond: 'VFD'},
     {folder: 'Parameters', name: 'RaFanSpdOfs', descr: 'Return Fan Speed Below Supply', kind: 'av', unit: '%', def: 10, param: true, cond: 'RFVFD'},
@@ -1998,16 +2011,18 @@ const VAHU = {
     {name: 'SaSmkDet', descr: 'Supply Smoke Detector Alarm', src: 'Inputs/SaSmkDet', cond: 'SMK'},
     {name: 'RaSmkDet', descr: 'Return Smoke Detector Alarm', src: 'Inputs/RaSmkDet', cond: 'SMK'},
     {name: 'FltrSwt', descr: 'Dirty Filter Alarm', src: 'Inputs/FltrSwt', cond: 'FLT'},
-    {name: 'CondSwt', descr: 'Condensate Overflow Alarm', src: 'Inputs/CondSwt', cond: 'COND'}
+    {name: 'CondSwt', descr: 'Condensate Overflow Alarm', src: 'Inputs/CondSwt', cond: 'COND'},
+    {name: 'RmTmpAlm', descr: 'Room Sensor Failure Alarm', src: 'Numerics/RmTmpAlm', cond: 'RAFB'}
   ].concat(GAS.alarms),
 
-  trends: ['OaTmp', 'DaTmp', 'DaTmpSpt', 'MaTmp', 'RaTmp', 'RmTmp', 'SaStPr', 'RaCO2', 'SaFanSpd', 'SaVorDprPos', 'RaFanSpd', 'OaDprPos', 'RlfDprPos', 'HwVlvPos', 'FbDprPos', 'ClgVlvPos',
+  trends: ['OaTmp', 'DaTmp', 'DaTmpSpt', 'MaTmp', 'RaTmp', 'RmTmp', 'RmTmpCtl', 'SaStPr', 'RaCO2', 'SaFanSpd', 'SaVorDprPos', 'RaFanSpd', 'OaDprPos', 'RlfDprPos', 'HwVlvPos', 'FbDprPos', 'ClgVlvPos',
     'SaFanSts', 'RaFanSts', 'RlfFanCmd', 'Dx1Cmd', 'Dx2Cmd', 'Dx3Cmd', 'Dx4Cmd', 'ClgEnaCmd', 'AhuHvacMd'].concat(GAS.trends),
 
   programs: [
     {name: 'Prog_Occupancy', descr: 'Occupancy Program', src: 'occ'},
-    {name: 'Prog_DischargeSetpoint', descr: 'Discharge Air Setpoint Program', src: 'dasp'},
-    {name: 'Prog_AhuControl', descr: 'AHU Control Program', src: 'ahu'},
+    {name: 'Prog_RoomTemp', descr: 'Room Temp Program', src: 'roomtemp', cond: 'RAFB'},
+    {name: 'Prog_DischargeSetpoint', descr: 'Discharge Air Setpoint Program', src: 'dasp', vars: F => ({RM: F.RAFB ? 'RmTmpCtl' : 'RmTmp'})},
+    {name: 'Prog_AhuControl', descr: 'AHU Control Program', src: 'ahu', vars: F => ({RM: F.RAFB ? 'RmTmpCtl' : 'RmTmp'})},
     {name: 'Prog_ControlLoops', descr: 'Control Loops Program', src: 'loops'},
     {name: 'Prog_CoolingControl', descr: 'Cooling Control Program', src: 'dx', cond: 'DX', vars: F => ({NDX: F.NDX})},
     Object.assign({vars: F => Object.assign({SAT: 'DaTmp'}, GAS.vars(F))}, GAS.program),
@@ -2032,6 +2047,7 @@ const VAHU = {
     if (P.F.DX) s.push('DX stages on discharge air temp with Func_Staging and is off while the economizer is enabled.');
     if (P.F.CHW) s.push('Chilled water: the cooling loop (Prog_ControlLoops, KP 0.05 / KI 0.0004) modulates ClgVlvPos on discharge air temp. Like DX, it runs only while the economizer is off and OAT is above ClgOaTmpLocSpt.' + (P.F.FRZ ? ' A freezestat trip closes it.' : ''));
     if (P.F.RFVFD) s.push('Return fan speed tracks supply speed minus RaFanSpdOfs; no building pressure control.');
+    if (P.F.RAFB) s.push('Room sensor fallback: Prog_RoomTemp holds the last good room reading for 30 seconds when it goes outside RmTmpLlmt..RmTmpHlmt, then alarms (RmTmpAlm) and uses return air temp' + (P.F.NHT ? ' for the discharge reset and night heat' : ' for the discharge reset') + ' until the sensor reads in range.' + (P.F.NHT ? ' At night the fan is off, so return air reads the plenum, not the room.' : ''));
     if (P.F.GAS) s.push(GAS.assumption(P, 'DaTmp'), 'Gas heat: the discharge heating loop (HtgLoad) sets HtgReq while heating is enabled; smoke, freezestat and fan-off modes drop it to 0.');
     return s;
   },
@@ -2040,6 +2056,7 @@ const VAHU = {
 };
 
 VAHU.src.occ = AHU.src.occ;
+VAHU.src.roomtemp = AHU.src.roomtemp;
 VAHU.src.gas = GAS_SRC;
 VAHU.src.safan = fanAlarm('Sa', 'Sa');
 VAHU.src.rafan = fanAlarm('Ra', 'Ra');
@@ -2072,7 +2089,11 @@ Numeric Input  DaRstOaTmpLo   ' at this OAT and below: DaTmpSptHi (value object)
 Numeric Input  DaRstOaTmpHi   ' at this OAT and above: DaTmpSptLo (value object)
 #endif
 #if RMRST
+#if RAFB
+Numeric Input  RmTmpCtl       ' room temp in use, from Prog_RoomTemp, deg F
+#else
 Numeric Input  RmTmp          ' room temp, deg F
+#endif
 Numeric Input  RmTmpSpt       ' room setpoint, deg F (value object)
 Numeric Input  DaTmpSptLo     ' low end of the reset, deg F (value object)
 Numeric Input  DaTmpSptHi     ' high end of the reset, deg F (value object)
@@ -2100,7 +2121,7 @@ Main:
     DaTmpSpt = Func_Ratio(OaTmp, DaRstOaTmpLo, DaRstOaTmpHi, DaTmpSptHi, DaTmpSptLo)
 #endif
 #if RMRST
-    DaTmpSpt = Func_Ratio(RmTmp - RmTmpSpt, DaRstRmDif, -DaRstRmDif, DaTmpSptLo, DaTmpSptHi)
+    DaTmpSpt = Func_Ratio({RM} - RmTmpSpt, DaRstRmDif, -DaRstRmDif, DaTmpSptLo, DaTmpSptHi)
 #endif
 #if FIXED
     DaTmpSpt = DaTmpSptOcc
@@ -2149,7 +2170,11 @@ Numeric Input  SaSmkDet       ' supply smoke detector, On = TRIPPED
 Numeric Input  RaSmkDet       ' return smoke detector, On = TRIPPED
 #endif
 #if NHT
+#if RAFB
+Numeric Input  RmTmpCtl       ' room temp in use, from Prog_RoomTemp, deg F
+#else
 Numeric Input  RmTmp          ' room temp, deg F
+#endif
 Numeric Input  RmTmpSptSb     ' night heat room setpoint (value object)
 Numeric Input  RmTmpSptSbDif  ' night heat differential (value object)
 #endif
@@ -2287,10 +2312,10 @@ Main:
 #if NHT
 
   ' ---- Night heat call (unoccupied only) ------------------------------------
-  If OccCmd = Off And RmTmp > 40 And RmTmp < RmTmpSptSb Then
+  If OccCmd = Off And {RM} > 40 And {RM} < RmTmpSptSb Then
     NgtHtgCall = On
   Endif
-  If OccCmd = On Or RmTmp > RmTmpSptSb + RmTmpSptSbDif Or RmTmp <= 40 Then
+  If OccCmd = On Or {RM} > RmTmpSptSb + RmTmpSptSbDif Or {RM} <= 40 Then
     NgtHtgCall = Off
   Endif
 #endif
