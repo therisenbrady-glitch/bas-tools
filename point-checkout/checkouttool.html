@@ -600,16 +600,33 @@ footer{font-size:12px;color:var(--muted)}
   $('projName').addEventListener('change', () => { project.name = $('projName').value.trim(); writeProject(); });
 
   $('copyPunch').addEventListener('click', () => {
+    // One block per unit per section, so a unit with several fails stays together.
     const crit = [], minor = [];
     units.slice().sort((a,b)=>a.tag.localeCompare(b.tag,undefined,{numeric:true})).forEach(u => {
-      u.points.filter(p => p.s === 'fail').forEach(p => (p.crit ? crit : minor).push(`${u.tag}${u.loc?' ('+u.loc+')':''} – ${p.n}${p.note?': '+p.note:''}`));
+      const fails = u.points.filter(p => p.s === 'fail'); if (!fails.length) return;
+      const item = p => `${u.tag}${u.loc?' ('+u.loc+')':''} – ${p.n}${p.note?': '+p.note:''}`;
+      [[crit, fails.filter(p => p.crit)], [minor, fails.filter(p => !p.crit)]].forEach(([list, ps]) => { if (ps.length) list.push(ps.map(item)); });
     });
     // Critical items first under their own heading, numbered straight through.
-    const lines = crit.concat(minor);
+    // A unit with more than one item in a section gets a dash line above and below.
+    const DASH = '----------';
+    let num = 0;
+    const sect = (title, blocks) => {
+      const n = blocks.reduce((a, b) => a + b.length, 0); if (!n) return '';
+      const out = [`${title} (${n})`];
+      blocks.forEach(b => {
+        const multi = b.length > 1;
+        if (multi && out[out.length - 1] !== DASH) out.push(DASH);
+        b.forEach(l => out.push(`${++num}. ${l}`));
+        if (multi) out.push(DASH);
+      });
+      return out.join('\n');
+    };
+    const lines = crit.flat().concat(minor.flat());
     const head = (project.name ? project.name + ' – ' : '') + 'Controls punch list, ' + new Date().toLocaleDateString();
-    const sect = (title, list, start) => list.length ? `${title} (${list.length})\n` + list.map((l,i) => `${start+i+1}. ${l}`).join('\n') : '';
-    const text = lines.length ? head + '\n\n' + [sect('CRITICAL', crit, 0), sect('NON-CRITICAL', minor, crit.length)].filter(Boolean).join('\n\n') : head + '\n\nNo open fails.';
-    const done = () => toast(lines.length ? `Copied ${lines.length} item${lines.length>1?'s':''}${crit.length ? `, ${crit.length} critical` : ''}` : 'Copied. No fails to list.');
+    const text = lines.length ? head + '\n\n' + [sect('CRITICAL', crit), sect('NON-CRITICAL', minor)].filter(Boolean).join('\n\n') : head + '\n\nNo open fails.';
+    const nCrit = crit.flat().length;
+    const done = () => toast(lines.length ? `Copied ${lines.length} item${lines.length>1?'s':''}${nCrit ? `, ${nCrit} critical` : ''}` : 'Copied. No fails to list.');
     try { navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done)); } catch(e) { fallbackCopy(text, done); }
   });
   // ---------- export / import ----------
