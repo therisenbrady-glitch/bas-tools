@@ -523,9 +523,9 @@ Init:
   HtgFireRate = 0
 #endif
   HtgFanReq = Off
-  Goto Off
+  Goto StOff
 
-Off:
+StOff:
   HtgMd = {MD_OFF}
   Htg1Cmd = Off
 #if GAS2
@@ -537,7 +537,7 @@ Off:
   HtgFanReq = Off
 #if GALM
   If HtgAlm = On Then
-    Goto Alarm
+    Goto StAlarm
   Endif
 #endif
   If HtgReq >= 10 And SaFanSts = On And {SAT} < HtgTmpHlmt - 20 And TS >= HtgCmdMinOff Then
@@ -556,11 +556,11 @@ LowFire:
   HtgFanReq = On
 #if GALM
   If HtgAlm = On Then
-    Goto Alarm
+    Goto StAlarm
   Endif
 #endif
   If SaFanSts = Off Then
-    Goto Off
+    Goto StOff
   Endif
   If {SAT} > HtgTmpHlmt Then
     Goto HiTmp
@@ -576,11 +576,11 @@ Modulate:
   HtgFanReq = On
 #if GALM
   If HtgAlm = On Then
-    Goto Alarm
+    Goto StAlarm
   Endif
 #endif
   If SaFanSts = Off Then
-    Goto Off
+    Goto StOff
   Endif
   If {SAT} > HtgTmpHlmt Then
     Goto HiTmp
@@ -599,11 +599,11 @@ Stage1:
   HtgFanReq = On
 #if GALM
   If HtgAlm = On Then
-    Goto Alarm
+    Goto StAlarm
   Endif
 #endif
   If SaFanSts = Off Then
-    Goto Off
+    Goto StOff
   Endif
   If {SAT} > HtgTmpHlmt Then
     Goto HiTmp
@@ -625,11 +625,11 @@ Stage2:
   HtgFanReq = On
 #if GALM
   If HtgAlm = On Then
-    Goto Alarm
+    Goto StAlarm
   Endif
 #endif
   If SaFanSts = Off Then
-    Goto Off
+    Goto StOff
   Endif
   If {SAT} > HtgTmpHlmt Then
     Goto HiTmp
@@ -651,7 +651,7 @@ CoolDown:
 #endif
   HtgFanReq = On
   If TS >= HtgFanDof Then
-    Goto Off
+    Goto StOff
   Endif
 
 HiTmp:
@@ -669,7 +669,7 @@ HiTmp:
   Endif
 #if GALM
 
-Alarm:
+StAlarm:
   HtgMd = {MD_ALM}
   Htg1Cmd = Off
 #if GAS2
@@ -680,7 +680,7 @@ Alarm:
 #endif
   HtgFanReq = Off
   If HtgAlm = Off Then
-    Goto Off
+    Goto StOff
   Endif
 #endif
 `;
@@ -1795,10 +1795,10 @@ Chk:
     Goto Standard
   Endif
   If TS >= 30 Then
-    Goto Fail
+    Goto StFail
   Endif
 
-Fail:
+StFail:
   RmTmpAlm = On
 #if RAFB
   RmTmpCtl = RaTmp
@@ -3027,9 +3027,9 @@ Numeric Output RadCmd         ' radiation on/off
 #endif
 
 Init:
-  Goto Disabled
+  Goto RadOff
 
-Disabled:
+RadOff:
   RadEna = Off
 #if MOD
   RadVlvPos = 0
@@ -3040,13 +3040,13 @@ Disabled:
 #endif
 #if OAENA
   If OaTmp <= RadOaEnaSpt Then
-    Goto Enabled
+    Goto RadOn
   Endif
 #else
-  Goto Enabled
+  Goto RadOn
 #endif
 
-Enabled:
+RadOn:
   RadEna = On
 #if MOD
   RadVlvPos = Func_PID(RmTmp, RmTmpHspt, 0.1, 0.0002, 0, 0, 0, RadLErr, RadIntg)
@@ -3060,7 +3060,7 @@ Enabled:
 #endif
 #if OAENA
   If OaTmp > RadOaEnaSpt + 3 Then
-    Goto Disabled
+    Goto RadOff
   Endif
 #endif
 `;
@@ -3569,10 +3569,10 @@ FanOff:
   ClgVlvPos = 0
 #endif
   If {FAN} = On Then
-    Goto Run
+    Goto FanRun
   Endif
 
-Run:
+FanRun:
   DaLoop = Func_PID(SaTmp, DaTmpSpt, 0.001, 0.0001, 0, 0, 1, DaLErr, DaIntg)
 #if HW
   HtgLoad = Func_Ratio(DaLoop, 45, 0, 0, 100)
@@ -3670,7 +3670,7 @@ Function Func_PID              ' bind to Functions/Func_PID
 Numeric SaLErr
 Numeric SaIntg
 
-Closed:
+DprClosed:
   OaDprPos = 0
   SaLlmt = 100
   SaLErr = 0
@@ -3684,20 +3684,20 @@ Closed:
   Endif
 #endif
   If OaDprEna = On And {FAN} = On Then
-    Goto Dly
+    Goto DprDly
   Endif
 
 ' Fan proven; wait 2 minutes before opening.
-Dly:
+DprDly:
   OaDprPos = 0
   If OaDprEna = Off Or {FAN} = Off Then
-    Goto Closed
+    Goto DprClosed
   Endif
   If TM >= 2 Then
-    Goto Open
+    Goto DprOpen
   Endif
 
-Open:
+DprOpen:
   SaLlmt = Func_PID(SaTmp, SaTmpLlmt, 0.05, 0.0004, 0, 1, 1, SaLErr, SaIntg)
 #if ECON
   If OaTmp < EconEnaSpt - 0.5 Then
@@ -3715,7 +3715,7 @@ Open:
   OaDprPos = Minimum(SaLlmt, OaDprPosMin)
 #endif
   If OaDprEna = Off Or {FAN} = Off Then
-    Goto Closed
+    Goto DprClosed
   Endif
 `;
 
@@ -4042,9 +4042,9 @@ Numeric Output HwPReq             ' On = system pumps requested
 Init:
   HwSysEna = Off
   HwPReq = Off
-  Goto Off
+  Goto StOff
 
-Off:
+StOff:
   HwSysEna = Off
   HwPReq = Off
 #if ENASCH
@@ -4077,7 +4077,7 @@ PostRun:
     Goto Ena
   Endif
   If TS >= HwPCmdDof Then
-    Goto Off
+    Goto StOff
   Endif
 `;
 
@@ -5044,9 +5044,9 @@ Numeric Output Blr{N}Md           ' mode number, see above
 Init:
   Blr{N}Fof = Off
   Blr{N}Fon = Off
-  Goto Off
+  Goto StOff
 
-Off:
+StOff:
   Blr{N}Md = 1
   Blr{N}Ena = Off
 #if MOD
@@ -5061,7 +5061,7 @@ Off:
   Endif
 #if BALM
   If Blr{N}Alm = On Then
-    Goto Alarm
+    Goto StAlarm
   Endif
 #endif
   If Blr{N}Req = On Then
@@ -5078,21 +5078,21 @@ Starting:
   Blr{N}Avl = On
 #if BALM
   If Blr{N}Alm = On Then
-    Goto Alarm
+    Goto StAlarm
   Endif
 #endif
   If Blr{N}Req = Off Then
-    Goto Off
+    Goto StOff
   Endif
   If Blr{N}Sts = On Then
 #if MOD
     Goto LowFire
 #else
-    Goto Running
+    Goto StRunning
 #endif
   Endif
   If TS >= BlrFofDly Then
-    Goto Fail
+    Goto StFail
   Endif
 
 #if MOD
@@ -5102,11 +5102,11 @@ LowFire:
   Blr{N}FireRate = BlrFireRateMin
 #if BALM
   If Blr{N}Alm = On Then
-    Goto Alarm
+    Goto StAlarm
   Endif
 #endif
   If Blr{N}Req = Off Then
-    Goto Off
+    Goto StOff
   Endif
   If Blr{N}Sts = Off Then
     Goto Starting
@@ -5125,11 +5125,11 @@ Ramp50:
 #endif
 #if BALM
   If Blr{N}Alm = On Then
-    Goto Alarm
+    Goto StAlarm
   Endif
 #endif
   If Blr{N}Req = Off Then
-    Goto Off
+    Goto StOff
   Endif
   If Blr{N}Sts = Off Then
     Goto Starting
@@ -5148,21 +5148,21 @@ Ramp75:
 #endif
 #if BALM
   If Blr{N}Alm = On Then
-    Goto Alarm
+    Goto StAlarm
   Endif
 #endif
   If Blr{N}Req = Off Then
-    Goto Off
+    Goto StOff
   Endif
   If Blr{N}Sts = Off Then
     Goto Starting
   Endif
   If TS >= BlrRampDly Then
-    Goto Running
+    Goto StRunning
   Endif
 
 #endif
-Running:
+StRunning:
   Blr{N}Md = 6
   Blr{N}Ena = On
 #if MOD
@@ -5174,17 +5174,17 @@ Running:
 #endif
 #if BALM
   If Blr{N}Alm = On Then
-    Goto Alarm
+    Goto StAlarm
   Endif
 #endif
   If Blr{N}Req = Off Then
-    Goto Off
+    Goto StOff
   Endif
   If Blr{N}Sts = Off Then
     Goto Starting
   Endif
 
-Fail:
+StFail:
   Blr{N}Md = 7
   Blr{N}Ena = Off
 #if MOD
@@ -5194,11 +5194,11 @@ Fail:
   Blr{N}Fof = On
   If HwSysAlmRst = On Then
     Blr{N}Fof = Off
-    Goto Off
+    Goto StOff
   Endif
 #if BALM
 
-Alarm:
+StAlarm:
   Blr{N}Md = 8
   Blr{N}Ena = Off
 #if MOD
@@ -5206,7 +5206,7 @@ Alarm:
 #endif
   Blr{N}Avl = Off
   If Blr{N}Alm = Off Then
-    Goto Off
+    Goto StOff
   Endif
 #endif
 `.replace(`${'#'}MODTXT#`, '');

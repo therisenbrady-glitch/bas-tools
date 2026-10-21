@@ -132,7 +132,7 @@ The dark readout counts points, programs, setpoints, alarms and trends, and says
 ## Importing into EBO
 The README.txt has the exact steps for the options you picked. In short:
 1. Right-click `<controller>/Application` and choose **Import**, then pick the Complete file. For a VAV box, right-click `Application/Components` instead. For the Boiler, import the IO file into the AS-P's IO Bus first, then the Complete file into `Application`. Folders, points, programs, alarms, trends and the starter graphic come in together, with program inputs and graphic boxes already bound.
-2. Programs arrive uncompiled. Open and save the functions (`Func_PID`, `Func_Ratio`, `Func_Staging`, `Func_TwoPosition`, whichever are included) first, then each program.
+2. **Programs arrive uncompiled.** Open each function (`Func_PID`, `Func_Ratio`, `Func_Staging`, `Func_TwoPosition`, whichever are included) and Check and Save it, then do the same for each program. Until then the download to the controller fails with ProgramHasCompilationError.
 3. Bind `OccCmdTs` (Occupancy folder) to the unit's schedule. Write the network values the README lists (outside air temp, AHU status) from the AS-P.
 4. CV AHU with a SpaceLogic sensor and the override button: bind the sensor's Display > Occupancy Override to `Prog_Occupancy.RmOccOvrRst` so the button unlatches.
 5. Check every terminal and its scaling against the drawings before putting the unit in auto. 0-10 V inputs (duct static, CO2) come in scaled from the README's ranges.
