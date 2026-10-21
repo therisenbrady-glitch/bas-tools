@@ -255,6 +255,12 @@ footer{font-size:12px;color:var(--muted)}
       <div class="row"><input id="trendMin" type="number" inputmode="numeric" min="1" max="60" value="5" style="font-family:var(--f-mono)"><span class="u" style="display:flex;align-items:center;padding:0 10px;border-left:1px solid var(--line)">min</span></div></div>
   </section>
 
+  <section class="panel" id="p7">
+    <h2><span class="n">7</span>Graphic</h2>
+    <label class="chk"><input type="checkbox" id="gfxOn" checked>Include a starter graphic</label>
+    <p class="hint" style="margin:4px 0 0">A plain page in a Graphics folder with every point and value as a bound value box, grouped into Inputs, Outputs, Status and Setpoints. Draw the unit around the boxes and delete what you don't need.</p>
+  </section>
+
   <div class="readout">
     <span class="lbl" id="rLbl">Import file</span>
     <div class="main"><span class="big" id="rTitle">Open a controller export to start</span></div>
@@ -5820,6 +5826,8 @@ async function buildXml(T, P){
   [...enumSet].forEach(k => { const e = ENUM[k]; types.push(enumXml(e.name, e.base, e.states)); });
   multis.forEach(m => types.push(enumXml(m.real, 'system.pt.PositiveInt32', m.st.map((s, i) => [s, i + 1]))));
   types.push(...fnTypes, ...progTypes);
+  const gfx = P.opts.graphic === false ? null : await buildGraphic(P, base, 'Graphics');
+  if (gfx) types.push(gfx.type);
   const folder = (name, items, descr, keep) => items.length || keep ? [`  <OI ${descr ? `DESCR="${xa(descr)}" ` : ''}NAME="${xa(name)}" TYPE="system.base.Folder">`, ...items, '  </OI>'].join('\n') : null;
   const trendItems = trendObjs.concat(P.trends.length ? [chart] : []);
   let body;
@@ -5833,13 +5841,13 @@ async function buildXml(T, P){
     // settings and points merged into the stock application, by name
     const st = stockXml(P);
     st.enums.forEach(k => types.push('      ' + STOCK_ENUM[k].xml));
-    body = [st.xml, body].filter(Boolean).join('\n');
+    body = [st.xml, body, gfx ? folder('Graphics', [gfx.oi]) : null].filter(Boolean).join('\n');
   } else {
     body = [
       folder('Alarms', alarmObjs), folder('Functions', fnObjs),
       folder('Inputs', folders.Inputs), folder('Numerics', folders.Numerics), folder('Occupancy', folders.Occupancy),
       folder('Outputs', folders.Outputs), folder('Parameters', folders.Parameters), folder('Programs', progObjs),
-      folder('Trends', trendItems)
+      folder('Trends', trendItems), gfx ? folder('Graphics', [gfx.oi]) : null
     ].filter(Boolean).join('\n');
   }
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<ObjectSet ExportMode="Standard" Note="TypesFirst" SemanticsFilter="Standard" Version="${xa(P.ctrl.version)}">\n  <MetaInformation>\n    <ExportMode Value="Standard"/>\n    <SemanticsFilter Value="None"/>\n    <RuntimeVersion Value="${xa(P.ctrl.version)}"/>\n    <SourceVersion Value="${xa(P.ctrl.version)}"/>\n    <ServerFullPath Value="${xa(P.ctrl.server)}"/>\n  </MetaInformation>\n  <Types>\n${types.join('\n')}\n  </Types>\n<ExportedObjects>\n${body}\n</ExportedObjects>\n\n</ObjectSet>\n`;
@@ -5918,6 +5926,11 @@ function readme(P, tpl){
   const wrap = (s, w) => { const out = []; let line = ''; s.split(' ').forEach(word => { if ((line + ' ' + word).trim().length > w) { out.push(line); line = word; } else line = (line + ' ' + word).trim(); }); if (line) out.push(line); return out; };
   steps.forEach((s, i) => wrap(s, 68).forEach((l, j) => L.push((j ? '     ' : `  ${i + 1}. `) + l)));
   L.push('  Check every point\'s terminal and scaling against the drawings before auto.', '');
+  if (P.opts.graphic !== false && !P.root) {
+    L.push('STARTER GRAPHIC');
+    wrap(`${P.asp ? P.uf : ''}Graphics/${P.unit} is a plain page with every ${P.pointsOnly ? 'point' : 'point and value'} in this file as a bound value box, in Inputs, Outputs${P.pointsOnly ? '' : ', Status and Setpoints'} panels. Click a box to command it (outputs and values at priority 8${P.asp ? '' : ', inputs out of service'}). Draw the unit around the boxes in Graphics Editor and delete what you don't need.`, 70).forEach(l => L.push('  ' + l));
+    L.push('');
+  }
   if (P.clashes.length) { L.push('PROGRAMS ALREADY IN THIS CONTROLLER (rename or delete them before importing)'); L.push('  ' + P.clashes.join(', '), ''); }
   if (P.reused.length) { L.push('ALREADY IN THIS CONTROLLER (kept as they are; the programs bind to them)'); L.push('  ' + P.reused.join(', '), ''); }
   if (P.manual.length) { L.push('BIND BY HAND AFTER IMPORT (existing objects a program writes to)'); P.manual.forEach(m => L.push('  ' + m)); L.push(''); }
@@ -5966,6 +5979,171 @@ function readme(P, tpl){
   L.push('', '', 'PROGRAM LISTINGS', '='.repeat(73));
   P.progs.forEach(p => { L.push('', p.code); });
   return L.join('\r\n').replace(/\r?\n/g, '\r\n');
+}
+
+// Value box: the team's standard EBO value component (value, override, alarm and forced indication).
+const GFX_BOX = "<Component Clip=\"False\" ContentHeight=\"40.0\" ContentWidth=\"100.0\"\n        Height=\"40.0\" Id=\"\" Left=\"@X@\" Name=\"\" Top=\"@Y@\" Width=\"100.0\">\n        <Group Name=\"binds\">\n            <Bind Bgd=\"\" Description=\"\" Force=\"\" Name=\"@BIND@\" Value=\"\">\n                <Expose ExposedAttribute=\"Name\" Name=\"ValueBind\"/>\n            <\/Bind>\n            <Bind Bgd=\"\" Description=\"ForceBind\" DynamicUpdates=\"Enable\"\n                Force=\"\" Name=\"@FORCE@\" PreventDefault=\"True\">\n                <Expose ExposedAttribute=\"Name\" Name=\"ForceBind\"/>\n            <\/Bind>\n            <Bind Alarm=\"\" Bgd=\"\" Description=\"AlarmBind\"\n                DynamicUpdates=\"Enable\" Name=\"\" PreventDefault=\"True\">\n                <Expose ExposedAttribute=\"Name\" Name=\"AlarmBind\"/>\n            <\/Bind>\n        <\/Group>\n        <Group Name=\"display\">\n            <Rectangle AlarmColor=\"#F0080E\" Ctrl=\"BgdCtrl\" Fill=\"None\"\n                ForcedColor=\"#FFD100\" Height=\"20.0\" Left=\"0.0\"\n                Model=\"Bgd\" Name=\"rctBackground\" RadiusX=\"5\" RadiusY=\"5\"\n                Stroke=\"#626469\" StrokeDashArray=\"0.0\" StrokeWidth=\"1.0\"\n                Top=\"20\" Width=\"100.0\">\n                <LinearGradient EndPoint=\"0,1\">\n                    <GradientStop Color=\"#FEFEFE\" Offset=\"0\"/>\n                    <GradientStop Color=\"#DFE0E2\" Offset=\"1.0\"/>\n                <\/LinearGradient>\n            <\/Rectangle>\n            <TextBox Ctrl=\"TitleCtrl\" Fill=\"None\" FontFamily=\"Arial\"\n                FontSize=\"15.0\" FontStyle=\"Normal\" FontWeight=\"Normal\"\n                Height=\"20.0\" HorizontalAlign=\"Center\" Left=\"-50\"\n                Model=\"TitleText\" Name=\"txtTitle\" Stroke=\"#000000\"\n                TextDecoration=\"None\" Top=\"0.0\" Type=\"Analog\"\n                VerticalAlign=\"Middle\"\n                    Width=\"200\"><![CDATA[@TITLE@]]><Expose\n                    ExposedAttribute=\"Content\" Name=\"Text Content\"/>\n            <\/TextBox>\n            @VALTAG@<![CDATA[---]]><Expose\n                    ExposedAttribute=\"Content\" Name=\"Point Content\"/>\n                <Expose ExposedAttribute=\"Prefix\" Name=\"Prefix\"/>\n                <Expose ExposedAttribute=\"Suffix\" Name=\"Suffix\"/>\n                <Expose ExposedAttribute=\"Decimals\" Name=\"Decimals\"/>\n                <Expose ExposedAttribute=\"ShowUnits\" Name=\"ShowUnits\"/>\n            <\/TextBox>\n            <Component Clip=\"False\" ContentHeight=\"20\" ContentWidth=\"20\"\n                Ctrl=\"ForceCtrl\" Height=\"20.0\" Left=\"0\" Model=\"Force\"\n                Name=\"cmpForced\" Top=\"20\" Visibility=\"Hidden\" Width=\"20.0\">\n                <Rectangle Fill=\"#FFD100\" Height=\"20\" RadiusX=\"5\"\n                    RadiusY=\"5\" Stroke=\"None\" Width=\"20\">\n                    <Animate Animation=\"Stop\" Attribute=\"Fill\"\n                        Duration=\"1\" From=\"#FFD100\" Name=\"aniBlink\" To=\"#01FFFFFF\">\n                        <Expose ExposedAttribute=\"From\" Name=\"ForcedColor\"/>\n                    <\/Animate>\n                    <Expose ExposedAttribute=\"Fill\" Name=\"ForcedColor\"/>\n                <\/Rectangle>\n                <Component Clip=\"False\" ContentHeight=\"10.1\"\n                    ContentWidth=\"15.0\" Height=\"10.1\" Left=\"4\" Top=\"5\" Width=\"15.0\">\n                    <Path Fill=\"#E3BC67\" Name=\"B1\"\n                        PathData=\"M11.25,10.096130000000017 C12.980770399999997,10.096130000000017 12.6923101,8.0769000000000233 11.25,8.0769000000000233 11.826920000000001,8.0769000000000233 11.826920000000001,8.0769000000000233 12.403849399999999,8.0769000000000233 13.846150000000002,8.0769000000000233 13.846150000000002,6.0576710000000276 12.403849399999999,6.0576710000000276 12.980770399999997,6.0576710000000276 12.980770399999997,6.0576710000000276 13.557690399999999,6.0576710000000276 15.0,6.0576710000000276 15.0,4.0384409999999775 13.557690399999999,4.0384409999999775 12.980770399999997,4.0384409999999775 12.6923101,4.0384409999999775 12.115386999999998,4.0384409999999775 13.557690399999999,4.0384409999999775 13.557690399999999,2.0192109999999843 12.115386999999998,2.0192109999999843 9.51923,2.0192109999999843 9.51923,2.0192109999999843 7.2115399999999994,2.0192109999999843 8.6538473000000025,2.0192109999999843 8.6538473000000025,-1.900000000887303E-5 7.2115399999999994,-1.900000000887303E-5 5.76923,-1.900000000887303E-5 4.6153800000000018,-1.900000000887303E-5 3.4615399999999994,0.28844099999997752 2.3809600000000017,0.58771999999999025 2.0376899999999978,1.040600999999981 1.1538473000000025,1.7307500000000005 0.725049300000002,2.0655100000000175 0.20812709999999868,2.382092 0.0,2.8845900000000029 0.0,5.1922799999999825 0.0,7.2115099999999757 0.0,9.5192109999999843 0.33908739999999682,10.067859999999996 1.1538473000000025,10.096130000000017 1.7307703999999973,10.096130000000017 4.9038473000000025,10.096130000000017 8.6538473000000025,10.096130000000017 11.25,10.096130000000017 M7.2115399999999994,2.0192109999999843 L5.4807703999999973,2.0192109999999843 M12.115386999999998,4.0384409999999775 L8.3653800000000018,4.0384409999999775 M12.403849399999999,6.0576710000000276 L8.3653800000000018,6.0576710000000276 M11.25,8.0769000000000233 L8.3653800000000018,8.0769000000000233\"\n                        Stroke=\"#505050\" StrokeDashArray=\"0.0\" StrokeWidth=\".5\"/>\n                    <Path Fill=\"#FFFFFF\"\n                        PathData=\"M11.25,10.096130000000017 C12.9807706,10.096130000000017 12.692310200000001,8.0769000000000233 11.25,8.0769000000000233 11.826920000000001,8.0769000000000233 11.826920000000001,8.0769000000000233 12.403849600000001,8.0769000000000233 13.846150000000002,8.0769000000000233 13.846150000000002,6.0576730000000225 12.403849600000001,6.0576730000000225 12.9807706,6.0576730000000225 12.9807706,6.0576730000000225 13.5576906,6.0576730000000225 15.0,6.0576730000000225 15.0,4.0384429999999725 13.5576906,4.0384429999999725 12.9807706,4.0384429999999725 12.692310200000001,4.0384429999999725 12.115388000000003,4.0384429999999725 13.5576906,4.0384429999999725 13.5576906,2.0192129999999793 12.115388000000003,2.0192129999999793 9.51923,2.0192129999999793 9.51923,2.0192129999999793 7.2115399999999994,2.0192129999999793 8.6538474999999977,2.0192129999999793 8.6538474999999977,-1.7000000013922545E-5 7.2115399999999994,-1.7000000013922545E-5 5.76923,-1.7000000013922545E-5 4.6153800000000018,-1.7000000013922545E-5 3.4615399999999994,0.28844299999997247 2.3809600000000017,0.58771999999999025 2.0376899999999978,1.040602999999976 1.1538474999999977,1.7307500000000005 0.72504949999999724,2.0655100000000175 0.20812730000000101,2.382093999999995 0.0,2.8845900000000029 0.0,5.1922799999999825 0.0,7.2115099999999757 0.0,9.51921299999998 0.33908759999999916,10.067859999999996 1.1538474999999977,10.096130000000017 1.7307705999999996,10.096130000000017 4.9038474999999977,10.096130000000017 8.6538474999999977,10.096130000000017 11.25,10.096130000000017 M7.2115399999999994,2.0192129999999793 L5.4807706,2.0192129999999793 M12.115388000000003,4.0384429999999725 L8.3653800000000018,4.0384429999999725 M12.403849600000001,6.0576730000000225 L8.3653800000000018,6.0576730000000225 M11.25,8.0769000000000233 L8.3653800000000018,8.0769000000000233\"\n                        Stroke=\"#505050\" StrokeDashArray=\"0.0\" StrokeWidth=\".5\">\n                        <LinearGradient Attribute=\"Fill\"\n                            EndPoint=\"1.0,0.0\" SpreadMethod=\"Pad\" StartPoint=\"0.0,0.0\">\n                            <GradientStop Color=\"#ABFFFFFF\" Offset=\"0.0\"/>\n                            <GradientStop Color=\"#01FFFFFF\" Offset=\"0.5\"/>\n                            <GradientStop Color=\"#60000000\" Offset=\"1.0\"/>\n                        <\/LinearGradient>\n                    <\/Path>\n                <\/Component>\n            <\/Component>\n            <Component Clip=\"False\" ContentHeight=\"20\" ContentWidth=\"20\"\n                Ctrl=\"AlarmCtrl\" Height=\"20.0\" Left=\"80\" Model=\"Alarm\"\n                Name=\"cmpAlarm\" Top=\"20\" Visibility=\"Hidden\" Width=\"20.0\">\n                <Rectangle Fill=\"#F0080E\" Height=\"20.0\" Left=\"0\"\n                    RadiusX=\"5\" RadiusY=\"5\" Stroke=\"None\" Top=\"0\" Width=\"20.0\">\n                    <Animate Animation=\"Stop\" Attribute=\"Fill\"\n                        Duration=\"1\" From=\"#F0080E\" Name=\"aniBlink\" To=\"#01FFFFFF\">\n                        <Expose ExposedAttribute=\"From\" Name=\"AlarmColor\"/>\n                    <\/Animate>\n                    <Expose ExposedAttribute=\"Fill\" Name=\"AlarmColor\"/>\n                <\/Rectangle>\n                <Path Fill=\"#FFD100\" Name=\"B1\"\n                    PathData=\"M11.8,15.15 C11.8,15.5640001 10.994,15.9 10.0,15.9 9.006,15.9 8.20000001,15.5640001 8.20000001,15.15 8.20000001,14.736 9.006,14.4 10.0,14.4 10.994,14.4 11.8,14.736 11.8,15.15 z M11.0,3.75 C11.0,4.164 10.55200001,4.5 10.0,4.5 9.448,4.5 9.0,4.164 9.0,3.75 9.0,3.336000001 9.448,3.0 10.0,3.0 10.55200001,3.0 11.0,3.336000001 11.0,3.75 z\"\n                    Stroke=\"#FFD100\" StrokeDashArray=\"0.0\" StrokeWidth=\".5\"/>\n                <Ellipse Fill=\"None\" Height=\"1.50002274259486\"\n                    Left=\"8.199998259544\" Opacity=\"1.0\"\n                    Stroke=\"#4B000000\" StrokeDashArray=\"0.0\"\n                    StrokeWidth=\".5\" Top=\"14.399997115135\" Width=\"3.60000014305115\"/>\n                <Ellipse Fill=\"None\" Height=\"1.50002274259486\"\n                    Left=\"9.0\" Opacity=\"1.0\" Stroke=\"#4B000000\"\n                    StrokeDashArray=\"0.0\" StrokeWidth=\".5\" Top=\"3.0\" Width=\"2.0\"/>\n                <Curve Fill=\"#FFD100\" Name=\"B2\" Opacity=\"1.0\"\n                    Points=\"10.0,15.0 11.500100146817,15.0 15.100154729045,15.0 16.0,14.399997115135 16.0,13.799997091293 16.0,13.500148719784 15.399998545647,12.59999704361 14.500145632008,11.70012142867 14.500145632008,11.100112331632 14.199998497963,9.59999692439999 13.900136534969,7.79999685287498 13.30012743793,5.700030458291 11.799998402596,4.19999670982401 11.500100146817,3.90000316717698 10.632542525376,3.59999668598198 10.0,3.59999668598198 9.367612283068,3.59999668598198 8.500054661628,3.90000316717698 8.199998259544,4.19999670982401 6.70002737051399,5.39999675750698 6.100018273475,7.79999685287498 5.799998164177,9.59999692439999 5.500009176437,11.100112331632 5.500009176437,11.70012142867 4.599998116493,12.59999704361 4.0,13.500148719784 4.0,13.799997091293 4.0,14.399997115135 5.199998140335,15.0 8.500054661628,15.0 10.0,15.0\"\n                    Stroke=\"#FFD100\" StrokeDashArray=\"0.0\" StrokeWidth=\".5\"/>\n                <Curve Opacity=\"1.0\"\n                    Points=\"10.0,15.0 11.500100146817,15.0 15.100154729045,15.0 16.0,14.399997115135 16.0,13.799997091293 16.0,13.500148719784 15.399998545647,12.59999704361 14.500145632008,11.70012142867 14.500145632008,11.100112331632 14.199998497963,9.59999692439999 13.900136534969,7.79999685287498 13.30012743793,5.700030458291 11.799998402596,4.19999670982401 11.500100146817,3.90000316717698 10.632542525376,3.59999668598198 10.0,3.59999668598198 9.367612283068,3.59999668598198 8.500054661628,3.90000316717698 8.199998259544,4.19999670982401 6.70002737051399,5.39999675750698 6.100018273475,7.79999685287498 5.799998164177,9.59999692439999 5.500009176437,11.100112331632 5.500009176437,11.70012142867 4.599998116493,12.59999704361 4.0,13.500148719784 4.0,13.799997091293 4.0,14.399997115135 5.199998140335,15.0 8.500054661628,15.0 10.0,15.0\"\n                    Stroke=\"#5F000000\" StrokeDashArray=\"0.0\" StrokeWidth=\".5\">\n                    <LinearGradient Attribute=\"Fill\" EndPoint=\"1.0,0.0\"\n                        SpreadMethod=\"Pad\" StartPoint=\"0.0,0.0\">\n                        <GradientStop Color=\"#ABFFFFFF\" Offset=\"0.0\"/>\n                        <GradientStop Color=\"#01FFFFFF\" Offset=\"0.5\"/>\n                        <GradientStop Color=\"#60000000\" Offset=\"1.0\"/>\n                    <\/LinearGradient>\n                <\/Curve>\n            <\/Component>\n        <\/Group>\n        <TargetArea Height=\"40\" Left=\"0\" Name=\"@BIND@\" Top=\"0\"\n            Value_click=\"\" Width=\"100\">\n            <Expose ExposedAttribute=\"Name\" Name=\"ValueBind\"/>\n        <\/TargetArea>\n        <Script OnDocumentLoad=\"load\" OnMouseClick=\"click\"\n            OnMouseDown=\"\" OnMouseMove=\"\" OnMouseOut=\"\" OnMouseOver=\"\"\n            OnMouseUp=\"up\" OnSignalChange=\"change\"><![CDATA[/**==========================================================================================\n * Main Object\n * This is a consolidated event distributor\n */\nvar Main = {\n\t// load function this executes when the component is loaded\n\tload: function(e) {\n\t\tvar comp = e.getCurrentTarget(),\n\t\t\tchildren = getChildrenByAttribute(comp, \"Model\"); // list of all components with the attribute Model\n\t\t\n\t\t// create all models that are found and tie them to the associated control object\n\t\tthis.models = {};\n\t\tfor(var i = 0, max = children.length; i < max; i += 1) {\n\t\t\tvar child = children[i],\n\t\t\t\tmodel = child.getAttribute(\"Model\"),\n\t\t\t\tctrl = String(child.getAttribute(\"Ctrl\"));\n\t\t\tthis.models[model] = Object.create(eval(ctrl));\n\t\t\tthis.models[model].init(child);\t\t\t\t\t\t\t\n\t\t}\n\t},\n\t\n\t// on a change evnet distribute the event to all models defined in custom attributes\n\tchange: function(e) {\n\t\te.preventDefault();\n\t\tvar attbList = e.getTarget().attributes;\n\t\t\n\t\tfor(var i = 0, max = attbList.length; i < max; i += 1) {\n\t\t\tvar attb = attbList.item(i).nodeName;\n\t\t\tif(this.models.hasOwnProperty(attb)) {\n\t\t\t\tthis.models[attb].update(e);\n\t\t\t}\n\t\t}\n\t},\n\t\n\t// prevent default except on right click when unforced\n\tclick: function(e) {\n\t\tif(+e.getButton() === 0 || this.models[\"Force\"].forced) {\n\t\t\te.preventDefault();\n\t\t}\n\t},\n\t\n\t// distribute up event to all models defined by custom attributes\n\tup: function(e) {\t\n\t\tvar trigger = e.getTarget(),\n\t\tattbList = trigger.attributes;\n\t\n\t\tfor(var i = 0, max = attbList.length; i < max; i += 1) {\n\t\t\tvar attb = String(attbList.item(i).nodeName).split(\"_\")[0],\n\t\t\t\tevent = String(attbList.item(i).nodeName).split(\"_\")[1];\n\t\t\tif(event === \"click\") {\n\t\t\t\tif(this.models.hasOwnProperty(attb)) {\n\t\t\t\t\tif(!isUndefined(this.models[attb].click)) {\n\t\t\t\t\t\tthis.models[attb].click(e);\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n};\n\nvar bm = {\n\tchange: function(e) {\n\t\tvar target = e.getTarget();\n\t\tvar name = target.getAttribute(\"Name\");\n\t\tif(!this.hasOwnProperty(name)) {\n\t\t\tthis[name] = Object.create(Bind);\n\t\t\tthis[name].init(target);\n\t\t}\n\t}\n};\n\n/**==========================================================================================\n * Event Callback Functions\n * pass all events to main object for distribution\n */\n\nfunction load(evt){\t\n\tMain.load(evt);\n}\n\nfunction change(evt) {\t\n\tMain.change(evt);\n\tbm.change(evt);\n}\n\nfunction click(evt) {\n\tMain.click(evt);\n}\n\nfunction up(evt) {\n\tMain.up(evt);\n}\n\n/**==========================================================================================\n * Helper Functions\n */\nvar isUndefined = function(o) {\n\tif(typeof(o) === \"undefined\") {\n\t\treturn true;\t\t\t\n\t}\n\treturn false;\t\n};\n\nvar getBool = function(s) {\n\tswitch(String(s).toLowerCase().trim()){\n\t\tcase \"true\": case \"yes\": case \"y\": case \"1\": case \"t\": case \"on\": case \"active\": return true;\n\t\tdefault: return false;\n\t}\n};\n\n//checks if object is of type undefined\nif (!Object.isUndefined) {\n\tObject.isUndefined = function(object) {\n\t\treturn typeof object === \"undefined\";\n\t};\n}\n\n//checks if object is part of DOM, should only be used on nodes (good to check against CDATA)\nif (!Object.isDOM) {\n\tObject.isDOM = function(obj) {\n\t\tif (!Object.isUndefined(obj) && obj.nodeName) {\n\t    \tswitch (obj.nodeType) {\n\t    \t\tcase 1: return 'element';\n\t    \t\tcase 3: return (/\\S/).test(obj.nodeValue) ? 'textnode' : 'whitespace';\n\t    \t}\n\t    }\n\t    return false;\n\t};\n}\n\n//returns an array children nodes that have a defined attribute, ex: getChildrenByAttribute(view,\"Model\")\nvar getChildrenByAttribute = function(node, attb){\n\tvar v = [];\n\tif (Object.isDOM(node)) {\n\t\tif (node.hasAttribute(attb)) {\n\t\t\tif (node.getAttribute(attb)!=\"\") {\t\t\t\n\t\t\t\tv.push(node);\n\t\t\t}\n\t\t}\n\t\tif (node.hasChildNodes()) {\n\t\t\tvar c = node.getChildNodes();\t\t\t\n\t\t\tfor(var i = 0; i < c.length; i++) {\n\t\t\t\tv = v.concat(getChildrenByAttribute(c.item(i), attb));\n\t\t\t}\n\t\t}\n\t}\n\treturn v;\n}\n\nif (!Object.create) {\n\tObject.create = function(base) {\n\t\tfunction F () {};\n\t\tF.prototype = base;\n\t\treturn new F();\n\t};\n}\n\n/**==========================================================================================\n * Value Ctrl\n */\n var ValueCtrl = {\n \tinit: function(node) { \t\t\n \t\tvar type = \"Text\";\n \t\tif(node.hasAttribute(\"Type\")) {\n \t\t\ttype = String(node.getAttribute(\"Type\"));\n \t\t}\n \t\t\n \t\tswitch(type) {\n\t\tcase \"Analog\":\n\t\t\tthis.txt = Object.create(AnalogCtrl);\n\t\t\tbreak;\n\t\tcase \"Digital\":\n\t\t\tthis.txt = Object.create(DigitalCtrl);\n\t\t\tbreak;\n\t\tcase \"Multi\":\n\t\t\tthis.txt = Object.create(MultiCtrl);\n\t\t\tbreak;\n\t\tdefault:\n\t\t\tthis.txt = Object.create(TextCtrl);\n\t\t\tbreak;\t\t\t\t\n\t\t}\n\t\t\n\t\tthis.txt.init(node);\n \t},\n \tupdate: function(e) {\n \t\tthis.txt.update(e);\n \t},\n \tclick: function(e) {\n \t\tvar btn = +e.getButton();\n \t\tvar target = e.getTarget();\n \t\tvar name = String(target.getAttribute(\"Name\"));\n \t\tif(bm.hasOwnProperty(name)) {\n \t\t\tif(btn === 0) {\n \t\t\t\tbm[name].displayProperties();\n \t\t\t} else if(btn === 2) {\n \t\t\t\tbm[name].unForce();\n \t\t\t}\n \t\t}\n \t}\n };\n \n/**==========================================================================================\n * Force Ctrl\n */\n var ForceCtrl = {\n \tinit: function(node) {\n \t\tthis.cmp = Object.create(Component);\n \t\tthis.cmp.init(node);\n \t\tthis.ani = Object.create(Animate);\n \t\tthis.ani.init(node.getChildByName(\"aniBlink\"));\n \t\tthis.forced = false;\n \t\tthis.bForced = false;\n \t},\n \tupdate: function(e) {\n \t\tvar name = String(e.getTarget().getAttribute(\"Name\")),\n \t\t\tlastName = String(name.split(\".\").splice(-1)).replace(/\\d/g,''),\n \t\t\tvalue = e.getValue();\n \t\t\t\n \t\tthis.forced = +e.getStatus() === 3;\n\t\tswitch(lastName) {\n\t\tcase \"OutOfService\":\n\t\t\tthis.bForced = getBool(value);\t\t\n\t\t\tbreak;\n\t\tcase \"Priority\":\n\t\t\tif(value !== null) {\n\t\t\t\tthis.bForced = true;\n\t\t\t} else {\n\t\t\t\tthis.bForced = false;\n\t\t\t}\n\t\t\tif(typeof(value) === \"undefined\") {\n\t\t\t\tthis.bForced = false;\n\t\t\t}\n\t\t\tbreak;\n\t\tcase \"ActiveCommandPriority\":\n\t\t\tif(value !== null && value < 10) {\n\t\t\t\tthis.bForced = true;\n\t\t\t} else {\n\t\t\t\tthis.bForced = false;\n\t\t\t}\n\t\t\tbreak;\n\t\tdefault:\n\t\t}\n \t\tthis.cmp.setVisibility(this.forced || this.bForced);\n \t\tthis.ani.setAnimation(this.forced || this.bForced);\t\n \t}\n };\n \n/**==========================================================================================\n * Alarm Ctrl\n */\nvar AlarmCtrl = {\n\tinit: function(node) {\n\t\tthis.cmp = Object.create(Component);\n \t\tthis.cmp.init(node);\n \t\tthis.ani = Object.create(Animate);\n \t\tthis.ani.init(node.getChildByName(\"aniBlink\"));\n \t\t\n \t\tthis.values = {};\n \t},\n \tupdate: function(e) {\n \t\tvar name = String(e.getTarget().getAttribute(\"Name\"));\n \t\tthis.values[name] = +e.getValue();\n \t\t\n \t\tvar status = false;\n \t\t\n \t\tfor(var key in this.values) {\n \t\t\tif(this.values[key] !== 0) {\n \t\t\t\tstatus = true;\n \t\t\t}\n \t\t}\n \t\t\n \t\tthis.cmp.setVisibility(status);\n \t\tthis.ani.setAnimation(status);\n \t}\n};\n\n/**==========================================================================================\n * Analog Control\n */\nvar AnalogCtrl = {\n\tinit: function(node) {\n\t\tthis.decimals = 0;\n\t\tthis.units = \"\";\n\t\tthis.prefix = \"\";\n\t\tthis.suffix = \"\";\n\t\tthis.showUnits = true;\n\t\t\n\t\tthis.txt = Object.create(TextBox);\n\t\tthis.txt.init(node);\n\t\t\n\t\tif(node.hasAttribute(\"Decimals\")) {\t\t\n\t\t\tthis.decimals = +node.getAttribute(\"Decimals\");\n\t\t}\n\t\t\t\t\t\n\t\tif(node.hasAttribute(\"Prefix\")) {\t\t\n\t\t\tthis.prefix = String(node.getAttribute(\"Prefix\"));\n\t\t}\n\t\t\n\t\tif(node.hasAttribute(\"Suffix\")) {\t\t\n\t\t\tthis.suffix = String(node.getAttribute(\"Suffix\"));\n\t\t}\n\t\t\n\t\tif(node.hasAttribute(\"ShowUnits\")) {\t\t\n\t\t\tthis.showUnits = getBool(node.getAttribute(\"ShowUnits\"));\n\t\t}\n\t},\n\tupdate: function(e) {\n\t\tvar value = +e.getValue(),\n\t\t\tunits = String(e.getUnit());\n\t\t\t\n\t\tthis.txt.setContent(this.prefix + value.toFixed(this.decimals) + this.suffix + (this.showUnits ? \" \" + units : \"\"));\n\t}\n};\n\n/**==========================================================================================\n * Digital Control\n */\nvar DigitalCtrl = {\n\tinit: function(node) {\n\t\tthis.states = [];\n\t\t\n\t\tthis.txt = Object.create(TextBox);\n\t\tthis.txt.init(node);\n\t\t\t\t\n\t\ti = 2;\n\t\twhile(i--) {\n\t\t\tthis.states[i] = String(node.getAttribute(\"State\" + i));\n\t\t}\t\t\n\t},\n\tupdate: function(e) {\t\n\t\tvar content = getBool(e.getValue()) ? this.states[1] : this.states[0];\n\t\tthis.txt.setContent(content);\n\t}\n};\n\n/**==========================================================================================\n * Multi Control\n */\nvar MultiCtrl = {\n\tinit: function(node) {\n\t\tthis.states = [];\n\t\t\n\t\tthis.txt = Object.create(TextBox);\n\t\tthis.txt.init(node);\n\t\t\t\t\n\t\tvar i = node.hasAttribute(\"State0\") ? 0 : 1;\n\t\twhile(node.hasAttribute(\"State\" + i)) {\n\t\t\tthis.states[i] = String(node.getAttribute(\"State\" + i));\n\t\t\ti += 1;\n\t\t}\t\t\n\t},\n\tupdate: function(e) {\n\t\tvar content = this.states[+e.getValue()];\n\t\tthis.txt.setContent(content);\n\t}\n};\n\n/**==========================================================================================\n * Text Control\n */\nvar TextCtrl = {\n\tinit: function(node) {\n\t\tthis.txt = Object.create(TextBox);\n\t\tthis.txt.init(node);\t\t\n\t},\n\tupdate: function(e) {\n\t\tthis.txt.setContent(String(e.getValue()));\n\t}\n};\n\n/**==========================================================================================\n * Title Control\n */\nvar TitleCtrl = {\n\tinit: function(node) {\n\t}\n};\n\n/**==========================================================================================\n * Background Control\n */\n \nvar BgdCtrl = {\n\tinit: function(node) {\n\t\tif(node) {\n\t\t\tif(node.hasAttribute(\"Stroke\")) {\n\t\t\t\tthis.normalColor = node.getAttribute(\"Stroke\");\n\t\t\t}\n\t\t\tthis.forcedColor = \"#FFFF00\";\n\t\t\tif(node.hasAttribute(\"ForcedColor\")) {\n\t\t\t\tthis.forcedColor = node.getAttribute(\"ForcedColor\");\n\t\t\t}\n\t\t\tthis.alarmColor = \"#FF0000\";\n\t\t\tif(node.hasAttribute(\"AlarmColor\")) {\n\t\t\t\tthis.alarmColor = node.getAttribute(\"AlarmColor\");\n\t\t\t}\n\t\t\n\t\t\tthis.rct = Object.create(Rectangle);\n\t\t\tthis.rct.init(node);\n\t\t\t\n\t\t\tthis.values = {};\n\t\t}\n\t},\n\tupdate: function(e) {\n\t\tvar name = String(e.getTarget().getAttribute(\"Name\")),\n\t\t\tdescription = String(e.getTarget().getAttribute(\"Description\"));\n\t\t\n\t\tif(!this.values.hasOwnProperty(name)) {\n\t\t\tthis.values[name] = {value: e.getValue(), dscr: description};\n\t\t}\n\t\t\n\t\tthis.values[name].value = e.getValue();\n\t\t\n\t\tvar alarmStatus = false,\n\t\t\tforceStatus = +e.getStatus() === 3;\n\t\tfor(var key in this.values) {\n\t\t\tvar val = this.values[key];\n\t\t\tif(val.dscr === \"ForceBind\") {\n\t\t\t\tvar lastName = String(String(key).split(\".\").splice(-1)).replace(/\\d/g,'');\n \t\t \t\t\n\t\t\t\tswitch(lastName) {\n\t\t\t\tcase \"OutOfService\":\n\t\t\t\t\tforceStatus = getBool(val.value);\t\t\n\t\t\t\t\tbreak;\n\t\t\t\tcase \"Priority\":\n\t\t\t\t\tif(val.value !== null) {\n\t\t\t\t\t\tforceStatus = true;\n\t\t\t\t\t}\n\t\t\t\t\tif(typeof(val.value) === \"undefined\") {\n\t\t\t\t\t\tforceStatus = false;\n\t\t\t\t\t}\n\t\t\t\t\tbreak;\n\t\t\t\tcase \"ActiveCommandPriority\":\n\t\t\t\t\tif(val.value !== null && val.value < 10) {\n\t\t\t\t\t\tforceStatus = true;\n\t\t\t\t\t}\n\t\t\t\t\tbreak;\n\t\t\t\tdefault:\n\t\t\t\t}\n\t\t\t} else if(val.dscr === \"AlarmBind\") {\n\t\t\t\tvar alarmVal = +val.value;\n\t\t\t\tif(alarmVal !== 0) {\n\t\t\t\t\talarmStatus = true;\n\t\t\t\t}\n\t\t\t}\n\t\t}\t\t\n\t\tvar stroke = this.normalColor,\n\t\t\tstrokeWidth = 1;\n\n\t\tif(forceStatus) {\n\t\t\tstroke = this.forcedColor;\n\t\t\tstrokeWidth = 2;\n\t\t}\n\t\tif(alarmStatus) {\n\t\t\tstroke = this.alarmColor;\n\t\t\tstrokeWidth = 2;\n\t\t}\n\t\tthis.rct.setStroke(stroke);\n\t\tthis.rct.setStrokeWidth(strokeWidth);\n\t}\n};\n\n/**==========================================================================================\n * Bind Object\n */\nvar Bind = {\n\tinit: function(node) {\n\t\tthis.node = node;\n\t\tif(this.node) {\n\t\t\tthis.fbn = this.node.getFullBindName();\n\t\t\tthis.name = String(this.node.getAttribute(\"Name\"));\n\t\t}\n\t},\n\tenableUpdates: function(){\n\t\ttry {\n\t\t\tif(this.node) {\n\t\t\t\tthis.node.setAttribute(\"DynamicUpdates\", \"Enable\");\n\t\t\t}\n\t\t}\n\t\tcatch(err) {\n\t\t}\n\t},\n\tdisableUpdates: function() {\n\t\ttry {\n\t\t\tif(this.node) {\n\t\t\t\tthis.node.setAttribute(\"DynamicUpdates\", \"Disable\");\n\t\t\t}\n\t\t}\n\t\tcatch(err) {\n\t\t}\n\t},\n\tdisplayProperties: function() {\n\t\tif(this.fbn) {\n\t\t\tinvoke(this.fbn,\"EditProperties\");\n\t\t}\n\t},\n\trelinquish: function() {\n\t\ttry {\n\t\t\tif(this.fbn) {\n\t\t\t\tsetValue(this.fbn,null);\t\n\t\t\t}\n\t\t}\n\t\tcatch(err) {\n\t\t}\n\t},\n\twrite: function(val) {\n\t\ttry {\n\t\t\tif(this.fbn) {\n\t\t\t\tsetValue(this.fbn, val);\n\t\t\t}\n\t\t}\n\t\tcatch(err) {\n\t\t}\n\t},\n\tunForce: function() {\n\t\tsetForce(this.fbn, false);\n\t}\n};\n\n/**==========================================================================================\n * Animate Object\n */\nvar Animate = {\n\tinit: function(node) {\n\t\tthis.node = node;\n\t},\n\tsetAnimation: function(b) {\n\t\tthis.node.setAttribute(\"Animation\", b === true ? \"Start\": \"Stop\");\n\t}\n};\n\n/**==========================================================================================\n * Rectangle Object\n */\nvar Rectangle = {\n\tinit: function(node) {\n\t\tthis.node = node;\n\t},\n\tsetFill: function(s) {\n\t\tthis.node.setAttribute(\"Fill\", s);\n\t},\n\tsetStroke: function(s) {\n\t\tthis.node.setAttribute(\"Stroke\", s);\n\t},\n\tsetStrokeWidth: function(s) {\n\t\tthis.node.setAttribute(\"StrokeWidth\", s);\n\t},\n\tsetVisibility: function(b) {\n\t\tthis.node.setAttribute(\"Visibility\", b === true ? \"Visible\" : \"Hidden\");\n\t}\n};\n\n/**==========================================================================================\n * TextBox Object\n */\nvar TextBox = {\n\tinit: function(node) {\n\t\tthis.node = node;\n\t},\n\tsetContent: function(s) {\n\t\tthis.node.setAttribute(\"Content\", s);\n\t}\n};\n\n/**==========================================================================================\n * Component Object\n */\nvar Component = {\n\tinit: function(node) {\n\t\tthis.node = node;\n\t},\n\tsetVisibility: function(b) {\n\t\tthis.node.setAttribute(\"Visibility\", b == true ? \"Visible\" : \"Hidden\");\n\t}\n};]]><\/Script>\n    <\/Component>";
+
+// ---------- starter graphic: one TGML page with every object as a bound value box ----------
+// Panels for inputs, outputs, status values and setpoints. Techs draw the unit around them.
+const GFX_DEC = {F: 1, dF: 1, psi: 1, rh: 1, inwc: 2, cfm: 0, cfmv: 0, ppm: 0, '%': 0, s: 0, min: 0, h: 0, none: 0};
+const GFX_COLS = 6, GFX_COLW = 160, GFX_ROWH = 52, GFX_PAD = 20;
+const GFX_ABBR = [[/Temperature/g, 'Temp'], [/Setpoint/g, 'SP'], [/Command/g, 'Cmd'], [/Position/g, 'Pos'], [/Status/g, 'Sts'], [/Outside Air/g, 'OA'], [/Outdoor Air/g, 'OA'],
+  [/Supply Air/g, 'SA'], [/Return Air/g, 'RA'], [/Mixed Air/g, 'MA'], [/Discharge Air/g, 'DA'], [/Hot Water/g, 'HW'], [/Chilled Water/g, 'CHW'], [/Differential/g, 'Diff'],
+  [/Minimum/g, 'Min'], [/Maximum/g, 'Max'], [/Occupied/g, 'Occ'], [/Unoccupied/g, 'Unocc'], [/Enable/g, 'Ena'], [/Pressure/g, 'Pres'], [/Heating/g, 'Htg'], [/Cooling/g, 'Clg'], [/Override/g, 'Ovr'], [/Compressor/g, 'Comp'], [/Economizer/g, 'Econ'],
+  [/Allowable/g, 'Allow'], [/Believable/g, 'Valid'], [/Changeover/g, 'C/O'], [/Duration/g, 'Time'], [/Stage/g, 'Stg'], [/Delay/g, 'Dly'], [/Limit/g, 'Lmt'], [/Damper/g, 'Dpr'], [/ Valve/g, ' Vlv'],
+  [/Room/g, 'Rm'], [/Night/g, 'Ngt'], [/Setback/g, 'Setbk'], [/Mode/g, 'Md'], [/Alarm/g, 'Alm'], [/Light/g, 'Lt'], [/Rotation/g, 'Rot'], [/Building/g, 'Bldg'],
+  [/Generator/g, 'Gen'], [/Requested/g, 'Req'], [/Diverting/g, 'Div'], [/Running/g, 'Run'], [/Supply/g, 'Sup'], [/Return/g, 'Ret'], [/Firing/g, 'Fire'], [/Below/g, 'Blw'], [/Above/g, 'Abv'],
+  [/System/g, 'Sys'], [/Boiler/g, 'Blr'], [/Relative Humidity/g, 'RH']];
+function gfxTitle(d, name){
+  let t = String(d || name).trim();
+  t = t.replace(/\s*\([^)]*\)\s*$/, '');
+  for (const [re, s] of GFX_ABBR) { if (t.length <= 19) break; t = t.replace(re, s); }
+  return t.length > 20 ? t.slice(0, 19).trim() + '.' : t;
+}
+const gfxEsc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// What each object shows and how it can be overridden.
+function gfxItem(P, n){
+  const r = P.reg[n], asp = !!P.asp;
+  const p = r.kind === 'point' ? r.p : null, v = p ? null : r.v || {};
+  const descr = p ? p.descr : v.descr;
+  let type = 'Analog', states = null, dec = 1, force = '';
+  if (p) {
+    if (p.io === 'di') { const e = ENUM[p.text || 'onoff']; type = 'Digital'; states = [e.text[1], e.text[0]]; }
+    else if (p.io === 'do') { type = 'Digital'; states = ['Off', 'On']; }
+    else if (p.io === 'ao') dec = 0;
+    else if (p.io === 'vi') dec = GFX_DEC[p.unit] != null ? GFX_DEC[p.unit] : 1;
+    if (!asp) force = /^(ai|vi|di)$/.test(p.io) ? n + '.OutOfService' : n + '.Priority8';
+  } else {
+    if (v.kind === 'bv') { type = 'Digital'; states = ['Off', 'On']; }
+    else if (v.kind === 'alm') { type = 'Digital'; states = ['Normal', 'Alarm']; }
+    else if (v.kind === 'occ') { type = 'Digital'; states = ['Unoccupied', 'Occupied']; }
+    else if (v.kind === 'msv') { type = 'Multi'; states = [null].concat(P.states[v.states] || []); }
+    else if (v.kind === 'csv') type = 'Text';
+    else dec = GFX_DEC[v.unit] != null ? GFX_DEC[v.unit] : 0;
+    if (!asp && r.kind === 'value' && !r.stock && v.kind !== 'csv') force = n + '.Priority8';
+  }
+  return {n, title: gfxTitle(descr, n), type, states, dec, force, prop: r.extName || n, folder: r.folder};
+}
+function gfxValTag(it){
+  const a = [`Ctrl="ValueCtrl"`];
+  if (it.type === 'Analog') a.push(`Decimals="${it.dec}"`);
+  a.push('Fill="None" FontFamily="Arial" FontSize="15.0" FontStyle="Normal" FontWeight="Normal" Height="20.0" HorizontalAlign="Center" Left="0.0" Model="Value" Name="txtValue"');
+  if (it.type === 'Analog') a.push('Prefix="" ShowUnits="true"');
+  if (it.states) it.states.forEach((s, i) => { if (s != null) a.push(`State${i}="${gfxEsc(s)}"`); });
+  a.push(`Stroke="#000000"${it.type === 'Analog' ? ' Suffix=""' : ''} TextDecoration="None" Top="20.0" Type="${it.type}" VerticalAlign="Middle" Width="100.0"`);
+  return '<TextBox ' + a.join(' ') + '>';
+}
+function gfxGroups(P){
+  const names = Object.keys(P.reg).filter(n => !(P.reg[n].kind === 'value' && P.reg[n].v && P.reg[n].v.kind === 'stockenum'));
+  const isPt = n => P.reg[n].kind === 'point', io = n => P.reg[n].p.io;
+  const isSp = n => !isPt(n) && P.reg[n].v && (P.reg[n].v.isParam || /Parameters$/.test(P.reg[n].folder));
+  return [
+    ['Inputs', names.filter(n => isPt(n) && /^(ai|vi|di)$/.test(io(n)))],
+    ['Outputs', names.filter(n => isPt(n) && /^(ao|do)$/.test(io(n)))],
+    ['Status', names.filter(n => !isPt(n) && !isSp(n))],
+    ['Setpoints', names.filter(isSp)]
+  ].filter(g => g[1].length).map(([t, ns]) => [t, ns.map(n => gfxItem(P, n))]);
+}
+function gfxTgml(P, groups){
+  const W = GFX_PAD * 2 + GFX_COLS * GFX_COLW;
+  const out = [];
+  let y = 100;
+  groups.forEach(([title, items]) => {
+    const rows = Math.ceil(items.length / GFX_COLS), h = rows * GFX_ROWH + 30;
+    out.push(`    <Rectangle Fill="None" Height="${h}.0" Left="${GFX_PAD}.0" Name="${title}" Opacity="1.0" RadiusX="0.0" RadiusY="0.0" Stroke="#009530" StrokeDashArray="0.0" StrokeWidth="1.0" Top="${y}.0" Width="${W - GFX_PAD * 2}.0"/>`);
+    out.push(`    <TextBox Fill="#E0E0E0" FontFamily="Arial" FontSize="20.0" FontStyle="Normal" FontWeight="Normal" Height="34.0" HorizontalAlign="Center" Left="${GFX_PAD + 20}.0" Name="${title}" Opacity="1.0" Stroke="#009530" TextDecoration="None" Top="${y - 17}.0" VerticalAlign="Middle" Width="120.0"><![CDATA[${title}]]></TextBox>`);
+    items.forEach((it, i) => {
+      const x = GFX_PAD + (i % GFX_COLS) * GFX_COLW + (GFX_COLW - 100) / 2, yy = y + 26 + Math.floor(i / GFX_COLS) * GFX_ROWH;
+      out.push('    ' + GFX_BOX.replace('@X@', x.toFixed(1)).replace('@Y@', yy.toFixed(1)).split('@BIND@').join(it.n).split('@FORCE@').join(it.force)
+        .replace('@TITLE@', it.title.replace(/]]>/g, ']] >')).replace('@VALTAG@', gfxValTag(it)));
+    });
+    y += h + 40;
+  });
+  const H = Math.max(400, y);
+  const head = `<?xml version="1.0"?>\n<?tgml version="1.3"?><Tgml Background="#E0E0E0" ComponentCounter="${groups.reduce((a, g) => a + g[1].length, 0) + 10}" GridSize="10" Height="${H}" Width="${W}">\n`
+    + `    <Text FontFamily="Arial" FontSize="30" FontStyle="Normal" FontWeight="Normal" HorizontalAlign="Left" Left="20.0" Name="Title" Opacity="1.0" Stroke="#0000C0" TextDecoration="None" Top="20" VerticalAlign="Top"><![CDATA[${P.unit.replace(/]]>/g, '')}]]></Text>\n`
+    + `    <Text FontFamily="Arial" FontSize="16" FontStyle="Normal" FontWeight="Normal" HorizontalAlign="Left" Left="20.0" Name="Note" Opacity="1.0" Stroke="#404040" TextDecoration="None" Top="58" VerticalAlign="Top"><![CDATA[Starter page: every point and value is bound. Move the boxes onto your unit drawing and delete what you don't need.]]></Text>\n`;
+  return head + out.join('\n') + '\n</Tgml>\n';
+}
+const GFX_REF_T = name => `          <PropertyReference Name                  = "${gfxEsc(name)}"
+                             DisplayName           = "${gfxEsc(name)}"
+                             Description           = ""
+                             Visibility            = "Normal"
+                             Optional              = "0"
+                             ReadOnly              = "0"
+                             Static                = "0"
+                             RTWriteable           = "0"
+                             Scope                 = "Sys"
+                             Copy                  = "1"
+                             Nullable              = "1"
+                             ObjectFilter          = ""
+                             ParameterFlags        = "12"
+                             >
+              <Type Configurable = "No" Value = "system.pt.Simple"/>
+              <Unit Configurable = "No" Value = "0x10001"/>
+              <InitReference/>
+          </PropertyReference>`;
+// gfxFolder: folder the graphic sits in, relative to the export root (Application, or the AS-P unit folder's parent).
+async function buildGraphic(P, base, gfxFolder){
+  if (P.root) return null;  // VAV box: the stock MP-V application brings its own graphic
+  const groups = gfxGroups(P);
+  if (!groups.length) return null;
+  const name = P.unit.replace(/[\\/:*?"<>|]+/g, '-');
+  const tn = await udtName(`${base}/${gfxFolder}/${name}`);
+  const b = b64(await gzip(new TextEncoder().encode(gfxTgml(P, groups))));
+  const binds = [];
+  groups.forEach(([, items]) => items.forEach(it => {
+    const target = rel(gfxFolder, it.folder + '/' + it.prop);
+    binds.push([it.n, ref(target, 'Value')]);
+    if (it.force) binds.push([it.force, ref(target, it.force.split('.')[1])]);
+  }));
+  const type = `    <ObjectType Name            = "${tn}"
+                DisplayName     = "Graphic"
+                Description     = "Graphic"
+                Base            = "tgml.TGML"
+                Icon            = "TGML.gif"
+                Abstract        = "0"
+                Implements      = ""
+                DefaultProperty = ""
+                Version         = "1"
+                >
+      <PropertyTab Name = "BASIC">
+        <PropertyGroup Name = "ConfigurationSettings">
+          <Parameter Name                  = "FILE"
+                     DisplayName           = "File"
+                     Description           = ""
+                     Visibility            = "Normal"
+                     Optional              = "0"
+                     ReadOnly              = "0"
+                     Static                = "1"
+                     RTWriteable           = "0"
+                     Unique                = "No"
+                     Copy                  = "0"
+                     Nullable              = "0"
+                     ParameterFlags        = "4194320"
+                     >
+              <Type Configurable = "No" Value = "tgml.TGMLFile"/>
+              <Unit Configurable = "No" Value = "0x10001"/>
+              <InitValue DataType="6" Null="0">
+              <FileContents Size="${b.length}"><![CDATA[${b}]]>
+              </FileContents>
+            </InitValue>
+          </Parameter>
+        </PropertyGroup>
+      </PropertyTab>
+      <PropertyTab Name = "Bindings">
+        <PropertyGroup Name = "Bindings">
+${binds.map(([n]) => GFX_REF_T(n)).join('\n')}
+        </PropertyGroup>
+      </PropertyTab>
+
+
+    </ObjectType>`;
+  const oi = [`    <OI DESCR="${xa(P.unit + ' starter graphic')}" NAME="${xa(name)}" TYPE="${tn}">`]
+    .concat(...binds.map(([n, rf]) => [`      <PI Name="${xa(n)}">`, `        ${rf}`, '      </PI>']), ['    </OI>']).join('\n');
+  return {type, oi, count: binds.filter(b => !/\.(Priority8|OutOfService)$/.test(b[0])).length};
 }
 
 // ---------- AS-P with SmartX IO modules: controller model, IO file and Complete file ----------
@@ -6116,11 +6294,13 @@ async function buildAsp(P){
   const list = P.trends.length ? [`    <OI NAME="${xa(P.unit)} Trend Log List" TYPE="trend.view.MultiTextualTrendView">`, '      <PI Name="NumberOfRecords" Value="5000"/>']
     .concat(P.trends.map(n => [`      <OI NAME="${n}" TYPE="trend.view.MultiTextualTrendSeriesProperties" hidden="1">`, '        <PI Name="DisplayLog">', `          ${ref('../../' + n + 'Tlog')}`, '        </PI>', '      </OI>'].join('\n')), ['    </OI>']).join('\n') : null;
   void analog;
+  const gfx = P.opts.graphic === false ? null : await buildGraphic(P, base, P.uf + 'Graphics');
+  if (gfx) types.push(gfx.type);
   const folder = (name, items, keep) => items.length || keep ? [`   <OI NAME="${xa(name)}" TYPE="system.base.Folder">`, ...items, '   </OI>'].join('\n') : null;
   const body = [`  <OI NAME="${xa(P.uf.slice(0, -1))}" TYPE="system.base.Folder">`,
     folder('Functions', fnObjs), folder('Programs', progObjs),
     folder('Inputs', folders.Inputs || []), folder('Numerics', folders.Numerics || []), folder('Parameters', folders.Parameters || []),
-    folder('Alarms', alarmObjs), folder('Trends', trendObjs.concat([chart, list].filter(Boolean))), '  </OI>'].filter(Boolean).join('\n');
+    folder('Alarms', alarmObjs), folder('Trends', trendObjs.concat([chart, list].filter(Boolean))), gfx ? folder('Graphics', [gfx.oi]) : null, '  </OI>'].filter(Boolean).join('\n');
   const complete = `${meta}  <Types>\n${types.join('\n')}\n  </Types>\n<ExportedObjects>\n${body}\n</ExportedObjects>\n\n</ObjectSet>\n`;
   return {io, complete};
 }
@@ -6145,7 +6325,7 @@ async function buildAsp(P){
   ];
   const IOLBL = {ai: 'AI 10k', vi: 'AI 0-10 V', di: 'DI', do: 'DO', ao: 'AO'};
   const UNITLBL = {cfmv: 'cfm', F: '°F', dF: '°F', '%': '%', s: 's', min: 'min', h: 'h', inwc: 'in. w.c.', ppm: 'ppm', cfm: 'cfm', psi: 'psi', rh: '%RH', none: ''};
-  const fresh = () => ({ctrl: null, sample: false, asp: {server: '/AS-P', modules: ASP_DEFAULT_MODS.map(m => Object.assign({}, m))}, type: 'ahu', unit: '', optsBy: {}, ioBy: {}, sigBy: {}, editsBy: {}, customBy: {}, trendBy: {}, pointsOnly: false, trendMin: 5, prog: 0});
+  const fresh = () => ({ctrl: null, sample: false, asp: {server: '/AS-P', modules: ASP_DEFAULT_MODS.map(m => Object.assign({}, m))}, type: 'ahu', unit: '', optsBy: {}, ioBy: {}, sigBy: {}, editsBy: {}, customBy: {}, trendBy: {}, pointsOnly: false, trendMin: 5, graphic: true, prog: 0});
   let S = fresh();
   let P = null, downloads = null;
 
@@ -6243,6 +6423,7 @@ async function buildAsp(P){
     $('typeHint').textContent = `${t.title}. Needs ${t.modelName}${t.stock ? '; the file sets the stock reheat and fan selections and wires the stock points, and perimeter radiation goes in a new Components/PerimRad folder' : t.root ? `; everything imports into one new component folder, Application/${t.root}, with the stock Points, Values, Parameters and Programs subfolders` : ''}. The greyed-out types are added once there is a finished, field-proven program set to build them from.`;
     if (typ().sample) $('sampleBtn').textContent = `Look around with a sample ${prettyModel(typ().sample().model)}`;
     $('trendMinF').hidden = isAsp();
+    $('p7').hidden = !!t.root;
     $('unitName').placeholder = isAsp() ? 'HWS' : 'AHU-1';
     if (document.activeElement !== $('unitName')) $('unitName').value = S.unit;
   }
@@ -6365,13 +6546,14 @@ async function buildAsp(P){
   }
   $('sptBody').addEventListener('input', e => { const i = e.target; if (!i.dataset.sp) return; ED()[i.dataset.sp] = i.value; recompute(true); });
   $('trendMin').addEventListener('input', e => { S.trendMin = e.target.value; recompute(true); });
+  $('gfxOn').addEventListener('change', e => { S.graphic = e.target.checked; recompute(true); });
 
   // ---------- compute + readout ----------
   function recompute(keepSpts){
     const t = tpl();
     const C = CT();
     if (!C) { P = null; renderIO(); renderSpts(); renderReadout(); save(); return; }
-    const opts = fixOpts(t, Object.assign({}, O(), {unit: S.unit, trendMin: S.trendMin, custom: CU(), pointsOnly: !!S.pointsOnly, trendSel: TR()}));
+    const opts = fixOpts(t, Object.assign({}, O(), {unit: S.unit, trendMin: S.trendMin, custom: CU(), pointsOnly: !!S.pointsOnly, graphic: S.graphic !== false, trendSel: TR()}));
     const F = t.flags(opts);
     const ex = t.root ? {} : (C.existing || {});
     const pts0 = allPoints(t, opts, F).filter(p => !ex[p.name] || p.stock);
@@ -6507,7 +6689,7 @@ async function buildAsp(P){
     render(); toast('Cleared');
   });
 
-  function render(){ renderCtrl(); renderTypes(); renderOpts(); renderAddForm(); renderCustom(); $('trendMin').value = S.trendMin; recompute(); }
+  function render(){ renderCtrl(); renderTypes(); renderOpts(); renderAddForm(); renderCustom(); $('trendMin').value = S.trendMin; $('gfxOn').checked = S.graphic !== false; recompute(); }
   load(); render();
   (async () => { try { if (window.claude && window.claude.use) downloads = await claude.use('downloads'); } catch(e) {} })();
 })();

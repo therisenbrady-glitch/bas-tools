@@ -116,6 +116,9 @@ These become the relinquish defaults of the value objects in `Parameters`, and t
 ## 6. Trends
 Tick what to trend. The key points start ticked; **Key points**, **All** and **None** reset the list. Points and calculated values are listed, and setpoints are under a fold. Each unit type remembers its own picks on that device. **Analog trend interval** defaults to 5 minutes; digital trends log on change. The VAV box has no list: Schneider's stock application already trends its own points.
 
+## 7. Graphic
+**Include a starter graphic** (on by default) adds one plain graphic to the file: every point and value in the export as a bound value box, in **Inputs**, **Outputs**, **Status** and **Setpoints** panels, with the unit name at the top. The boxes are the team's standard value box, so they show units, alarm and forced state, and clicking one commands it: outputs and values at priority 8, inputs out of service. It is a starting point, not a finished graphic. Open it in Graphics Editor, draw the unit around the boxes and delete the ones you don't need. With **Points only** it holds just the points. The VAV box has no starter graphic, because the stock MP-V application brings its own.
+
 ## Saving
 The dark readout counts points, programs, setpoints, alarms and trends, and says whether the file is ready. Fix anything it lists first.
 - **Programs + points** or **Points only** picks what goes in the file. Points only exports just the field points with their alarms and trends: no programs, values or setpoints. The trend list in step 6 then shows only points.
@@ -128,7 +131,7 @@ The dark readout counts points, programs, setpoints, alarms and trends, and says
 
 ## Importing into EBO
 The README.txt has the exact steps for the options you picked. In short:
-1. Right-click `<controller>/Application` and choose **Import**, then pick the Complete file. For a VAV box, right-click `Application/Components` instead. For the Boiler, import the IO file into the AS-P's IO Bus first, then the Complete file into `Application`. Folders, points, programs, alarms and trends come in together, with program inputs already bound.
+1. Right-click `<controller>/Application` and choose **Import**, then pick the Complete file. For a VAV box, right-click `Application/Components` instead. For the Boiler, import the IO file into the AS-P's IO Bus first, then the Complete file into `Application`. Folders, points, programs, alarms, trends and the starter graphic come in together, with program inputs and graphic boxes already bound.
 2. Programs arrive uncompiled. Open and save the functions (`Func_PID`, `Func_Ratio`, `Func_Staging`, `Func_TwoPosition`, whichever are included) first, then each program.
 3. Bind `OccCmdTs` (Occupancy folder) to the unit's schedule. Write the network values the README lists (outside air temp, AHU status) from the AS-P.
 4. CV AHU with a SpaceLogic sensor and the override button: bind the sensor's Display > Occupancy Override to `Prog_Occupancy.RmOccOvrRst` so the button unlatches.
@@ -149,5 +152,6 @@ Test a new option mix on a spare or offline controller first. For the VAV box, i
 | Alarms | Fan failure, freezestat, smoke, dirty filter, discharge temp, room sensor failure, as the options need; they auto-clear |
 | Trends | The points ticked in step 6, `<Point>Tlog` |
 | Occupancy | OccCmdTs, for binding to the schedule |
+| Graphics | The starter graphic from step 7, named after the unit. On the Boiler it is `Application/<unit>/Graphics`. |
 
 Programs follow the team's conventions: EBO Script, EBO 3 SEBA names, program inputs named exactly like the objects that feed them, Goto state machines on `TS` timers, Func_PID called with 9 arguments, and mode text of 32 characters or less.
