@@ -24,6 +24,7 @@ point-checkout/checkouttool.html + README.md
 device-scanner/devicescanner.html + README.md
 vav-calculator/index.html + README.md
 program-generator/index.html + README.md
+network-map/index.html + README.md, network-map/scan/ (EBO-NetScan.ps1, Run EBO-NetScan.bat, README.txt, EBO-NetScan.zip of those three)
 docs/workflow.md                Job workflow manual (install → programming → commissioning → closeout)
 docs/phones.md                  Phone setup manual (Android/Chrome, Samsung Internet, iPhone/Safari, laptop)
 docs/HANDOFF.md                 This file
@@ -84,6 +85,11 @@ Canned EBO 7.1 program set for one controller. Unit types: CV AHU (MP-C, from Bo
 - **Storage:** localStorage `ebo-gen-v1`, options/terminals/signals/setpoint edits and hand-added points kept per type (`optsBy`, `ioBy`, `sigBy`, `editsBy`, `customBy`), plus the global `pointsOnly` export choice; version 1 storage migrates into CV AHU. Saves the same way as the checkout tracker.
 - Not yet import-tested in EBO: any type. The VAV box merge-by-name behavior and the Boiler two-file import especially need a first test. Low limit switch: On = tripped (confirmed by Buddy 2026-10-14).
 - The page source (engine, AHU template, UI) was built in a session scratchpad; the repo file is the built output and is the master now.
+
+### Network Map (`network-map/index.html` + `network-map/scan/`)
+Maps a controller network: which controllers exist, their addresses, and the cable order. Built 2026-10-28 from Buddy's EBO-NetScan draft. Neither part has been run on a job yet.
+- **Scan kit** (`scan/`, served for download; the zip must be rebuilt whenever the .ps1, .bat or README.txt change; files are stored with CRLF, see `.gitattributes`): PowerShell 5.1, read-only. Who-Is (listens on 47808 if free), then ReadProperty(device 4194303, object-identifier) to .1-.254, then batched ReadProperty of name/model/vendor/firmware/app version/location (routed MS/TP devices through their router with DNET/DADR; replies matched on sender + invoke ID), MACs from Get-NetNeighbor. Outputs `Results/Devices_<stamp>.csv` (IP, DeviceID, RoutedNet, RoutedMac, MAC, Name, Model, Vendor, Firmware, AppVer, Location). With Wireshark: tshark `-f stp` for 6 s on `\Device\NPF_{guid}`, appends `RSTP readings.csv` (Time, Label, NeighborMAC, LaptopIP, stp.bridge.hw/prio, stp.root.hw/prio, stp.root.cost, stp.port, stp.flags.port_role, HopsFromRoot, PortRole, NeighborName, NeighborIP). Cost per hop 200000, or 19 when the cost is under 1000.
+- **Page:** loads any mix of Devices CSVs, RSTP readings and a Device Scanner export (adds serials by network MAC/device ID), detected by header. Readings match devices by exact MAC (eth.src, then bridge MAC), then a MAC within 2 when only one device is that close (flagged ≈MAC). Unmatched RSTP neighbors become "Unknown controller" nodes. Newest reading per controller sets its hop; the newest root MAC is the root. Two at a hop go on sides A/B (guessed, tagged SIDE?; a hand-set side pushes the other across). Ring/Open toggle (defaults to Ring on an Alternate port role or two sides). Hand edits (hop, side) per node key in `edits`. Inline SVG map, firmware outliers per model, routed MS/TP list, readings list; saves CSV and PNG. Storage localStorage `netmap-v1`. Sample data is generic (no job names).
 
 ## claude.ai artifacts (private to Buddy)
 - Point Checkout Tracker: https://claude.ai/artifact/NoNDzjxJUspFrsHFmKt2nS (db, user `profile`, downloads)

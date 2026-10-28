@@ -1,0 +1,4 @@
+network-map/scan/*.ps1 -text
+network-map/scan/*.bat -text
+network-map/scan/*.txt -text
+network-map/scan/*.zip binary
