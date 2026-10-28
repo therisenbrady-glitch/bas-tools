@@ -81,7 +81,7 @@ The kit opens the map by itself. To look at a job later or on another computer, 
 When the loops run out of and back into a managed switch, the switch's MAC address table tells you which loop every controller is on, with no RSTP readings needed. On a Phoenix Contact FL SWITCH 2000 it's in the switch's web page under **Diagnostics > MAC Address Table**, with a CSV download. Other managed switches have the same table under a similar name; any CSV with a MAC column and a port column works.
 
 1. Log in to the switch in a browser and download the MAC address table CSV. Do it within a few hours of a scan; the controllers talk often enough that the switch keeps them listed.
-2. Load it on this page with the Devices CSV (drop it in, or **Choose files**). The map opens a **Switch ports** list: each port, how many scanned controllers it hears, and how many other MACs.
+2. Load it on this page with the Devices CSV (drop it in, or **Choose files**). With the scan kit, save it in the kit's Results folder with "mac" in its name (for example `mactable.csv`) and every run puts it in the map. The map opens a **Switch ports** list: each port, how many scanned controllers it hears, and how many other MACs.
 3. Give each loop's two ports the same **Loop** number (for example ports 2 and 6 are loop 1). The lower port is side A. A port with no loop number is drawn on its own (the AS-P's port, for example).
 
 You only need to do this once per site; the loop numbers stay saved in the browser, and the table only needs downloading again after controllers are added or moved, or a loop breaks (that moves where it splits into sides).

@@ -601,12 +601,14 @@ if (-not $SkipStp) {
 }
 
 # ---------------------------------------------------------------- open the map
-# Puts the newest device list and all RSTP readings into a copy of the map page.
+# Puts the newest device list, all RSTP readings and any switch MAC table into a copy of the map page.
 if (-not $NoMap) {
     $tpl = Join-Path $PSScriptRoot "Network Map.html"
     $newest = Get-ChildItem $OutDir -Filter "Devices_*.csv" -ErrorAction SilentlyContinue | Sort-Object Name | Select-Object -Last 1
     $stpFile = Get-Item (Join-Path $OutDir "RSTP readings.csv") -ErrorAction SilentlyContinue
-    $files = @(@($newest, $stpFile) | Where-Object { $_ })
+    # a switch MAC address table saved in Results (any CSV with "mac" in its name) sorts controllers into loops
+    $swFile = Get-ChildItem $OutDir -Filter "*.csv" -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'mac' -and $_.Name -notmatch '^Devices_' } | Sort-Object LastWriteTime | Select-Object -Last 1
+    $files = @(@($newest, $stpFile, $swFile) | Where-Object { $_ })
     if (-not (Test-Path $tpl)) {
         Write-Host "Network Map.html isn't next to the script, so no map. Load the CSVs on the field tools site instead." -ForegroundColor Yellow
     } elseif ($files.Count) {

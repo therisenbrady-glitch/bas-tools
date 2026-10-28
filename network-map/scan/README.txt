@@ -48,6 +48,15 @@ How to use:
      or
        powershell -ExecutionPolicy Bypass -File .\EBO-NetScan.ps1 -SkipScan -Label "Room 113 port 2"
 
+Loops off a managed switch:
+  - If the loops run out of and back into a managed switch, download its MAC
+    address table as CSV (Phoenix Contact FL SWITCH: web page, Diagnostics >
+    MAC Address Table) and save it in the Results folder with "mac" in the
+    file name (e.g. mactable.csv). Every run puts it in the map, which then
+    sorts the controllers into loops by switch port.
+  - In the map, open Switch ports and give each loop's two ports the same
+    loop number. That's saved, so it only needs doing once.
+
 Where to take readings:
   - RSTP only tells you about the controller you're plugged into.
   - At the end of a chain, plug into the controller's free port.
