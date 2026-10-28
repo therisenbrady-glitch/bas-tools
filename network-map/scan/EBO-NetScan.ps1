@@ -21,6 +21,8 @@ Options:
     -UseWireshark  Capture RSTP with Wireshark instead of pktmon.
     -OutDir    Where results go. Default: a "Results" folder next to this script.
     -NoMap     Don't open the map when it's done.
+    -SwitchIp  The loops' managed switch, read over SNMP for its MAC table. Default 169.254.2.1.
+    -SkipSwitch  Don't read the switch.
 
 When it finishes it writes "Network map.html" in the Results folder (a copy of
 the kit's "Network Map.html" with the results inside) and opens it in the
@@ -36,13 +38,16 @@ param(
     [switch]$UseWireshark,
     [int]   $StpSeconds = 6,
     [string]$OutDir  = "",
-    [switch]$NoMap
+    [switch]$NoMap,
+    [string]$SwitchIp = "169.254.2.1",
+    [switch]$SkipSwitch
 )
 
 $ErrorActionPreference = "Stop"
 if (-not $OutDir) { $OutDir = Join-Path $PSScriptRoot "Results" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $stamp = Get-Date -Format "yyyy-MM-dd_HHmmss"
+$runStart = Get-Date
 
 # ---------------------------------------------------------------- network adapter
 $upIdx = @(Get-NetAdapter | Where-Object { $_.Status -eq "Up" } | ForEach-Object { $_.InterfaceIndex })
@@ -553,7 +558,7 @@ if (-not $SkipStp) {
             Write-Host "Reading RSTP needs administrator. Click Yes on the Windows prompt..." -ForegroundColor Yellow
             $before = if (Test-Path $stpCsv) { @(Import-Csv $stpCsv).Count } else { 0 }
             $a = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -SkipScan -NoMap -StpSeconds $StpSeconds -Subnet $Subnet" +
-                 " -Label `"$($Label -replace '"', "'")`" -OutDir `"$OutDir`""
+                 " -Label `"$($Label -replace '"', "'")`" -OutDir `"$OutDir`" -SwitchIp $SwitchIp" + $(if ($SkipSwitch) { " -SkipSwitch" } else { "" })
             try {
                 Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList $a -ErrorAction Stop
                 $after = if (Test-Path $stpCsv) { @(Import-Csv $stpCsv).Count } else { 0 }
@@ -600,13 +605,199 @@ if (-not $SkipStp) {
     }
 }
 
+# ---------------------------------------------------------------- switch MAC table (SNMP)
+# The loops' managed switch (Phoenix Contact FL SWITCH, default 169.254.2.1) lists which port it hears
+# each MAC on. Read it over SNMP v2c (community "public") so the map can sort controllers into loops.
+function Add-Ber([Collections.Generic.List[byte]]$out, [int]$tag, [byte[]]$body) {
+    $out.Add([byte]$tag)
+    $n = $body.Length
+    if ($n -lt 128) { $out.Add([byte]$n) }
+    elseif ($n -lt 256) { $out.Add([byte]0x81); $out.Add([byte]$n) }
+    else { $out.Add([byte]0x82); $out.Add([byte]($n -shr 8)); $out.Add([byte]($n -band 0xFF)) }
+    $out.AddRange($body)
+}
+function Get-Ber([int]$tag, [byte[]]$body) {
+    $o = [Collections.Generic.List[byte]]::new(); Add-Ber $o $tag $body
+    return ,$o.ToArray()
+}
+function Get-BerInt([int]$v) {
+    # shortest form (0..2^31-1): drop leading zero bytes while the next byte keeps the sign bit clear
+    $x = [Collections.Generic.List[byte]]::new()
+    $x.AddRange([byte[]]@((($v -shr 24) -band 0x7F), (($v -shr 16) -band 0xFF), (($v -shr 8) -band 0xFF), ($v -band 0xFF)))
+    while ($x.Count -gt 1 -and $x[0] -eq 0 -and $x[1] -lt 0x80) { $x.RemoveAt(0) }
+    return ,(Get-Ber 0x02 $x.ToArray())
+}
+function Get-BerOid([int[]]$oid) {
+    $o = [Collections.Generic.List[byte]]::new()
+    $o.Add([byte](40 * $oid[0] + $oid[1]))
+    for ($k = 2; $k -lt $oid.Count; $k++) {
+        $v = [long]$oid[$k]; $parts = [Collections.Generic.List[byte]]::new()
+        $parts.Add([byte]($v -band 0x7F)); $v = $v -shr 7
+        while ($v -gt 0) { $parts.Insert(0, [byte](($v -band 0x7F) -bor 0x80)); $v = $v -shr 7 }
+        $o.AddRange($parts)
+    }
+    return ,(Get-Ber 0x06 $o.ToArray())
+}
+function New-SnmpGetNext([int]$reqId, [int[]]$oid) {
+    $vb = [Collections.Generic.List[byte]]::new(); $vb.AddRange((Get-BerOid $oid)); $vb.AddRange([byte[]]@(0x05, 0x00))
+    $pdu = [Collections.Generic.List[byte]]::new()
+    $pdu.AddRange((Get-BerInt $reqId)); $pdu.AddRange((Get-BerInt 0)); $pdu.AddRange((Get-BerInt 0))
+    $pdu.AddRange((Get-Ber 0x30 (Get-Ber 0x30 $vb.ToArray())))
+    $msg = [Collections.Generic.List[byte]]::new()
+    $msg.AddRange((Get-BerInt 1))                                             # SNMP v2c
+    $msg.AddRange((Get-Ber 0x04 ([Text.Encoding]::ASCII.GetBytes("public"))))
+    $msg.AddRange((Get-Ber 0xA1 $pdu.ToArray()))                              # GetNextRequest
+    return ,(Get-Ber 0x30 $msg.ToArray())
+}
+# One TLV at $i: returns tag, value start and length.
+function Read-Ber([byte[]]$b, [int]$i) {
+    $tag = $b[$i]; $n = [int]$b[$i + 1]; $s = $i + 2
+    if ($n -band 0x80) {
+        $c = $n -band 0x7F; $n = 0
+        for ($k = 0; $k -lt $c; $k++) { $n = ($n -shl 8) -bor $b[$s + $k] }
+        $s += $c
+    }
+    return @{ Tag = [int]$tag; Start = $s; Len = $n; Next = $s + $n }
+}
+function Read-SnmpReply([byte[]]$b) {
+    $t = Read-Ber $b 0                       # message
+    $t = Read-Ber $b $t.Start                # version
+    $t = Read-Ber $b $t.Next                 # community
+    $p = Read-Ber $b $t.Next                 # response PDU
+    $t = Read-Ber $b $p.Start                # request id
+    $id = 0; for ($k = 0; $k -lt $t.Len; $k++) { $id = ($id -shl 8) -bor $b[$t.Start + $k] }
+    $t = Read-Ber $b $t.Next                 # error status
+    $err = if ($t.Len) { [int]$b[$t.Start] } else { 0 }
+    $t = Read-Ber $b $t.Next                 # error index
+    $t = Read-Ber $b $t.Next                 # varbind list
+    $vb = Read-Ber $b $t.Start               # first varbind
+    $o = Read-Ber $b $vb.Start               # OID
+    $oid = [Collections.Generic.List[long]]::new()
+    $first = [int]$b[$o.Start]; $oid.Add([math]::Floor($first / 40)); $oid.Add($first % 40)
+    $v = [long]0
+    for ($k = $o.Start + 1; $k -lt $o.Next; $k++) {
+        $v = ($v -shl 7) -bor ($b[$k] -band 0x7F)
+        if (-not ($b[$k] -band 0x80)) { $oid.Add($v); $v = 0 }
+    }
+    $val = Read-Ber $b $o.Next
+    $num = [long]0
+    if ($val.Tag -eq 0x02 -or $val.Tag -eq 0x41 -or $val.Tag -eq 0x42) {
+        for ($k = 0; $k -lt $val.Len; $k++) { $num = ($num -shl 8) -bor $b[$val.Start + $k] }
+    }
+    return @{ Id = $id; Error = $err; Oid = $oid.ToArray(); Tag = $val.Tag; Value = $num }
+}
+# Walk one table with GetNext. Returns the rows (Oid, Value), or $null if the switch never answered.
+function Invoke-SnmpWalk([string]$fromIp, [string]$toIp, [int[]]$base) {
+    $udp = [Net.Sockets.UdpClient]::new([Net.IPEndPoint]::new([Net.IPAddress]::Parse($fromIp), 0))
+    $udp.Client.ReceiveTimeout = 1000
+    $to = [Net.IPEndPoint]::new([Net.IPAddress]::Parse($toIp), 161)
+    $rows = [Collections.Generic.List[object]]::new()
+    $cur = $base; $answered = $false
+    try {
+        for ($n = 0; $n -lt 20000; $n++) {
+            $req = New-SnmpGetNext (1000 + $n) $cur
+            $r = $null
+            for ($try = 0; $try -lt 2 -and $null -eq $r; $try++) {
+                try {
+                    [void]$udp.Send($req, $req.Length, $to)
+                    $from = [Net.IPEndPoint]::new([Net.IPAddress]::Any, 0)
+                    $buf = $udp.Receive([ref]$from)
+                    $x = Read-SnmpReply $buf
+                    if ($x.Id -eq (1000 + $n)) { $r = $x }
+                } catch { }
+            }
+            if ($null -eq $r) { break }
+            $answered = $true
+            if ($r.Error -or $r.Tag -ge 0x80 -or $r.Oid.Count -le $base.Count) { break }
+            $inside = $true
+            for ($k = 0; $k -lt $base.Count; $k++) { if ($r.Oid[$k] -ne $base[$k]) { $inside = $false; break } }
+            if (-not $inside) { break }
+            $rows.Add(@{ Oid = $r.Oid; Value = $r.Value })
+            $cur = [int[]]$r.Oid
+        }
+    } finally { $udp.Close() }
+    if (-not $answered) { return $null }
+    return ,$rows.ToArray()
+}
+function Write-SwLog([string]$text) {
+    Add-Content -Path (Join-Path $OutDir "Switch log.txt") -Value ("{0}  {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $text)
+}
+# Reads the forwarding table (BRIDGE-MIB dot1dTpFdbPort, else Q-BRIDGE dot1qTpFdbPort). $null if no answer.
+function Get-SwitchMacTable([string]$fromIp) {
+    $fdb = Invoke-SnmpWalk $fromIp $SwitchIp @(1, 3, 6, 1, 2, 1, 17, 4, 3, 1, 2)
+    if ($null -eq $fdb) { return $null }
+    $list = [Collections.Generic.List[object]]::new()
+    foreach ($r in $fdb) {
+        $m = $r.Oid[($r.Oid.Count - 6)..($r.Oid.Count - 1)]
+        if ($r.Value -gt 0) { $list.Add([pscustomobject]@{ VLAN = 1; MAC = (($m | ForEach-Object { "{0:X2}" -f $_ }) -join ":"); Port = [int]$r.Value }) }
+    }
+    if ($list.Count -eq 0) {
+        $q = Invoke-SnmpWalk $fromIp $SwitchIp @(1, 3, 6, 1, 2, 1, 17, 7, 1, 2, 2, 1, 2)
+        foreach ($r in @($q)) {
+            if ($null -eq $r) { continue }
+            $m = $r.Oid[($r.Oid.Count - 6)..($r.Oid.Count - 1)]
+            if ($r.Value -gt 0) { $list.Add([pscustomobject]@{ VLAN = $r.Oid[$r.Oid.Count - 7]; MAC = (($m | ForEach-Object { "{0:X2}" -f $_ }) -join ":"); Port = [int]$r.Value }) }
+        }
+    }
+    return ,$list.ToArray()
+}
+
+$swCsv = Join-Path $OutDir "Switch MAC table.csv"
+$swFresh = (Test-Path $swCsv) -and ((Get-Item $swCsv).LastWriteTime -ge $runStart)   # the elevated RSTP run may have read it already
+if (-not $SkipSwitch -and -not $swFresh) {
+    $ErrorActionPreference = "Continue"
+    $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    Write-Host "Reading the switch MAC table from $SwitchIp..."
+    Write-SwLog "start: switch $SwitchIp, laptop $localIp on '$($adapter.Name)', admin $isAdmin"
+    $table = $null
+    try { $table = Get-SwitchMacTable $localIp } catch { Write-SwLog "direct: $($_.Exception.Message)" }
+    Write-SwLog ("direct from {0}: {1}" -f $localIp, $(if ($null -eq $table) { "no answer" } else { "$($table.Count) MACs" }))
+    if ($null -eq $table -and $isAdmin) {
+        # The switch sits on its own 169.254 address: borrow one on the same adapter just for this read.
+        $tmpIp = "169.254.2." + (Get-Random -Minimum 200 -Maximum 250)
+        try {
+            New-NetIPAddress -InterfaceIndex $adapter.ifIndex -IPAddress $tmpIp -PrefixLength 16 -SkipAsSource $true -PolicyStore ActiveStore -ErrorAction Stop | Out-Null
+            for ($k = 0; $k -lt 20; $k++) {
+                $st = (Get-NetIPAddress -IPAddress $tmpIp -ErrorAction SilentlyContinue).AddressState
+                if ("$st" -eq "Preferred") { break }
+                Start-Sleep -Milliseconds 250
+            }
+            Write-SwLog "added $tmpIp/16 to '$($adapter.Name)' (state $st)"
+            $table = Get-SwitchMacTable $tmpIp
+            Write-SwLog ("from {0}: {1}" -f $tmpIp, $(if ($null -eq $table) { "no answer" } else { "$($table.Count) MACs" }))
+        } catch {
+            Write-SwLog "temporary address: $($_.Exception.Message)"
+        } finally {
+            Remove-NetIPAddress -IPAddress $tmpIp -Confirm:$false -ErrorAction SilentlyContinue
+        }
+    } elseif ($null -eq $table) {
+        Write-Host "  Reaching the switch needs administrator (to borrow a 169.254 address). Click Yes on the Windows prompt..." -ForegroundColor Yellow
+        $a = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -SkipScan -SkipStp -NoMap -SwitchIp $SwitchIp -Subnet $Subnet -OutDir `"$OutDir`""
+        try { Start-Process powershell.exe -Verb RunAs -Wait -ArgumentList $a -ErrorAction Stop } catch { Write-SwLog "elevation refused" }
+        $swFresh = (Test-Path $swCsv) -and ((Get-Item $swCsv).LastWriteTime -ge $runStart)
+    }
+    if ($null -ne $table -and $table.Count) {
+        $i = 0
+        $table | Sort-Object MAC | ForEach-Object { $i++; [pscustomobject][ordered]@{ Index = $i; VLAN = $_.VLAN; MAC = $_.MAC; Portnumber = $_.Port } } |
+            Export-Csv -NoTypeInformation -Encoding UTF8 -Path $swCsv
+        Write-Host "  $($table.Count) MACs on $(@($table | ForEach-Object { $_.Port } | Sort-Object -Unique).Count) switch ports: $swCsv" -ForegroundColor Green
+    } elseif ($swFresh) {
+        Write-Host "  Switch MAC table saved: $swCsv" -ForegroundColor Green
+    } elseif ($null -ne $table) {
+        Write-Host "  The switch answered but listed no MACs." -ForegroundColor Yellow
+    } else {
+        Write-Host "  No answer from the switch at $SwitchIp. The map uses the last saved table, if any. Use -SwitchIp if the switch has another address, or -SkipSwitch to skip this." -ForegroundColor Yellow
+    }
+    $ErrorActionPreference = "Stop"
+}
+
 # ---------------------------------------------------------------- open the map
 # Puts the newest device list, all RSTP readings and any switch MAC table into a copy of the map page.
 if (-not $NoMap) {
     $tpl = Join-Path $PSScriptRoot "Network Map.html"
     $newest = Get-ChildItem $OutDir -Filter "Devices_*.csv" -ErrorAction SilentlyContinue | Sort-Object Name | Select-Object -Last 1
     $stpFile = Get-Item (Join-Path $OutDir "RSTP readings.csv") -ErrorAction SilentlyContinue
-    # a switch MAC address table saved in Results (any CSV with "mac" in its name) sorts controllers into loops
+    # the switch MAC table (read above, or one saved in Results with "mac" in its name) sorts controllers into loops
     $swFile = Get-ChildItem $OutDir -Filter "*.csv" -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'mac' -and $_.Name -notmatch '^Devices_' } | Sort-Object LastWriteTime | Select-Object -Last 1
     $files = @(@($newest, $stpFile, $swFile) | Where-Object { $_ })
     if (-not (Test-Path $tpl)) {

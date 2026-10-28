@@ -49,11 +49,18 @@ How to use:
        powershell -ExecutionPolicy Bypass -File .\EBO-NetScan.ps1 -SkipScan -Label "Room 113 port 2"
 
 Loops off a managed switch:
-  - If the loops run out of and back into a managed switch, download its MAC
-    address table as CSV (Phoenix Contact FL SWITCH: web page, Diagnostics >
-    MAC Address Table) and save it in the Results folder with "mac" in the
-    file name (e.g. mactable.csv). Every run puts it in the map, which then
-    sorts the controllers into loops by switch port.
+  - If the loops run out of and back into a managed switch, every run reads
+    the switch's MAC address table over SNMP (read-only, community "public")
+    from 169.254.2.1, the Phoenix Contact default, and saves it as
+    Results\Switch MAC table.csv. The map then sorts the controllers into
+    loops by switch port. The switch is on its own 169.254 address, so the
+    script briefly adds one to the laptop's Ethernet (that's part of the same
+    administrator prompt as the RSTP reading) and removes it again.
+    Use -SwitchIp 192.168.0.254 (for example) if the switch has another
+    address, or -SkipSwitch to skip it. Switch log.txt shows what happened.
+  - If the switch can't be reached, download the table from its web page
+    instead (Diagnostics > MAC Address Table > CSV) and save it in Results
+    with "mac" in the file name (e.g. mactable.csv). The newest one is used.
   - In the map, open Switch ports and give each loop's two ports the same
     loop number. That's saved, so it only needs doing once.
 
