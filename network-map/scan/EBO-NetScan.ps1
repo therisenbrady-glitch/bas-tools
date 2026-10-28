@@ -177,7 +177,8 @@ function Get-ReplyText([byte[]]$apdu) {
 
 # Send a batch of requests and collect replies for $waitMs from $sock and any
 # $also sockets. Returns list of @{Ip; Port; Data}
-function Invoke-Udp($sock, $requests, [int]$waitMs, $also = @()) {
+# With $expect, returns as soon as that many replies are in.
+function Invoke-Udp($sock, $requests, [int]$waitMs, $also = @(), [int]$expect = 0) {
     $rx = @(@($sock) + @($also) | Where-Object { $_ })
     $c = 0
     foreach ($r in $requests) {
@@ -198,6 +199,7 @@ function Invoke-Udp($sock, $requests, [int]$waitMs, $also = @()) {
                 } catch { }
             }
         }
+        if ($expect -gt 0 -and $replies.Count -ge $expect) { break }
         if (-not $got) { Start-Sleep -Milliseconds 20 }
     }
     return $replies
@@ -279,35 +281,39 @@ if (-not $SkipScan) {
     }
     Write-Host ("  {0} devices found" -f $devices.Count)
 
-    # 3. Read name/model/etc. from each device, all at once, then retry the gaps.
-    #    Routed (MS/TP) devices are read through their router. A reply is matched
-    #    on its sender plus invoke ID (property number + 10 per try).
+    # 3. Read name/model/etc. One property per round, sent to every controller at
+    #    once, so each controller has only one question waiting at a time (the
+    #    MP/RP controllers drop a burst of several). Then retry the gaps. Routed
+    #    (MS/TP) devices are read through their router. A reply is matched on its
+    #    sender plus invoke ID (property number + 10 per try).
     $targets = @($devices.Values | Where-Object { $_.DeviceID })
-    $diag = @{}; $stray = 0
     $routed = @($targets | Where-Object { $_.RoutedNet }).Count
+    $diag = @{}; $stray = 0; $done = @{}
     if ($targets.Count) { Write-Host "Reading names, models and firmware..." }
     for ($try = 0; $try -lt 3; $try++) {
-        $reqs = @(); $want = @{}
-        foreach ($d in $targets) {
-            $ep = [Net.IPEndPoint]::new([Net.IPAddress]::Parse($d.IP), 47808)
-            $k = 0
-            foreach ($p in $PropIds.Keys) {
-                $k++
-                if ($d[$p]) { continue }
+        $k = 0
+        foreach ($p in $PropIds.Keys) {
+            $k++
+            $reqs = @(); $want = @{}
+            foreach ($d in $targets) {
+                $dk = "$($d.IP)|$($d.RoutedNet)|$($d.RoutedMac)|$p"
+                if ($done[$dk]) { continue }
                 $id = $k + 10 * $try
-                $reqs += @{ Data = (New-ReadProperty $id $d.DeviceID $PropIds[$p] $d.RoutedNet "$($d.RoutedMac)"); Ep = $ep }
-                $want["$($d.IP)|$($d.RoutedNet)|$($d.RoutedMac)|$id"] = @($d, $p)
+                $reqs += @{ Data = (New-ReadProperty $id $d.DeviceID $PropIds[$p] $d.RoutedNet "$($d.RoutedMac)");
+                            Ep = [Net.IPEndPoint]::new([Net.IPAddress]::Parse($d.IP), 47808) }
+                $want["$($d.IP)|$($d.RoutedNet)|$($d.RoutedMac)|$id"] = $d
             }
-        }
-        if (-not $reqs) { break }
-        foreach ($r in (Invoke-Udp $tx $reqs (2000 + 30 * $routed) @($sock, $listen))) {
-            $n = Split-Bvlc $r.Data
-            if (-not $n -or $n.Apdu.Length -lt 3) { continue }
-            $hit = $want["$($r.Ip)|$($n.Snet)|$($n.Sadr)|$($n.Apdu[1])"]
-            if ($hit) {
-                $diag["$($r.Ip)|$($n.Snet)|$($n.Sadr)|$($hit[1])"] = "try $($try + 1) from port $($r.Port): " + (Get-ReplyText $n.Apdu)
-                $v = Read-RpAck $n.Apdu; if ($v) { $hit[0][$hit[1]] = $v }
-            } else { $stray++ }
+            if (-not $reqs) { continue }
+            foreach ($r in (Invoke-Udp $tx $reqs (1500 + 30 * $routed) @($sock, $listen) $reqs.Count)) {
+                $n = Split-Bvlc $r.Data
+                if (-not $n -or $n.Apdu.Length -lt 3) { continue }
+                $d = $want["$($r.Ip)|$($n.Snet)|$($n.Sadr)|$($n.Apdu[1])"]
+                if (-not $d) { $stray++; continue }
+                $dk = "$($d.IP)|$($d.RoutedNet)|$($d.RoutedMac)|$p"
+                $diag[$dk] = "try $($try + 1) from port $($r.Port): " + (Get-ReplyText $n.Apdu)
+                $done[$dk] = $true                     # answered, even if blank or an error
+                $v = Read-RpAck $n.Apdu; if ($v) { $d[$p] = $v }
+            }
         }
     }
 
@@ -319,15 +325,16 @@ if (-not $SkipScan) {
     foreach ($d in $slow) {
         $ep = [Net.IPEndPoint]::new([Net.IPAddress]::Parse($d.IP), 47808)
         foreach ($p in $PropIds.Keys) {
-            if ($d[$p]) { continue }
+            if ($done["$($d.IP)|$($d.RoutedNet)|$($d.RoutedMac)|$p"]) { continue }
             $inv = if ($inv -ge 250) { 100 } else { $inv + 1 }
             $req = @{ Data = (New-ReadProperty $inv $d.DeviceID $PropIds[$p] $d.RoutedNet "$($d.RoutedMac)"); Ep = $ep }
             $dk = "$($d.IP)|$($d.RoutedNet)|$($d.RoutedMac)|$p"
             if (-not $diag.ContainsKey($dk)) { $diag[$dk] = "no reply" }
-            foreach ($r in (Invoke-Udp $tx @($req) (600 + 30 * [int][bool]$d.RoutedNet * 20) @($sock, $listen))) {
+            foreach ($r in (Invoke-Udp $tx @($req) (600 + 600 * [int][bool]$d.RoutedNet) @($sock, $listen) 1)) {
                 $n = Split-Bvlc $r.Data
                 if (-not $n -or $n.Apdu.Length -lt 3 -or $r.Ip -ne $d.IP -or $n.Apdu[1] -ne $inv) { continue }
                 $diag[$dk] = "one-at-a-time from port $($r.Port): " + (Get-ReplyText $n.Apdu)
+                $done[$dk] = $true
                 $v = Read-RpAck $n.Apdu; if ($v) { $d[$p] = $v }
             }
         }
@@ -454,6 +461,11 @@ function Read-PcapngBpdus([byte[]]$b) {
     return $out
 }
 
+# Notes on each RSTP attempt, so a run in the elevated window can be checked later
+function Write-StpLog([string]$text) {
+    try { Add-Content -Path (Join-Path $OutDir "RSTP log.txt") -Value ("{0}  {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $text) } catch { }
+}
+
 # Windows' built-in packet monitor (Windows 10 2004 or newer). Needs administrator.
 function Get-BpdusPktmon([int]$seconds) {
     $tmp = Join-Path $env:TEMP ("netscan-stp-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
@@ -461,16 +473,22 @@ function Get-BpdusPktmon([int]$seconds) {
     $started = $false
     try {
         pktmon filter remove | Out-Null
-        pktmon filter add NetScanSTP -m 01-80-C2-00-00-00 | Out-Null       # the STP multicast address
-        pktmon start --capture --comp nics --pkt-size 0 --file-name $etl | Out-Null
+        $o = pktmon filter add NetScanSTP -m 01-80-C2-00-00-00 2>&1              # the STP multicast address
+        Write-StpLog "pktmon filter add: $LASTEXITCODE $(($o | Out-String).Trim())"
+        $o = pktmon start --capture --comp nics --pkt-size 0 --file-name $etl 2>&1
+        Write-StpLog "pktmon start: $LASTEXITCODE $(($o | Out-String).Trim())"
         if ($LASTEXITCODE -ne 0) { return $null }
         $started = $true
         Start-Sleep -Seconds $seconds
         pktmon stop | Out-Null; $started = $false
-        pktmon etl2pcap $etl --out $pcap | Out-Null
+        $o = pktmon etl2pcap $etl --out $pcap 2>&1
+        Write-StpLog "pktmon etl2pcap: $LASTEXITCODE $(($o | Out-String).Trim())"
         if (-not (Test-Path $pcap)) { return $null }
-        return ,([object[]]@(Read-PcapngBpdus ([IO.File]::ReadAllBytes($pcap))))   # keep an empty result an array
+        $res = [object[]]@(Read-PcapngBpdus ([IO.File]::ReadAllBytes($pcap)))
+        Write-StpLog ("pcapng {0} bytes, {1} BPDUs" -f (Get-Item $pcap).Length, $res.Count)
+        return ,$res   # keep an empty result an array
     } catch {
+        Write-StpLog "pktmon failed: $($_.Exception.Message)"
         return $null
     } finally {
         if ($started) { pktmon stop | Out-Null }
@@ -508,6 +526,7 @@ if (-not $SkipStp) {
         Write-Host "No way to read RSTP on this laptop (no pktmon, which needs Windows 10 2004 or newer, and no Wireshark). The device list still works." -ForegroundColor Yellow
     } else {
         if (-not $Label) { $Label = Read-Host "Where is the laptop plugged in? (e.g. AHU-A port 2)" }
+        Write-StpLog "start: label '$Label', admin $isAdmin, pktmon $hasPktmon, wireshark $([bool]$tshark)"
         $fields = $StpFields; $lines = $null; $how = ""
         if ($hasPktmon -and $isAdmin -and -not $UseWireshark) {
             Write-Host "Listening for RSTP for $StpSeconds s (Windows packet monitor)..."
@@ -538,6 +557,7 @@ if (-not $SkipStp) {
 
         if ($how -eq "pktmon" -or $how -eq "tshark") {
             $bpdus = @($lines | Where-Object { $_ } | Sort-Object -Unique)
+            Write-StpLog "$how heard $($bpdus.Count) distinct BPDU(s)"
             if (-not $bpdus) {
                 Write-Host "No RSTP frames heard. Check the cable, and that you're on a controller port (not a building switch that blocks BPDUs)." -ForegroundColor Yellow
             }
