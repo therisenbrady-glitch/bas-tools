@@ -5553,6 +5553,16 @@ function customValues(opts){
 // Every field point the unit needs: the template's, then the hand-added ones.
 function allPoints(tpl, opts, F){ return LIST(tpl.points, opts, F).filter(p => cond(p.cond, F)).concat(customPoints(opts)); }
 
+// Temperature trend logs must carry deg F: a trend log with no unit charts as deg C.
+const trendDigital = r => (r.kind === 'point' && /^(di|do)$/.test(r.p.io)) || (r.kind === 'value' && /^(bv|alm|occ|msv)$/.test(r.v.kind));
+function trendUnitMiss(r, n){
+  if (!r || trendDigital(r)) return '';
+  const u = UNITS[r.unit];
+  if (u === '0x280001' || u === '0x290001') return 'set to deg C';
+  if (/Tmp/.test(n) && (!u || u === UNITS.none)) return 'temperature with no unit';
+  return '';
+}
+
 function plan(tpl, opts, ctrl, io, sig, edits){
   opts = fixOpts(tpl, opts);
   const F = tpl.flags(opts);
@@ -5634,6 +5644,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   const trendCands = Object.keys(reg).filter(canTrend);
   const tsel = opts.trendSel || {}, picked = t => t in tsel ? !!tsel[t] : trendDef.includes(t);
   const trends = trendDef.filter(picked).concat(trendCands.filter(t => !trendDef.includes(t) && picked(t)));
+  trends.forEach(t => { const m = trendUnitMiss(reg[t], t); if (m) issues.push(`Trend ${t}Tlog: ${m}. A trend log with no unit charts in deg C; give the object deg F.`); });
   // functions the programs call
   const fnFolder = root ? sub('Functions') : uf + 'Functions';
   const fns = [...new Set([].concat(...progs.map(p => p.decl.fns)))];
@@ -5813,9 +5824,9 @@ async function buildXml(T, P){
   const ivl = Math.round((+P.opts.trendMin || 5) * 6000);
   const trendObjs = P.trends.map(n => {
     const r = P.reg[n];
-    const digital = (r.kind === 'point' && /^(di|do)$/.test(r.p.io)) || (r.kind === 'value' && /^(bv|alm|occ|msv)$/.test(r.v.kind));
+    const digital = trendDigital(r), u = UNITS[r.unit] || UNITS.none;
     const d = (r.kind === 'point' ? r.p.descr : r.v.descr) + ' Trend';
-    return [`    <OI DESCR="${xa(d)}" NAME="${n}Tlog" TYPE="bacnet.mpx.TrendLog">`, '      <PI Name="AlignIntervals" Value="0"/>', `      <PI Name="BACnetName" Value="${n}Tlog"/>`, '      <PI Name="Buffer_Size" Value="800"/>', '      <PI Name="COVResubscriptionInterval" Value="320"/>', '      <PI Name="IntervalOffset" Value="0"/>', '      <PI Name="LogDeviceObjectProperty">', `        ${ref(rel(trF, r.folder + '/' + n), 'Value')}`, '      </PI>', '      <PI Name="LogEnable" Value="1"/>', `      <PI Name="LogInterval" Value="${digital ? 0 : ivl}"/>`, `      <PI Name="LoggingType" Value="${digital ? 1 : 0}"/>`, '      <PI Name="NOTE2" Value="#Trend"/>', '    </OI>'].join('\n');
+    return [`    <OI DESCR="${xa(d)}" NAME="${n}Tlog" TYPE="bacnet.mpx.TrendLog">`, '      <PI Name="AlignIntervals" Value="0"/>', `      <PI Name="BACnetName" Value="${n}Tlog"/>`, '      <PI Name="Buffer_Size" Value="800"/>', '      <PI Name="COVResubscriptionInterval" Value="320"/>', '      <PI Name="IntervalOffset" Value="0"/>', `      <PI Name="LogDeviceObjectProperty" Unit="${u}">`, `        ${ref(rel(trF, r.folder + '/' + n), 'Value')}`, '      </PI>', '      <PI Name="LogEnable" Value="1"/>', `      <PI Name="LogInterval" Value="${digital ? 0 : ivl}"/>`, `      <PI Name="LoggingType" Value="${digital ? 1 : 0}"/>`, '      <PI Name="NOTE2" Value="#Trend"/>', '    </OI>'].join('\n');
   });
   const chart = [`    <OI NAME="${xa(P.unit)} Trend Chart" TYPE="trend.view.GraphicalTrendView">`, '      <PI Name="DisplayTimeSpan" Value="86400"/>']
     .concat(P.trends.map((n, i) => [`      <OI NAME="Trend Log Series${i ? '_' + (i + 1) : ''}" TYPE="trend.view.TrendLogSeriesProperties" hidden="1">`, `        <PI Name="Color" Value="${CHART_COLORS[i % CHART_COLORS.length]}"/>`, '        <PI Name="DisplayLog">', `          ${ref('../../' + n + 'Tlog')}`, '        </PI>', '        <PI Name="ShowEvents" Value="1"/>', '        <PI Name="Weight" Value="3"/>', '      </OI>'].join('\n')), ['    </OI>']).join('\n');
