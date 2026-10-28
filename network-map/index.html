@@ -394,7 +394,8 @@ footer{font-size:12px;color:var(--muted)}
     nodes.forEach(n => { if (n.near) warns.push(`${n.d.name || n.d.ip} matched its RSTP reading by a MAC close to its own (${n.reads[0].bmac || n.reads[0].nmac}), not an exact match.`); });
     const unk = [...nodes.values()].filter(n => n.ghostDev && n !== root);
     if (unk.length) warns.push(`${unk.length} RSTP neighbor${unk.length > 1 ? 's' : ''} didn't match any device in the scan (shown as Unknown controller). Load a newer Devices file, or the controller may have BACnet/IP off.`);
-    const ring = S.ring != null ? S.ring : S.reads.some(r => /alternate/i.test(r.role)) || (placed.some(n => n.side === 'B') && !!root);
+    // open chain unless a reading saw the blocked (Alternate) port or the tech picks Ring
+    const ring = S.ring != null ? S.ring : S.reads.some(r => /alternate/i.test(r.role));
     // firmware outliers per model
     const fwBy = {};
     ipDevs.forEach(d => { if (d.model && d.fw){ fwBy[d.model] = fwBy[d.model] || {}; fwBy[d.model][d.fw] = (fwBy[d.model][d.fw] || 0) + 1; } });

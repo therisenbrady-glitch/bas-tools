@@ -76,7 +76,7 @@ The kit opens the map by itself. To look at a job later or on another computer, 
 ## Reading the map
 - The **RSTP root** is at the top. Each row below it is one cable hop from the root, worked out from the root path cost (200000 per 100 Mb hop, or 19 per hop on controllers that use the old short costs).
 - A ring or a root in the middle of a chain has **two sides**, A and B, one for each direction out of the root. Two controllers at the same hop go on opposite sides. The readings can't say which side is which, so those get a **SIDE?** tag: tap one and pick its side, and the other at that hop moves across.
-- **Ring / Open chain** sets whether the two ends join. It starts on Ring when a reading saw an Alternate port (the blocked backup link where a ring closes) or when there are two sides.
+- **Open chain / Ring** sets whether the two ends join. It starts on Open chain, or on Ring when a reading saw an Alternate port (the blocked backup link where a ring closes). An open chain maps the same way as a ring: RSTP still runs and every controller still reports its hops from the root. If the root is partway along the chain, the two directions out of it are sides A and B.
 - A **dashed box** is a hop with no reading yet. At least one controller sits there.
 - **Unknown controller** is an RSTP neighbor whose MAC isn't in the device list. Load a newer scan, or it may have BACnet/IP turned off.
 - **≈MAC** means the reading matched a MAC one or two off the controller's own (its bridge MAC can differ slightly from its IP MAC).
