@@ -7,7 +7,7 @@ What it does (read-only, nothing is written to any controller):
   2. Reads each one's BACnet device ID, name, model, vendor, firmware and
      location, and gets its MAC from the laptop's ARP table. Devices behind a
      BACnet router (MS/TP under an AS-P) are read through the router.
-  3. If Wireshark is installed, listens 6 seconds for RSTP frames and records
+  3. Listens 6 seconds for RSTP frames and records
      which controller you're plugged into and how many hops it is from the
      RSTP root. Each run adds a line to "RSTP readings.csv".
 
@@ -18,9 +18,13 @@ be loaded later on the Network Map page of the field tools site
 
 Needs:
   - Windows PowerShell 5.1 or newer (built into Windows 10/11). Nothing to install.
-  - Wireshark with Npcap, for the RSTP part only (https://www.wireshark.org).
-    Run as administrator if the RSTP capture comes back empty and Npcap was
-    installed "admin only".
+  - Administrator rights for the RSTP part only. It uses Windows' built-in
+    packet monitor (pktmon, Windows 10 2004 or newer), which needs
+    administrator: click Yes when Windows asks partway through. Say No and the
+    device list still works.
+  - Backup: if you can't get administrator, install Wireshark with Npcap
+    (https://www.wireshark.org) and the script uses that instead. To use
+    Wireshark even with administrator, add -UseWireshark.
   - The laptop on the controller network (e.g. a spare controller Ethernet
     port). A fixed IP on that subnet is fine, or let DHCP give you one.
   - EBO WorkStation closed, since it holds UDP port 47808. The scan still
@@ -74,4 +78,4 @@ Notes:
     newest device scan and every reading in "RSTP readings.csv".
   - Not tested on site yet. If something errors, send the red text.
 
-Options: -Label "text"  -Subnet 10.110.210  -From 1 -To 254  -SkipScan  -SkipStp  -StpSeconds 6  -OutDir <folder>  -NoMap
+Options: -Label "text"  -Subnet 10.110.210  -From 1 -To 254  -SkipScan  -SkipStp  -StpSeconds 6  -OutDir <folder>  -NoMap  -UseWireshark

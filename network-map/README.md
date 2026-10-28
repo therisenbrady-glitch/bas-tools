@@ -25,7 +25,9 @@ On the Network Map page, tap **Download scan kit (.zip)** and unzip it on the la
 | `Network Map.html` | The kit's copy of the map page. The script fills it with the results and opens it. Keep it next to the script. |
 | `README.txt` | The same instructions as this section, for the laptop. |
 
-For the cable order you also need **Wireshark with Npcap** ([wireshark.org](https://www.wireshark.org)). The device list works without it.
+For the cable order, the script uses Windows' built-in packet monitor (`pktmon`, Windows 10 2004 or newer), so there's nothing to install. It needs administrator: partway through the run Windows asks, and you click **Yes**. That one step runs in its own window, then the scan carries on. Say **No** and the device list still works, just without a reading.
+
+Backup: if you can't get administrator, install **Wireshark with Npcap** ([wireshark.org](https://www.wireshark.org)) and the script uses it instead, with no prompt. Add `-UseWireshark` to use Wireshark even when you have administrator.
 
 ## 2. Run the scan
 1. Plug the laptop into the controller network (a spare controller port is fine). A fixed IP on that subnet works, or let DHCP give you one.
@@ -51,7 +53,7 @@ RSTP only tells you about the controller you're plugged into, so take readings a
 
 Each reading reopens the map with that controller placed, and your side and hop edits carry over. A reading every second or third controller is usually enough. The map shows the hops nobody has read yet as dashed boxes.
 
-If the RSTP capture comes back empty and Npcap was installed "admin only", run the .bat as administrator.
+To skip the Windows prompt at every spot, right-click **Run EBO-NetScan.bat** and pick **Run as administrator**. If Wireshark is the backup and its capture comes back empty, Npcap may have been installed "admin only"; run as administrator then too.
 
 ### Script options
 | Option | Use |
@@ -64,6 +66,7 @@ If the RSTP capture comes back empty and Npcap was installed "admin only", run t
 | `-StpSeconds 6` | How long to listen for RSTP frames |
 | `-OutDir "path"` | Save results somewhere else |
 | `-NoMap` | Don't open the map at the end |
+| `-UseWireshark` | Capture RSTP with Wireshark instead of pktmon |
 
 ## 4. Load saved results on the site
 The kit opens the map by itself. To look at a job later or on another computer, open the Network Map page on this site, tap **Choose files** (or drop the files on the box) and pick the newest `Devices_…csv` and `RSTP readings.csv`. You can add files any time:

@@ -137,10 +137,10 @@ footer{font-size:12px;color:var(--muted)}
     <ol class="steps">
       <li>Download the kit on a Windows laptop and unzip it.</li>
       <li>Plug into the controller network, close EBO WorkStation, and double-click <b>Run EBO-NetScan.bat</b>. The map opens in the browser when it's done, no internet needed.</li>
-      <li>For the cable order, install Wireshark (with Npcap) and take a reading at a few spots along the chain. The kit's README explains where.</li>
+      <li>For the cable order, take a reading at a few spots along the chain. Click <b>Yes</b> when Windows asks for administrator (it uses Windows' own packet capture). The kit's README explains where to plug in.</li>
     </ol>
     <div class="btns">
-      <a class="btn pri" href="scan/EBO-NetScan.zip?v=a1a228c" download><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download scan kit (.zip)</a>
+      <a class="btn pri" href="scan/EBO-NetScan.zip?v=b896c35" download><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download scan kit (.zip)</a>
     </div>
     <p class="small"><a href="scan/README.txt">README.txt</a><a href="scan/EBO-NetScan.ps1">EBO-NetScan.ps1</a><a href="scan/Run%20EBO-NetScan.bat">Run EBO-NetScan.bat</a></p>
     <p class="hint">Read-only: the scan only asks controllers who they are. It never writes to one.</p>
@@ -519,7 +519,7 @@ footer{font-size:12px;color:var(--muted)}
     document.querySelectorAll('[data-ring]').forEach(b => b.setAttribute('aria-pressed', String(M.ring === (b.dataset.ring === '1'))));
     $('legend').hidden = $('mapHint').hidden = !has;
     if (has) $('mapbox').innerHTML = drawSvg(M);
-    else if (total) $('mapbox').innerHTML = `<div class="empty">No RSTP readings yet, so the cable order isn't known. The controllers found are listed below.<br>Take a reading with Wireshark installed and load <b>RSTP readings.csv</b>.</div>`;
+    else if (total) $('mapbox').innerHTML = `<div class="empty">No RSTP readings yet, so the cable order isn't known. The controllers found are listed below.<br>Take a reading (click Yes when Windows asks for administrator), or load <b>RSTP readings.csv</b>.</div>`;
     else $('mapbox').innerHTML = `<div class="empty">Load a scan to draw the map.</div>`;
     $('unplacedBox').hidden = !M.unplaced.length;
     $('unplacedN').textContent = M.unplaced.length;
