@@ -17,9 +17,11 @@ Options:
     -SkipScan  Only take the RSTP reading (for moving between controllers).
     -SkipStp   Only do the BACnet scan.
     -OutDir    Where results go. Default: a "Results" folder next to this script.
+    -NoMap     Don't open the map when it's done.
 
-Load the CSVs from the Results folder into the Network Map page on the
-field tools site to draw the map.
+When it finishes it writes "Network map.html" in the Results folder (a copy of
+the kit's "Network Map.html" with the results inside) and opens it in the
+browser. No internet needed.
 #>
 param(
     [string]$Label   = "",
@@ -29,7 +31,8 @@ param(
     [switch]$SkipScan,
     [switch]$SkipStp,
     [int]   $StpSeconds = 6,
-    [string]$OutDir  = ""
+    [string]$OutDir  = "",
+    [switch]$NoMap
 )
 
 $ErrorActionPreference = "Stop"
@@ -288,7 +291,7 @@ if (-not $SkipScan) {
     $devCsv = Join-Path $OutDir "Devices_$stamp.csv"
     $devices.Values | ForEach-Object { [pscustomobject]$_ } |
         Sort-Object { [version]($_.IP) }, RoutedNet, DeviceID |
-        Export-Csv -NoTypeInformation -Path $devCsv
+        Export-Csv -NoTypeInformation -Encoding UTF8 -Path $devCsv
     Write-Host "Device list: $devCsv" -ForegroundColor Green
 }
 
@@ -337,10 +340,33 @@ if (-not $SkipStp) {
             $match = $known | Where-Object { $_.MAC -and $macs -contains $_.MAC } | Select-Object -First 1
             $row["NeighborName"] = if ($match) { $match.Name } else { "" }
             $row["NeighborIP"]   = if ($match) { $match.IP } else { "" }
-            [pscustomobject]$row | Export-Csv -NoTypeInformation -Append -Force -Path $stpCsv
+            [pscustomobject]$row | Export-Csv -NoTypeInformation -Encoding UTF8 -Append -Force -Path $stpCsv
             Write-Host ("  Neighbor {0} {1}  root cost {2}" -f $v[0], $row["NeighborName"], $cost)
         }
         Write-Host "RSTP readings appended to: $stpCsv" -ForegroundColor Green
     }
 }
-Write-Host "Done. Load the CSVs from $OutDir into the Network Map page."
+# ---------------------------------------------------------------- open the map
+# Puts the newest device list and all RSTP readings into a copy of the map page.
+if (-not $NoMap) {
+    $tpl = Join-Path $PSScriptRoot "Network Map.html"
+    $newest = Get-ChildItem $OutDir -Filter "Devices_*.csv" -ErrorAction SilentlyContinue | Sort-Object Name | Select-Object -Last 1
+    $stpFile = Get-Item (Join-Path $OutDir "RSTP readings.csv") -ErrorAction SilentlyContinue
+    $files = @(@($newest, $stpFile) | Where-Object { $_ })
+    if (-not (Test-Path $tpl)) {
+        Write-Host "Network Map.html isn't next to the script, so no map. Load the CSVs on the field tools site instead." -ForegroundColor Yellow
+    } elseif ($files.Count) {
+        $data = @{ made = (Get-Date -Format "yyyy-MM-dd HH:mm");
+            files = @($files | ForEach-Object { @{ name = $_.Name; text = [IO.File]::ReadAllText($_.FullName) } }) }
+        $json = ($data | ConvertTo-Json -Depth 4 -Compress).Replace("</", "<\/")
+        $html = [IO.File]::ReadAllText($tpl, [Text.Encoding]::UTF8)
+        $marker = 'id="netscanData">null</script>'
+        if ($html.Contains($marker)) {
+            $mapFile = Join-Path $OutDir "Network map.html"
+            [IO.File]::WriteAllText($mapFile, $html.Replace($marker, 'id="netscanData">' + $json + '</script>'), (New-Object Text.UTF8Encoding $false))
+            Write-Host "Map: $mapFile" -ForegroundColor Green
+            Start-Process $mapFile
+        }
+    }
+}
+Write-Host "Done."

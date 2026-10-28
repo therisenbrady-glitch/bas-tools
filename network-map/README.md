@@ -3,7 +3,7 @@
 Maps an EBO controller network when you don't know the comm layout: which controllers are on it, their addresses, and the order they're cabled in. It has two parts:
 
 1. **The scan kit**, a PowerShell script you run on a Windows laptop plugged into the controller network. It saves the results as CSV files. It has to run on the laptop, because only a computer on that network can reach the controllers.
-2. **The Network Map page** (`network-map/index.html`), which loads those CSVs and draws the map. Your files stay on your device.
+2. **The Network Map page**, which draws the map. The kit carries its own copy, so when a scan finishes the map opens in the laptop's browser already loaded, with no internet needed. The page on this site (`network-map/index.html`) does the same from the saved CSVs, for later or on another computer. Your files stay on your device.
 
 The scan is read-only. It only asks controllers who they are (BACnet Who-Is and ReadProperty) and never writes to one.
 
@@ -22,6 +22,7 @@ On the Network Map page, tap **Download scan kit (.zip)** and unzip it on the la
 |---|---|
 | `Run EBO-NetScan.bat` | Double-click this. It runs the script without changing the PC's execution policy. |
 | `EBO-NetScan.ps1` | The scan. PowerShell 5.1, built into Windows 10 and 11, nothing to install. |
+| `Network Map.html` | The kit's copy of the map page. The script fills it with the results and opens it. Keep it next to the script. |
 | `README.txt` | The same instructions as this section, for the laptop. |
 
 For the cable order you also need **Wireshark with Npcap** ([wireshark.org](https://www.wireshark.org)). The device list works without it.
@@ -34,9 +35,12 @@ For the cable order you also need **Wireshark with Npcap** ([wireshark.org](http
 
 It sends a Who-Is, then asks every address from .1 to .254 for its device ID, then reads each controller's name, model, vendor, firmware and location. Controllers behind a BACnet router (MS/TP under an AS-P) are read through the router. MACs come from the laptop's ARP table.
 
-Results go in a **Results** folder next to the script:
+When it's done, the map opens in the browser. Results go in a **Results** folder next to the script:
+- `Network map.html`: the map with the results inside, rebuilt and reopened on every run (the newest device scan plus every RSTP reading)
 - `Devices_<date>_<time>.csv`: one row per controller, one file per scan
 - `RSTP readings.csv`: one row per RSTP reading, added to on every run
+
+Use a fresh copy of the kit (or `-OutDir`) for each job, so one job's readings don't land on another's map.
 
 ## 3. Take RSTP readings for the cable order
 RSTP only tells you about the controller you're plugged into, so take readings at a few spots:
@@ -45,7 +49,7 @@ RSTP only tells you about the controller you're plugged into, so take readings a
 - To move around without re-scanning, run only the RSTP part from a command prompt in the kit folder:
   `"Run EBO-NetScan.bat" -SkipScan -Label "Room 113 port 2"`
 
-A reading every second or third controller is usually enough. The map shows the hops nobody has read yet as dashed boxes.
+Each reading reopens the map with that controller placed, and your side and hop edits carry over. A reading every second or third controller is usually enough. The map shows the hops nobody has read yet as dashed boxes.
 
 If the RSTP capture comes back empty and Npcap was installed "admin only", run the .bat as administrator.
 
@@ -59,9 +63,10 @@ If the RSTP capture comes back empty and Npcap was installed "admin only", run t
 | `-SkipStp` | Only do the BACnet scan |
 | `-StpSeconds 6` | How long to listen for RSTP frames |
 | `-OutDir "path"` | Save results somewhere else |
+| `-NoMap` | Don't open the map at the end |
 
-## 4. Load the results
-On the Network Map page, tap **Choose files** (or drop the files on the box) and pick the newest `Devices_…csv` and `RSTP readings.csv`. You can add files any time:
+## 4. Load saved results on the site
+The kit opens the map by itself. To look at a job later or on another computer, open the Network Map page on this site, tap **Choose files** (or drop the files on the box) and pick the newest `Devices_…csv` and `RSTP readings.csv`. You can add files any time:
 - A later Devices file updates the list (matched by device ID, then MAC).
 - New readings place more controllers.
 - A Device Scanner **Export for checkout** CSV adds serial numbers, matched by network MAC or device ID.

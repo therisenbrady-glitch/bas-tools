@@ -11,9 +11,10 @@ What it does (read-only, nothing is written to any controller):
      which controller you're plugged into and how many hops it is from the
      RSTP root. Each run adds a line to "RSTP readings.csv".
 
-Then load the CSVs into the Network Map page on the field tools site
-(https://therisenbrady-glitch.github.io/bas-tools/network-map/) to draw the
-map: every controller, its address, and the cable order.
+When it finishes, the map opens in the browser on its own: every controller,
+its address, and the cable order. No internet needed. The same CSVs can also
+be loaded later on the Network Map page of the field tools site
+(https://therisenbrady-glitch.github.io/bas-tools/network-map/).
 
 Needs:
   - Windows PowerShell 5.1 or newer (built into Windows 10/11). Nothing to install.
@@ -30,9 +31,13 @@ How to use:
   2. Double-click "Run EBO-NetScan.bat". If you have Wi-Fi and Ethernet
      both connected it asks which one to use.
   3. Type where you're plugged in when asked (e.g. "AHU-A port 2").
-  4. Results go to the Results folder next to the script:
+  4. The map opens in the browser when it's done. Results go to the Results
+     folder next to the script:
+       Network map.html           - the map, rebuilt and reopened every run
        Devices_<date>_<time>.csv  - one row per controller, one file per scan
        RSTP readings.csv          - one row per RSTP neighbor heard, every run
+     Keep "Network Map.html" (the kit's copy) next to the script; the map is
+     built from it.
   5. To work out the chain order, move the laptop to other controllers and run
      with only the RSTP part (faster). From a command prompt in this folder:
        "Run EBO-NetScan.bat" -SkipScan -Label "Room 113 port 2"
@@ -45,7 +50,8 @@ Where to take readings:
   - In the middle of a chain, put a small unmanaged switch inline between two
     controllers and plug the laptop into the switch.
   - A reading at every second or third controller is usually enough; the map
-    shows the hops nobody has read yet as dashed boxes.
+    shows the hops nobody has read yet as dashed boxes. Each reading reopens
+    the map with that controller placed.
 
 Reading the RSTP results:
   - NeighborName / NeighborMAC: the controller the laptop is plugged into.
@@ -64,6 +70,8 @@ Notes:
     doesn't follow the wiring. The RSTP readings do.
   - A controller that never answers may have BACnet/IP turned off or be on a
     different UDP port.
+  - Use a fresh copy of the kit (or -OutDir) for each job. The map uses the
+    newest device scan and every reading in "RSTP readings.csv".
   - Not tested on site yet. If something errors, send the red text.
 
-Options: -Label "text"  -Subnet 10.110.210  -From 1 -To 254  -SkipScan  -SkipStp  -StpSeconds 6  -OutDir <folder>
+Options: -Label "text"  -Subnet 10.110.210  -From 1 -To 254  -SkipScan  -SkipStp  -StpSeconds 6  -OutDir <folder>  -NoMap
