@@ -100,6 +100,8 @@ ol.steps{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction:c
 .kv b{font-family:var(--f-mono);font-weight:500;font-size:13.5px;overflow-wrap:anywhere}
 .edit{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;border-top:1px solid var(--line);padding-top:12px}
 .edit label{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+#swBody input{width:64px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-family:var(--f-mono);font-size:14px;padding:4px 6px}
+#swBox{margin:4px 0 12px}
 .edit input{width:70px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-family:var(--f-mono);font-size:15px;padding:6px 8px}
 .link{background:none;border:0;padding:0;color:var(--steel);font:inherit;font-size:12.5px;font-weight:600;text-decoration:underline;cursor:pointer}
 .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
@@ -149,14 +151,14 @@ footer{font-size:12px;color:var(--muted)}
 
   <section class="panel" aria-labelledby="h2k">
     <h2 id="h2k"><span class="num">02</span>Or load saved results</h2>
-    <div class="drop" id="drop">Drop the <b>Devices_…csv</b> and <b>RSTP readings.csv</b> files here, or
+    <div class="drop" id="drop">Drop the <b>Devices_…csv</b> and <b>RSTP readings.csv</b> files here (and the loop switch's <b>MAC address table</b> CSV, if you have one), or
       <div class="btns" style="justify-content:center;margin-top:8px">
         <button type="button" class="btn pri" id="pickBtn"><svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>Choose files</button>
         <button type="button" class="btn" id="sampleBtn">Try sample data</button>
       </div>
     </div>
     <input type="file" id="fileIn" accept=".csv,text/csv" multiple hidden>
-    <p class="hint">Add files any time: a later scan updates the list, and new RSTP readings place more controllers. A Device Scanner <b>Export for checkout</b> CSV adds serial numbers by MAC.</p>
+    <p class="hint">Add files any time: a later scan updates the list, and new RSTP readings place more controllers. A Device Scanner <b>Export for checkout</b> CSV adds serial numbers by MAC. A managed switch's MAC address table sorts the controllers into loops by the switch port they're heard on.</p>
     <div class="files" id="files"></div>
   </section>
 
@@ -166,6 +168,10 @@ footer{font-size:12px;color:var(--muted)}
     <div class="banner" id="kitNote" hidden></div>
     <div class="stats" id="stats"></div>
     <ul class="warns" id="warns" hidden></ul>
+    <details id="swBox" hidden><summary id="swSum"></summary>
+      <p class="hint" style="margin:8px 0">Each loop leaves the switch on one port and comes back on another. Give both ports the same loop number; the lower port is side A. A port with no loop number is drawn on its own.</p>
+      <div class="tablewrap"><table><thead><tr><th>Switch port</th><th>Controllers</th><th>Other MACs</th><th>Loop</th></tr></thead><tbody id="swBody"></tbody></table></div>
+    </details>
     <div class="btns" id="mapTools" hidden>
       <span class="hint" style="margin-right:4px">Ends of the chain:</span>
       <div class="seg" role="group" aria-label="Chain ends"><button type="button" data-ring="0">Open chain</button><button type="button" data-ring="1">Ring</button></div>
@@ -179,6 +185,7 @@ footer{font-size:12px;color:var(--muted)}
       <span><i style="background:var(--n-oth)"></i>Other / unknown</span>
     </div>
     <p class="hint" id="mapHint" hidden>Each row is one cable hop from the RSTP root. Tap a controller to see its details or move it. Dashed boxes are hops nobody has taken a reading at yet.</p>
+    <p class="hint" id="swHint" hidden>Loops marked <b>cable order not read</b> come from the switch MAC table alone: side A and B are the loop's two switch ports, but the order down each side isn't known until RSTP readings are taken, so controllers are listed by device ID.</p>
 
     <div id="unplacedBox" hidden>
       <h2 style="font-size:18px;margin:4px 0 8px">Not placed yet <span class="tag" id="unplacedN"></span></h2>
@@ -214,10 +221,11 @@ footer{font-size:12px;color:var(--muted)}
 
   // devs: {key, ip, id, net, rmac, mac, name, model, vendor, fw, app, loc, serial, scanName}
   // reads: {time, label, nmac, bmac, bprio, rootmac, cost, port, role, hops}
-  // edits[nodeKey] = {hop, side}
+  // edits[nodeKey] = {hop, side, loop}
+  // sw: switch MAC table {macs: {mac: port}, ports: {port: loop}}
   let S = blank();
   let sel = null;
-  function blank(){ return {devs: [], reads: [], files: [], edits: {}, ring: null, sample: false, kit: ''}; }
+  function blank(){ return {devs: [], reads: [], files: [], edits: {}, ring: null, sample: false, kit: '', sw: null}; }
   function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
   try { const t = JSON.parse(localStorage.getItem(KEY) || 'null'); if (t && Array.isArray(t.devs)) S = Object.assign(blank(), t); } catch(e){}
 
@@ -288,6 +296,14 @@ footer{font-size:12px;color:var(--muted)}
     return n;
   }
 
+  // Managed switch MAC address table (e.g. Phoenix Contact FL SWITCH: Index,VLAN,MAC,Portnumber). The newest table replaces the last.
+  function addSwitch(list){
+    const macs = {};
+    list.forEach(o => { const m = normMac(o['mac'] || o['mac address']), p = String(o['portnumber'] || o['port'] || '').trim(); if (m && p) macs[m] = p; });
+    S.sw = {macs, ports: (S.sw && S.sw.ports) || {}};
+    return Object.keys(macs).length;
+  }
+
   async function loadFiles(files, quiet){
     files = [...files].sort((a, b) => a.name.localeCompare(b.name));
     if (S.sample){ S = blank(); sel = null; }
@@ -300,6 +316,7 @@ footer{font-size:12px;color:var(--muted)}
       if (h.includes('deviceid') && h.includes('ip')){ kind = 'Devices'; n = addDevices(list); }
       else if (h.includes('neighbormac') || h.includes('stp.root.cost')){ kind = 'RSTP'; n = addReads(list); }
       else if (h.includes('network mac')){ kind = 'Scan list'; n = addScanList(list); }
+      else if ((h.includes('mac') || h.includes('mac address')) && (h.includes('portnumber') || h.includes('port'))){ kind = 'Switch'; n = addSwitch(list); }
       else { toast(f.name + " isn't a scan file this page knows.", true); continue; }
       S.files = S.files.filter(x => x.name !== f.name).concat({name: f.name, kind, rows: list.length, n, at: new Date().toISOString()});
     }
@@ -363,6 +380,8 @@ footer{font-size:12px;color:var(--muted)}
         nodes.set(root.key, root);
       }
     }
+    // no RSTP root read yet: the loops' switch stands in as the root
+    if (!root && S.sw){ root = {key: 'switch', d: {ip: '', id: '', mac: '', name: 'Loop switch', model: ''}, reads: [], ghostDev: true, isSwitch: true}; nodes.set(root.key, root); }
     // hops and sides
     nodes.forEach(n => {
       const e = S.edits[n.key] || {};
@@ -371,28 +390,56 @@ footer{font-size:12px;color:var(--muted)}
       n.hop = e.hop != null && e.hop !== '' ? +e.hop : n.readHop;
       if (n === root) n.hop = 0;
       n.kind = kindOf(n.d.model);
-      n.loop = e.loop ? String(e.loop) : '';
+      n.port = S.sw && n.d.mac ? S.sw.macs[n.d.mac] || '' : '';
+      const swLoop = n.port && S.sw.ports[n.port];
+      // loop: hand-set, else the switch port's loop, else the switch port on its own ('p2')
+      n.loop = e.loop ? String(e.loop) : swLoop ? String(swLoop) : n.port ? 'p' + n.port : '';
+      n.hopGuess = false; n.portSide = '';
+    });
+    // switch ports per loop: the lower port is side A
+    const portsOf = {};
+    nodes.forEach(n => { if (n !== root && n.port && n.loop){ (portsOf[n.loop] = portsOf[n.loop] || new Set()).add(n.port); } });
+    Object.keys(portsOf).forEach(l => {
+      const ps = [...portsOf[l]].sort((a, b) => (+a) - (+b));
+      portsOf[l] = ps;
+      if (ps.length > 2) warns.push(`Loop ${l} has controllers on ${ps.length} switch ports (${ps.join(', ')}). A loop uses two ports; check the loop numbers under Switch ports.`);
+    });
+    nodes.forEach(n => { const ps = portsOf[n.loop]; if (n.port && ps && ps.length === 2) n.portSide = n.port === ps[0] ? 'A' : 'B'; });
+    // a loop known only from the switch table (no hops read): list each side by device ID, order unknown
+    const unordered = new Set();
+    Object.keys(portsOf).forEach(l => {
+      const mem = [...nodes.values()].filter(n => n !== root && n.loop === l && !n.ghostDev);
+      if (!mem.length || mem.some(n => n.hop != null)) return;
+      unordered.add(l);
+      ['A', 'B'].forEach(s => {
+        mem.filter(n => (((S.edits[n.key] || {}).side) || n.portSide || 'A') === s)
+          .sort((a, b) => (+a.d.id || 0) - (+b.d.id || 0) || ipNum(a.d.ip) - ipNum(b.d.ip))
+          .forEach((n, i) => { n.hop = i + 1; n.hopGuess = true; });
+      });
     });
     const placed = [...nodes.values()].filter(n => n !== root && n.hop != null && n.hop > 0);
     placed.sort((a, b) => a.hop - b.hop || ipNum(a.d.ip) - ipNum(b.d.ip) || String(a.d.mac).localeCompare(String(b.d.mac)));
     // Several loops can hang off one root (e.g. three loops on the root switch).
     // Each loop is laid out on its own; controllers with no loop set share one group.
-    const loops = [...new Set(placed.map(n => n.loop))].sort((a, b) => (a === '') - (b === '') || (+a) - (+b));
+    const rank = l => l === '' ? [2, 0] : l[0] === 'p' ? [1, +l.slice(1)] : [0, +l];
+    const loops = [...new Set(placed.map(n => n.loop))].sort((a, b) => { const x = rank(a), y = rank(b); return x[0] - y[0] || x[1] - y[1]; });
     const groups = loops.map(loop => {
-      const g = {loop, placed: placed.filter(n => n.loop === loop), byHop: new Map()};
+      const g = {loop, placed: placed.filter(n => n.loop === loop), byHop: new Map(), ports: portsOf[loop] || [], unordered: unordered.has(loop)};
       g.placed.forEach(n => { if (!g.byHop.has(n.hop)) g.byHop.set(n.hop, []); g.byHop.get(n.hop).push(n); });
-      sides(g, loop ? `in loop ${loop}` : (loops.length > 1 ? 'with no loop set' : ''));
+      if (g.unordered) g.placed.forEach(n => { n.side = (S.edits[n.key] || {}).side || n.portSide || 'A'; n.sideGuess = false; });
+      else sides(g, loop ? `in ${loopName(loop).toLowerCase()}` : (loops.length > 1 ? 'with no loop set' : ''));
       return g;
     });
     function sides(g, where){
     const byHop = g.byHop, placed = g.placed;
-    const twoWay = [...byHop.values()].some(l => l.length > 1) || placed.some(n => (S.edits[n.key] || {}).side === 'B');
+    const sideOf = n => (S.edits[n.key] || {}).side || n.portSide;
+    const twoWay = [...byHop.values()].some(l => l.length > 1) || placed.some(n => sideOf(n) === 'B');
     byHop.forEach((list, h) => {
       // a hand-set side pushes the other controller at this hop to the opposite side
-      const set = list.map(n => (S.edits[n.key] || {}).side).filter(Boolean);
+      const set = list.map(sideOf).filter(Boolean);
       const open = ['A', 'B'].filter(x => !set.includes(x));
       let i = 0;
-      list.forEach(n => { const s = (S.edits[n.key] || {}).side; n.side = s || open[i++] || (i % 2 ? 'A' : 'B'); n.sideGuess = !s && set.length === 0 && twoWay; });
+      list.forEach(n => { const s = sideOf(n); n.side = s || open[i++] || (i % 2 ? 'A' : 'B'); n.sideGuess = !s && set.length === 0 && twoWay; });
       const a = list.filter(n => n.side === 'A').length, b = list.length - a;
       if (a > 1 || b > 1) warns.push(`${list.length} controllers ${where ? where + ' ' : ''}read ${h} hop${h > 1 ? 's' : ''} from the root. A chain or ring has at most two at each hop. If several loops hang off the root, set each controller's Loop; otherwise check the readings.`);
     });
@@ -406,6 +453,15 @@ footer{font-size:12px;color:var(--muted)}
     const roots = new Set(S.reads.map(r => r.rootmac).filter(Boolean));
     if (roots.size > 1) warns.push(`Readings name ${roots.size} different root bridges. The root moved between readings, or they came from separate networks. Only the newest root is used.`);
     nodes.forEach(n => { if (n.near) warns.push(`${n.d.name || n.d.ip} matched its RSTP reading by a MAC close to its own (${n.reads[0].bmac || n.reads[0].nmac}), not an exact match.`); });
+    if (S.sw){
+      const inScan = new Set(ipDevs.map(d => d.mac).filter(Boolean));
+      const missing = ipDevs.filter(d => d.mac && !S.sw.macs[d.mac]);
+      if (missing.length) warns.push(`${missing.length} controller${missing.length > 1 ? 's from the scan aren\'t' : ' from the scan isn\'t'} in the switch MAC table (${missing.slice(0, 4).map(d => d.name || d.ip).join(', ')}${missing.length > 4 ? ', …' : ''}). Download the table again right after a scan, or they hang off a different switch.`);
+      const other = {};
+      Object.entries(S.sw.macs).forEach(([m, p]) => { if (!inScan.has(m)) other[p] = (other[p] || 0) + 1; });
+      const o = Object.entries(other).sort((a, b) => (+a[0]) - (+b[0]));
+      if (o.length) warns.push(`The switch also sees MACs that aren't in the scan: ${o.map(([p, c]) => `${c} on port ${p}`).join(', ')}. They may be other devices, the laptop, or controllers on another subnet.`);
+    }
     const unk = [...nodes.values()].filter(n => n.ghostDev && n !== root);
     if (unk.length) warns.push(`${unk.length} RSTP neighbor${unk.length > 1 ? 's' : ''} didn't match any device in the scan (shown as Unknown controller). Load a newer Devices file, or the controller may have BACnet/IP off.`);
     // open chain unless a reading saw the blocked (Alternate) port or the tech picks Ring
@@ -415,8 +471,10 @@ footer{font-size:12px;color:var(--muted)}
     ipDevs.forEach(d => { if (d.model && d.fw){ fwBy[d.model] = fwBy[d.model] || {}; fwBy[d.model][d.fw] = (fwBy[d.model][d.fw] || 0) + 1; } });
     const fwMain = {};
     Object.keys(fwBy).forEach(m => { const e = Object.entries(fwBy[m]).sort((a, b) => b[1] - a[1]); if (e.length > 1) fwMain[m] = e[0][0]; });
-    return {nodes, root, placed, groups, unplaced, warns, ring, fwMain, ipDevs};
+    return {nodes, root, placed, groups, unplaced, warns, ring, fwMain, ipDevs, portsOf};
   }
+
+  const loopName = l => !l ? '' : l[0] === 'p' ? 'Switch port ' + l.slice(1) : 'Loop ' + l;
 
   // ------------------------------------------------------------ SVG
   function palette(){
@@ -444,14 +502,14 @@ footer{font-size:12px;color:var(--muted)}
     for (let h = 1; h <= maxHop; h++){ yOf[h] = y; y += rowsAt[h] * RH; }
     const height = y + (M.ring ? 36 : 6);
     const out = [];
-    out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${forExport ? '' : ` style="max-width:${Math.round(width * 1.1)}px"`} role="img" aria-label="Network map${G.loop ? ', loop ' + G.loop : ''}, ${G.placed.length} controllers in cable order" font-family="IBM Plex Sans, Segoe UI, system-ui, sans-serif">`);
+    out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${forExport ? '' : ` style="max-width:${Math.round(width * 1.1)}px"`} role="img" aria-label="Network map${G.loop ? ', ' + loopName(G.loop) : ''}, ${G.placed.length} controllers${G.unordered ? ', cable order not read' : ' in cable order'}" font-family="IBM Plex Sans, Segoe UI, system-ui, sans-serif">`);
     out.push(`<rect width="${width}" height="${height}" fill="${P.bg}"/>`);
     const links = [], boxes = [];
     const box = (n, x, y, opts = {}) => {
       const c = P.k[n.kind] || P.k.oth, d = n.d;
       const l1 = trunc(d.name || d.mac || 'Unknown', opts.badge ? 11 : 17);
-      const l2 = [d.ip, d.id ? '#' + d.id : ''].filter(Boolean).join(' ') || d.mac;
-      const l3 = [d.model, d.fw].filter(Boolean).join(' ') || (n.ghostDev ? 'Not in the scan' : '');
+      const l2 = opts.l2 != null ? opts.l2 : [d.ip, d.id ? '#' + d.id : ''].filter(Boolean).join(' ') || d.mac;
+      const l3 = opts.l3 != null ? opts.l3 : [d.model, d.fw].filter(Boolean).join(' ') || (n.ghostDev ? 'Not in the scan' : '');
       const on = sel === n.key;
       boxes.push(`<g class="node" data-k="${esc(n.key)}" tabindex="${forExport ? -1 : 0}" role="button" aria-label="${esc(l1)}">` +
         `<rect class="box" x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="${P.panel}" stroke="${on ? P.accent : P.line}" stroke-width="${on ? 2.5 : 1}"${n.ghostDev ? ' stroke-dasharray="4 3"' : ''}/>` +
@@ -467,12 +525,16 @@ footer{font-size:12px;color:var(--muted)}
       `<text x="${x + W / 2}" y="${y + 45}" font-size="10.5" fill="${P.muted}" text-anchor="middle">at least one controller here</text></g>`);
     const line = (x1, y1, x2, y2, dash, col) => links.push(`<path d="M${x1} ${y1} L${x1} ${(y1 + y2) / 2} L${x2} ${(y1 + y2) / 2} L${x2} ${y2}" fill="none" stroke="${col || P.muted}" stroke-width="2"${dash ? ' stroke-dasharray="5 4"' : ''}/>`);
     // hop labels
-    if (M.root) out.push(`<text x="12" y="${TOP + H / 2 + 4}" font-size="11" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">0</text>`);
-    for (let h = 1; h <= maxHop; h++) out.push(`<text x="12" y="${yOf[h] + H / 2 + 4}" font-size="11" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">${h}</text>`);
-    out.push(`<text x="12" y="16" font-size="9.5" fill="${P.muted}" letter-spacing=".1em" font-family="IBM Plex Mono, Consolas, monospace">HOP</text>`);
-    if (M.groups.length > 1) out.push(`<text x="${width - 10}" y="18" font-size="13" font-weight="700" text-anchor="end" fill="${P.accent}" letter-spacing=".06em">${G.loop ? 'LOOP ' + esc(G.loop) : 'NO LOOP SET'}</text>`);
+    if (G.unordered) out.push(`<text x="12" y="16" font-size="9.5" fill="${P.warn}" letter-spacing=".1em" font-family="IBM Plex Mono, Consolas, monospace">CABLE ORDER NOT READ</text>`);
+    else {
+      if (M.root) out.push(`<text x="12" y="${TOP + H / 2 + 4}" font-size="11" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">0</text>`);
+      for (let h = 1; h <= maxHop; h++) out.push(`<text x="12" y="${yOf[h] + H / 2 + 4}" font-size="11" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">${h}</text>`);
+      out.push(`<text x="12" y="16" font-size="9.5" fill="${P.muted}" letter-spacing=".1em" font-family="IBM Plex Mono, Consolas, monospace">HOP</text>`);
+    }
+    if (M.groups.length > 1) out.push(`<text x="${width - 10}" y="18" font-size="13" font-weight="700" text-anchor="end" fill="${P.accent}" letter-spacing=".06em">${G.loop ? esc(loopName(G.loop).toUpperCase()) : 'NO LOOP SET'}</text>`);
     const lc = P.muted;
-    if (M.root) box(M.root, rootX, TOP, {badge: 'RSTP ROOT'});
+    if (M.root && M.root.isSwitch) box(M.root, rootX, TOP, {badge: 'SWITCH', l2: G.ports.length ? 'Port ' + G.ports.join(' / ') : '', l3: 'Not in the scan'});
+    else if (M.root) box(M.root, rootX, TOP, {badge: 'RSTP ROOT'});
     const ends = {};
     ['A', 'B'].forEach((s, si) => {
       if (si === 1 && !hasB) return;
@@ -481,6 +543,8 @@ footer{font-size:12px;color:var(--muted)}
       if (!list.length) return;
       const top = list[list.length - 1].hop;
       let prev = M.root ? {x: rootX + W / 2, y: TOP + H} : null;
+      const port = hasB ? G.ports[si] : G.ports.length === 1 ? G.ports[0] : '';
+      if (M.root && M.root.isSwitch && port) out.push(`<text x="${x + W / 2 + (si ? 6 : -6)}" y="${TOP + RH - 4}" font-size="10.5" text-anchor="${si ? 'start' : 'end'}" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">port ${esc(port)}</text>`);
       for (let h = 1; h <= top; h++){
         const here = list.filter(n => n.hop === h);
         if (!here.length){
@@ -493,13 +557,13 @@ footer{font-size:12px;color:var(--muted)}
         here.forEach((n, i) => {
           const ny = yOf[h] + i * RH;
           box(n, x, ny, {badge: n.sideGuess ? 'SIDE?' : (n.near ? '≈MAC' : ''), badgeC: P.warn});
-          if (prev) line(prev.x, prev.y, x + W / 2, ny, i > 0, lc);
+          if (prev) line(prev.x, prev.y, x + W / 2, ny, i > 0 || G.unordered, lc);
           prev = {x: x + W / 2, y: ny + H};
         });
       }
       ends[s] = prev;
     });
-    if (M.ring && M.root){
+    if (M.ring && M.root && !G.unordered){
       const yb = height - 18;
       const close = (a, b) => links.push(`<path d="M${a.x} ${a.y} L${a.x} ${yb} L${b.x} ${yb} L${b.x} ${b.y}" fill="none" stroke="${P.accent}" stroke-width="2" stroke-dasharray="6 5"/>`);
       if (ends.A && ends.B){
@@ -522,7 +586,7 @@ footer{font-size:12px;color:var(--muted)}
     $('sampleNote').hidden = !S.sample;
     $('kitNote').hidden = !S.kit;
     $('kitNote').textContent = S.kit ? 'Opened by the scan kit, ' + S.kit + '. Run the kit again at another controller and this page reopens with the new reading.' : '';
-    $('files').innerHTML = S.files.map(f => `<div><span class="tag${f.kind === 'RSTP' ? ' amb' : ''}">${esc(f.kind)}</span><b>${esc(f.name)}</b><span>${f.rows} row${f.rows === 1 ? '' : 's'}</span></div>`).join('');
+    $('files').innerHTML = S.files.map(f => `<div><span class="tag${f.kind !== 'Devices' ? ' amb' : ''}">${esc(f.kind)}</span><b>${esc(f.name)}</b><span>${f.rows} row${f.rows === 1 ? '' : 's'}</span></div>`).join('');
     const routed = S.devs.filter(d => d.net);
     const total = M.ipDevs.length, placedN = M.placed.filter(n => !n.ghostDev).length + (M.root && !M.root.ghostDev ? 1 : 0);
     $('stats').innerHTML = [[total, 'On IP'], [placedN, 'Placed'], [routed.length, 'MS/TP routed'], [S.reads.length, 'RSTP readings']]
@@ -533,6 +597,8 @@ footer{font-size:12px;color:var(--muted)}
     $('mapTools').hidden = !has;
     document.querySelectorAll('[data-ring]').forEach(b => b.setAttribute('aria-pressed', String(M.ring === (b.dataset.ring === '1'))));
     $('legend').hidden = $('mapHint').hidden = !has;
+    $('swHint').hidden = !M.groups.some(G => G.unordered);
+    renderSwitch();
     if (has) $('mapbox').innerHTML = (M.groups.length ? M.groups : [{loop: '', placed: [], byHop: new Map()}]).map(G => drawSvg(M, G)).join('');
     else if (total) $('mapbox').innerHTML = `<div class="empty">No RSTP readings yet, so the cable order isn't known. The controllers found are listed below.<br>Take a reading (click Yes when Windows asks for administrator), or load <b>RSTP readings.csv</b>.</div>`;
     else $('mapbox').innerHTML = `<div class="empty">Load a scan to draw the map.</div>`;
@@ -544,7 +610,7 @@ footer{font-size:12px;color:var(--muted)}
     $('listPanel').hidden = !order.length && !routed.length;
     $('tbody').innerHTML = order.map((n, i) => {
       const d = n.d, odd = d.model && M.fwMain[d.model] && d.fw !== M.fwMain[d.model];
-      return `<tr data-k="${esc(n.key)}"${sel === n.key ? ' class="on"' : ''}><td>${i + 1}</td><td class="nm">${esc(d.name || '—')}</td><td>${esc(d.ip)}</td><td>${esc(d.id)}</td><td>${esc(d.model)}</td><td>${esc(d.fw)}${odd ? `<span class="dot" title="Most ${esc(d.model)} here run ${esc(M.fwMain[d.model])}"></span>` : ''}</td><td>${esc(d.mac)}</td><td>${esc(n.loop || '')}</td><td>${n === M.root ? 'root' : (n.hop > 0 ? n.hop : '—')}</td><td>${n.side && n !== M.root && n.hop > 0 ? n.side : ''}</td></tr>`;
+      return `<tr data-k="${esc(n.key)}"${sel === n.key ? ' class="on"' : ''}><td>${i + 1}</td><td class="nm">${esc(d.name || '—')}</td><td>${esc(d.ip)}</td><td>${esc(d.id)}</td><td>${esc(d.model)}</td><td>${esc(d.fw)}${odd ? `<span class="dot" title="Most ${esc(d.model)} here run ${esc(M.fwMain[d.model])}"></span>` : ''}</td><td>${esc(d.mac)}</td><td>${esc(loopName(n.loop))}</td><td>${n === M.root ? 'root' : (n.hop > 0 && !n.hopGuess ? n.hop : '—')}</td><td>${n.side && n !== M.root && n.hop > 0 ? n.side : ''}</td></tr>`;
     }).join('');
     // routed
     $('routedBox').hidden = !routed.length;
@@ -568,6 +634,23 @@ footer{font-size:12px;color:var(--muted)}
     }).join('');
     renderSel();
   }
+  function renderSwitch(){
+    $('swBox').hidden = !S.sw;
+    if (!S.sw) return;
+    const macs = Object.entries(S.sw.macs), scan = new Map(M.ipDevs.filter(d => d.mac).map(d => [d.mac, d]));
+    const ports = [...new Set(macs.map(x => x[1]))].sort((a, b) => (+a) - (+b));
+    $('swSum').textContent = `Switch ports (${macs.length} MACs on ${ports.length} port${ports.length === 1 ? '' : 's'})`;
+    $('swBody').innerHTML = ports.map(p => {
+      const here = macs.filter(x => x[1] === p), mine = here.filter(x => scan.has(x[0])), loop = S.sw.ports[p];
+      const names = mine.length === 1 ? ' (' + (scan.get(mine[0][0]).name || scan.get(mine[0][0]).ip) + ')' : '';
+      return `<tr><td>${esc(p)}</td><td>${mine.length}${esc(names)}</td><td>${here.length - mine.length || ''}</td><td><input type="number" min="1" step="1" inputmode="numeric" data-swport="${esc(p)}" value="${loop ? esc(loop) : ''}" placeholder="—" aria-label="Loop for switch port ${esc(p)}"></td></tr>`;
+    }).join('');
+    $('swBody').querySelectorAll('[data-swport]').forEach(i => i.onchange = () => {
+      const v = i.value.trim();
+      if (v === '') delete S.sw.ports[i.dataset.swport]; else S.sw.ports[i.dataset.swport] = Math.max(1, Math.round(+v));
+      save(); render();
+    });
+  }
   function orderList(){
     const out = M.root ? [M.root] : [];
     M.groups.forEach(G => out.push(...G.placed.filter(n => n.side === 'A'), ...G.placed.filter(n => n.side === 'B').reverse()));
@@ -581,16 +664,16 @@ footer{font-size:12px;color:var(--muted)}
     p.hidden = false;
     const d = n.d, e = S.edits[n.key] || {};
     const last = n.reads[n.reads.length - 1];
-    const kv = [['Loop', n.loop], ['IP', d.ip], ['Device ID', d.id], ['Model', d.model], ['Vendor', d.vendor], ['Firmware', d.fw], ['App version', d.app], ['MAC', d.mac], ['Serial', d.serial], ['Scan list name', d.scanName], ['Location', d.loc],
+    const kv = [['Loop', loopName(n.loop)], ['Switch port', n.port], ['IP', d.ip], ['Device ID', d.id], ['Model', d.model], ['Vendor', d.vendor], ['Firmware', d.fw], ['App version', d.app], ['MAC', d.mac], ['Serial', d.serial], ['Scan list name', d.scanName], ['Location', d.loc],
       ['Last reading', last ? `${last.label || 'no label'} · ${last.time}` : ''], ['Port role', last ? last.role : '']].filter(x => x[1]);
     const isRoot = n === M.root;
-    p.innerHTML = `<div class="sel-head"><div><span class="eyebrow">${isRoot ? 'RSTP root' : n.hop > 0 ? (n.loop ? 'Loop ' + esc(n.loop) + ' · ' : '') + 'Hop ' + n.hop + (n.side ? ' · side ' + n.side : '') : 'Not placed'}</span><h3>${esc(d.name || d.mac || d.ip)}</h3></div><button type="button" class="link" id="selClose">Close</button></div>` +
+    p.innerHTML = `<div class="sel-head"><div><span class="eyebrow">${isRoot ? 'RSTP root' : n.hop > 0 ? (n.loop ? esc(loopName(n.loop)) + ' · ' : '') + (n.hopGuess ? 'order not read' : 'Hop ' + n.hop) + (n.side ? ' · side ' + n.side : '') : 'Not placed'}</span><h3>${esc(d.name || d.mac || d.ip)}</h3></div><button type="button" class="link" id="selClose">Close</button></div>` +
       `<div class="kv">${kv.map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('')}</div>` +
       (isRoot ? '' : `<div class="edit"><label>Hop <input type="number" min="1" step="1" inputmode="numeric" id="selHop" value="${e.hop != null && e.hop !== '' ? esc(e.hop) : ''}" placeholder="${n.readHop != null ? n.readHop : '—'}"></label>` +
-      `<label>Loop <input type="number" min="1" step="1" inputmode="numeric" id="selLoop" value="${e.loop ? esc(e.loop) : ''}" placeholder="—"></label>` +
+      `<label>Loop <input type="number" min="1" step="1" inputmode="numeric" id="selLoop" value="${e.loop ? esc(e.loop) : ''}" placeholder="${n.loop && n.loop[0] !== 'p' ? esc(n.loop) : '—'}"></label>` +
       `<label>Side <span class="seg" role="group" aria-label="Side"><button type="button" data-side="A" aria-pressed="${n.side === 'A'}">A</button><button type="button" data-side="B" aria-pressed="${n.side === 'B'}">B</button></span></label>` +
       ((e.hop != null && e.hop !== '') || e.side || e.loop ? `<button type="button" class="link" id="selReset">Back to the reading</button>` : '') + `</div>` +
-      `<p class="hint">Hop comes from the newest RSTP reading. Type one to place a controller by hand (for example from the cable you can see). Side A and B are the two directions out of the root. Loop groups controllers when several loops hang off the root, as with loops on a root switch.</p>`);
+      `<p class="hint">Hop comes from the newest RSTP reading. Type one to place a controller by hand (for example from the cable you can see). Side A and B are the two directions out of the root. Loop groups controllers when several loops hang off the root, as with loops on a root switch; a loaded switch MAC table fills it in from the switch port.</p>`);
     $('selClose').onclick = () => { sel = null; render(); };
     if (!isRoot){
       $('selHop').onchange = ev => { const v = ev.target.value.trim(); edit(n.key, {hop: v === '' ? null : Math.max(1, Math.round(+v))}); };
@@ -625,10 +708,10 @@ footer{font-size:12px;color:var(--muted)}
   const stamp = () => new Date().toISOString().slice(0, 10);
   $('saveCsv').onclick = () => {
     const q = v => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    const head = ['ORDER', 'NAME', 'IP', 'DEVICE ID', 'MODEL', 'VENDOR', 'FIRMWARE', 'MAC', 'LOOP', 'HOP', 'SIDE', 'LAST READING', 'SERIAL'];
+    const head = ['ORDER', 'NAME', 'IP', 'DEVICE ID', 'MODEL', 'VENDOR', 'FIRMWARE', 'MAC', 'LOOP', 'SWITCH PORT', 'HOP', 'SIDE', 'LAST READING', 'SERIAL'];
     const rows = orderList().map((n, i) => { const d = n.d, last = n.reads[n.reads.length - 1];
-      return [i + 1, d.name, d.ip, d.id, d.model, d.vendor, d.fw, d.mac, n.loop || '', n === M.root ? 0 : (n.hop > 0 ? n.hop : ''), n === M.root || !(n.hop > 0) ? '' : n.side, last ? last.label : '', d.serial]; });
-    S.devs.filter(d => d.net).forEach(d => rows.push(['', d.name, d.ip + ' net ' + d.net + ' mac ' + d.rmac, d.id, d.model, d.vendor, d.fw, '', '', '', '', '', d.serial]));
+      return [i + 1, d.name, d.ip, d.id, d.model, d.vendor, d.fw, d.mac, n.loop && n.loop[0] !== 'p' ? n.loop : '', n.port || '', n === M.root ? 0 : (n.hop > 0 && !n.hopGuess ? n.hop : ''), n === M.root || !(n.hop > 0) ? '' : n.side, last ? last.label : '', d.serial]; });
+    S.devs.filter(d => d.net).forEach(d => rows.push(['', d.name, d.ip + ' net ' + d.net + ' mac ' + d.rmac, d.id, d.model, d.vendor, d.fw, '', '', '', '', '', '', d.serial]));
     saveBlob(new Blob([[head, ...rows].map(r => r.map(q).join(',')).join('\r\n')], {type: 'text/csv'}), `Network map ${stamp()}.csv`, 'text/csv', 'csv');
   };
   $('savePng').onclick = () => {
@@ -704,10 +787,10 @@ footer{font-size:12px;color:var(--muted)}
   });
 
   // The scan kit writes its results into a copy of this page (Results/Network map.html) and opens it.
-  // Placement edits and the ring choice carry over from the last time it was opened.
+  // Placement edits, the ring choice and a loaded switch MAC table carry over from the last time it was opened.
   const kit = (() => { try { return JSON.parse($('netscanData').textContent); } catch(e){ return null; } })();
   if (kit && Array.isArray(kit.files)){
-    const keep = {edits: S.edits, ring: S.ring};
+    const keep = {edits: S.edits, ring: S.ring, sw: S.sw};
     S = blank();
     $('kitPanel').hidden = true;
     $('h2k').innerHTML = '<span class="num">01</span>Add more files'; $('h3k').innerHTML = '<span class="num">02</span>Map'; $('h4k').innerHTML = '<span class="num">03</span>Device list';

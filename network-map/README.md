@@ -76,6 +76,18 @@ The kit opens the map by itself. To look at a job later or on another computer, 
 
 **Try sample data** shows a made-up network so you can look around. **Clear** (top right) removes the loaded files and your edits after three taps. The map is kept in the browser on that device until you clear it.
 
+## Loops from a managed switch's MAC table
+
+When the loops run out of and back into a managed switch, the switch's MAC address table tells you which loop every controller is on, with no RSTP readings needed. On a Phoenix Contact FL SWITCH 2000 it's in the switch's web page under **Diagnostics > MAC Address Table**, with a CSV download. Other managed switches have the same table under a similar name; any CSV with a MAC column and a port column works.
+
+1. Log in to the switch in a browser and download the MAC address table CSV. Do it within a few hours of a scan; the controllers talk often enough that the switch keeps them listed.
+2. Load it on this page with the Devices CSV (drop it in, or **Choose files**). The map opens a **Switch ports** list: each port, how many scanned controllers it hears, and how many other MACs.
+3. Give each loop's two ports the same **Loop** number (for example ports 2 and 6 are loop 1). The lower port is side A. A port with no loop number is drawn on its own (the AS-P's port, for example).
+
+You only need to do this once per site; the loop numbers stay saved in the browser, and the table only needs downloading again after controllers are added or moved, or a loop breaks (that moves where it splits into sides).
+
+The table can't give the order of controllers along a side. Until RSTP readings are taken, such a loop is marked **CABLE ORDER NOT READ** and each side is listed by device ID. Controllers in the scan that the switch doesn't list, and MACs the switch hears that aren't in the scan, are listed in the warnings.
+
 ## Reading the map
 - The **RSTP root** is at the top. Each row below it is one cable hop from the root, worked out from the root path cost (200000 per 100 Mb hop, or 19 per hop on controllers that use the old short costs).
 - A ring or a root in the middle of a chain has **two sides**, A and B, one for each direction out of the root. Two controllers at the same hop go on opposite sides. The readings can't say which side is which, so those get a **SIDE?** tag: tap one and pick its side, and the other at that hop moves across.
@@ -93,5 +105,5 @@ The page also warns when readings don't add up: more than two controllers at one
 ## Device list and saving
 The **Device list** is in cable order (root, side A out, side B back), then the controllers not placed yet. An amber dot next to a firmware version means it differs from most controllers of that model on this network. Devices behind BACnet routers are listed by MS/TP network underneath, and every RSTP reading is listed at the bottom.
 
-- **Save device list (CSV):** order, name, IP, device ID, model, vendor, firmware, MAC, loop, hop, side, last reading label, and serial (if a scan list was loaded), plus the routed MS/TP devices.
+- **Save device list (CSV):** order, name, IP, device ID, model, vendor, firmware, MAC, loop, switch port, hop, side, last reading label, and serial (if a scan list was loaded), plus the routed MS/TP devices.
 - **Save map picture (PNG):** the map as an image, for the job folder or a punch list.
