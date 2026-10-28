@@ -128,7 +128,10 @@ function Read-AppValue([byte[]]$a, [int]$i) {
     switch ($tag) {
         7 {   # character string
             $enc = $a[$i]
-            $bytes = if ($len -gt 1) { [byte[]]$a[($i + 1)..($i + $len - 1)] } else { [byte[]]@() }
+            # copy into a real byte[]: an empty or one-byte slice from an if-expression
+            # unrolls to $null or a single byte in PowerShell
+            $bytes = [byte[]]::new([Math]::Max(0, $len - 1))
+            if ($len -gt 1) { [Array]::Copy($a, $i + 1, $bytes, 0, $len - 1) }
             if ($enc -eq 0) { return [Text.Encoding]::UTF8.GetString($bytes) }
             if ($enc -eq 4) { return [Text.Encoding]::BigEndianUnicode.GetString($bytes) }
             return [Text.Encoding]::GetEncoding("ISO-8859-1").GetString($bytes)
@@ -152,7 +155,7 @@ function Read-RpAck([byte[]]$apdu) {
     $i += 1 + ($apdu[$i] -band 0x07)             # context 1: property id
     if (($apdu[$i] -band 0xF8) -eq 0x28) { $i += 1 + ($apdu[$i] -band 0x07) }   # context 2: array index
     if ($apdu[$i] -ne 0x3E) { return $null }
-    return Read-AppValue $apdu ($i + 1)
+    try { return Read-AppValue $apdu ($i + 1) } catch { return $null }   # an odd reply never stops the scan
 }
 
 # Send a batch of requests and collect replies for $waitMs. Returns list of @{Ip; Port; Data}
@@ -218,7 +221,7 @@ if (-not $SkipScan) {
         $n = Split-Bvlc $r.Data
         if ($n -and $n.Apdu.Length -gt 6 -and $n.Apdu[0] -eq 0x10 -and $n.Apdu[1] -eq 0x00) {
             $ip = if ($n.Ip) { $n.Ip } else { $r.Ip }
-            $id = Read-AppValue $n.Apdu 2
+            $id = try { Read-AppValue $n.Apdu 2 } catch { "" }
             if ($id -like "8,*") { Add-Device $ip $n.Snet $n.Sadr ([int]($id -split ",")[1]) }
         }
     }
