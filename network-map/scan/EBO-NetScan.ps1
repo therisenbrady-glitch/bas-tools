@@ -158,8 +158,10 @@ function Read-RpAck([byte[]]$apdu) {
     try { return Read-AppValue $apdu ($i + 1) } catch { return $null }   # an odd reply never stops the scan
 }
 
-# Send a batch of requests and collect replies for $waitMs. Returns list of @{Ip; Port; Data}
-function Invoke-Udp($sock, $requests, [int]$waitMs) {
+# Send a batch of requests and collect replies for $waitMs from $sock and any
+# $also sockets. Returns list of @{Ip; Port; Data}
+function Invoke-Udp($sock, $requests, [int]$waitMs, $also = @()) {
+    $rx = @(@($sock) + @($also) | Where-Object { $_ })
     $c = 0
     foreach ($r in $requests) {
         try { [void]$sock.Send($r.Data, $r.Data.Length, $r.Ep) } catch { }
@@ -168,13 +170,18 @@ function Invoke-Udp($sock, $requests, [int]$waitMs) {
     $replies = New-Object System.Collections.ArrayList
     $deadline = (Get-Date).AddMilliseconds($waitMs)
     while ((Get-Date) -lt $deadline) {
-        if ($sock.Available -gt 0) {
-            $ep = [Net.IPEndPoint]::new([Net.IPAddress]::Any, 0)
-            try {
-                $d = $sock.Receive([ref]$ep)
-                [void]$replies.Add(@{ Ip = $ep.Address.ToString(); Port = $ep.Port; Data = $d })
-            } catch { }
-        } else { Start-Sleep -Milliseconds 20 }
+        $got = $false
+        foreach ($s in $rx) {
+            if ($s.Available -gt 0) {
+                $got = $true
+                $ep = [Net.IPEndPoint]::new([Net.IPAddress]::Any, 0)
+                try {
+                    $d = $s.Receive([ref]$ep)
+                    [void]$replies.Add(@{ Ip = $ep.Address.ToString(); Port = $ep.Port; Data = $d })
+                } catch { }
+            }
+        }
+        if (-not $got) { Start-Sleep -Milliseconds 20 }
     }
     return $replies
 }
@@ -208,6 +215,10 @@ if (-not $SkipScan) {
         $listen = $null
     }
 
+    # Some controllers answer to port 47808 whatever port asked, so when 47808 is
+    # free the reads go out from it, and replies are collected on both sockets.
+    $tx = if ($listen) { $listen } else { $sock }
+
     # 1. Who-Is broadcast
     Write-Host "Sending Who-Is..."
     foreach ($b in @("$Subnet.255", "255.255.255.255")) {
@@ -237,7 +248,7 @@ if (-not $SkipScan) {
         $reqs += @{ Data = (New-ReadProperty $inv 4194303 75); Ep = [Net.IPEndPoint]::new([Net.IPAddress]::Parse($ip), 47808) }
         $inv = ($inv % 250) + 1
     }
-    foreach ($r in (Invoke-Udp $sock $reqs 3000)) {
+    foreach ($r in (Invoke-Udp $tx $reqs 3000 @($sock, $listen))) {
         $n = Split-Bvlc $r.Data
         if (-not $n) { continue }
         $v = Read-RpAck $n.Apdu
@@ -266,7 +277,7 @@ if (-not $SkipScan) {
             }
         }
         if (-not $reqs) { break }
-        foreach ($r in (Invoke-Udp $sock $reqs (2000 + 30 * $routed))) {
+        foreach ($r in (Invoke-Udp $tx $reqs (2000 + 30 * $routed) @($sock, $listen))) {
             $n = Split-Bvlc $r.Data
             if (-not $n -or $n.Apdu.Length -lt 3) { continue }
             $hit = $want["$($r.Ip)|$($n.Snet)|$($n.Sadr)|$($n.Apdu[1])"]
