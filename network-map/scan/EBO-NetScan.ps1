@@ -177,28 +177,38 @@ function Get-ReplyText([byte[]]$apdu) {
 
 # Send a batch of requests and collect replies for $waitMs from $sock and any
 # $also sockets. Returns list of @{Ip; Port; Data}
-# With $expect, returns as soon as that many replies are in.
-function Invoke-Udp($sock, $requests, [int]$waitMs, $also = @(), [int]$expect = 0) {
+# With $expect, returns as soon as that many replies are in. With $gapMs, the
+# requests are spaced that far apart (replies are collected in between), since
+# a burst of replies from many controllers at once gets dropped on the way back.
+function Invoke-Udp($sock, $requests, [int]$waitMs, $also = @(), [int]$expect = 0, [int]$gapMs = 0) {
     $rx = @(@($sock) + @($also) | Where-Object { $_ })
-    $c = 0
-    foreach ($r in $requests) {
-        try { [void]$sock.Send($r.Data, $r.Data.Length, $r.Ep) } catch { }
-        if ((++$c % 10) -eq 0) { Start-Sleep -Milliseconds 15 }
-    }
     $replies = New-Object System.Collections.ArrayList
-    $deadline = (Get-Date).AddMilliseconds($waitMs)
-    while ((Get-Date) -lt $deadline) {
-        $got = $false
+    $drain = {
+        $any = $false
         foreach ($s in $rx) {
-            if ($s.Available -gt 0) {
-                $got = $true
+            while ($s.Available -gt 0) {
+                $any = $true
                 $ep = [Net.IPEndPoint]::new([Net.IPAddress]::Any, 0)
                 try {
                     $d = $s.Receive([ref]$ep)
                     [void]$replies.Add(@{ Ip = $ep.Address.ToString(); Port = $ep.Port; Data = $d })
-                } catch { }
+                } catch { break }
             }
         }
+        $any
+    }
+    $c = 0
+    foreach ($r in $requests) {
+        try { [void]$sock.Send($r.Data, $r.Data.Length, $r.Ep) } catch { }
+        $c++
+        if ($gapMs -gt 0) {
+            $until = (Get-Date).AddMilliseconds($gapMs)
+            while ((Get-Date) -lt $until) { if (-not (& $drain)) { Start-Sleep -Milliseconds 5 } }
+        } elseif (($c % 10) -eq 0) { Start-Sleep -Milliseconds 15 }
+    }
+    $deadline = (Get-Date).AddMilliseconds($waitMs)
+    while ((Get-Date) -lt $deadline) {
+        $got = & $drain
         if ($expect -gt 0 -and $replies.Count -ge $expect) { break }
         if (-not $got) { Start-Sleep -Milliseconds 20 }
     }
@@ -281,9 +291,9 @@ if (-not $SkipScan) {
     }
     Write-Host ("  {0} devices found" -f $devices.Count)
 
-    # 3. Read name/model/etc. One property per round, sent to every controller at
-    #    once, so each controller has only one question waiting at a time (the
-    #    MP/RP controllers drop a burst of several). Then retry the gaps. Routed
+    # 3. Read name/model/etc. One property per round, sent to every controller
+    #    25 ms apart, so each has only one question waiting and the answers don't
+    #    all come back at once (a burst of them gets dropped). Then retry the gaps. Routed
     #    (MS/TP) devices are read through their router. A reply is matched on its
     #    sender plus invoke ID (property number + 10 per try).
     $targets = @($devices.Values | Where-Object { $_.DeviceID })
@@ -304,7 +314,7 @@ if (-not $SkipScan) {
                 $want["$($d.IP)|$($d.RoutedNet)|$($d.RoutedMac)|$id"] = $d
             }
             if (-not $reqs) { continue }
-            foreach ($r in (Invoke-Udp $tx $reqs (1500 + 30 * $routed) @($sock, $listen) $reqs.Count)) {
+            foreach ($r in (Invoke-Udp $tx $reqs (1500 + 30 * $routed) @($sock, $listen) $reqs.Count 25)) {
                 $n = Split-Bvlc $r.Data
                 if (-not $n -or $n.Apdu.Length -lt 3) { continue }
                 $d = $want["$($r.Ip)|$($n.Snet)|$($n.Sadr)|$($n.Apdu[1])"]
