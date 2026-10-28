@@ -162,6 +162,19 @@ function Read-RpAck([byte[]]$apdu) {
     try { return Read-AppValue $apdu ($i + 1) } catch { return $null }   # an odd reply never stops the scan
 }
 
+# One line for the scan log: what a reply to a ReadProperty was
+function Get-ReplyText([byte[]]$apdu) {
+    if ($apdu.Length -lt 2) { return "short reply" }
+    switch ($apdu[0] -shr 4) {
+        3 { if ($apdu[0] -band 0x08) { return "segmented ack (not read)" }
+            $v = Read-RpAck $apdu; if ($null -ne $v) { return "ok: $v" } else { return "ack, value not decoded" } }
+        5 { $c = if ($apdu.Length -ge 7) { "class $($apdu[4]) code $($apdu[6])" } else { "" }; return "error $c" }
+        6 { return "reject reason $($apdu[3])" }
+        7 { return "abort reason $($apdu[3])" }
+        default { return "apdu type $($apdu[0] -shr 4)" }
+    }
+}
+
 # Send a batch of requests and collect replies for $waitMs from $sock and any
 # $also sockets. Returns list of @{Ip; Port; Data}
 function Invoke-Udp($sock, $requests, [int]$waitMs, $also = @()) {
@@ -197,7 +210,7 @@ function Add-Device($ip, $snet, $sadr, $inst) {
     $key = "$ip|$snet|$sadr"
     if (-not $devices.ContainsKey($key)) {
         $devices[$key] = [ordered]@{ IP = $ip; DeviceID = $inst; RoutedNet = $snet; RoutedMac = $sadr;
-            MAC = ""; Name = ""; Model = ""; Vendor = ""; Firmware = ""; AppVer = ""; Location = "" }
+            MAC = ""; Name = ""; Model = ""; Vendor = ""; Firmware = ""; AppVer = ""; Location = ""; HeardVia = "" }
     } elseif (-not $devices[$key].DeviceID -and $inst) { $devices[$key].DeviceID = $inst }
 }
 
@@ -214,6 +227,7 @@ if (-not $SkipScan) {
         $listen.Client.SetSocketOption([Net.Sockets.SocketOptionLevel]::Socket, [Net.Sockets.SocketOptionName]::ReuseAddress, $true)
         $listen.Client.Bind([Net.IPEndPoint]::new([Net.IPAddress]::Any, 47808))
         $listen.EnableBroadcast = $true
+        $listen.Client.ReceiveBufferSize = 1048576
     } catch {
         Write-Host "Port 47808 is in use (EBO WorkStation open?). Skipping the Who-Is listen; the address scan still runs." -ForegroundColor Yellow
         $listen = $null
@@ -237,7 +251,11 @@ if (-not $SkipScan) {
         if ($n -and $n.Apdu.Length -gt 6 -and $n.Apdu[0] -eq 0x10 -and $n.Apdu[1] -eq 0x00) {
             $ip = if ($n.Ip) { $n.Ip } else { $r.Ip }
             $id = try { Read-AppValue $n.Apdu 2 } catch { "" }
-            if ($id -like "8,*") { Add-Device $ip $n.Snet $n.Sadr ([int]($id -split ",")[1]) }
+            if ($id -like "8,*") {
+                Add-Device $ip $n.Snet $n.Sadr ([int]($id -split ",")[1])
+                # "direct", or the BBMD (usually the AS-P) that relayed its I-Am
+                $devices["$ip|$($n.Snet)|$($n.Sadr)"].HeardVia = if ($n.Ip) { "BBMD $($r.Ip)" } else { "direct" }
+            }
         }
     }
     Write-Host ("  {0} I-Am replies" -f $devices.Count)
@@ -265,6 +283,7 @@ if (-not $SkipScan) {
     #    Routed (MS/TP) devices are read through their router. A reply is matched
     #    on its sender plus invoke ID (property number + 10 per try).
     $targets = @($devices.Values | Where-Object { $_.DeviceID })
+    $diag = @{}; $stray = 0
     $routed = @($targets | Where-Object { $_.RoutedNet }).Count
     if ($targets.Count) { Write-Host "Reading names, models and firmware..." }
     for ($try = 0; $try -lt 3; $try++) {
@@ -285,12 +304,71 @@ if (-not $SkipScan) {
             $n = Split-Bvlc $r.Data
             if (-not $n -or $n.Apdu.Length -lt 3) { continue }
             $hit = $want["$($r.Ip)|$($n.Snet)|$($n.Sadr)|$($n.Apdu[1])"]
-            if ($hit) { $v = Read-RpAck $n.Apdu; if ($v) { $hit[0][$hit[1]] = $v } }
+            if ($hit) {
+                $diag["$($r.Ip)|$($n.Snet)|$($n.Sadr)|$($hit[1])"] = "try $($try + 1) from port $($r.Port): " + (Get-ReplyText $n.Apdu)
+                $v = Read-RpAck $n.Apdu; if ($v) { $hit[0][$hit[1]] = $v }
+            } else { $stray++ }
+        }
+    }
+
+    # 3b. Anything still blank: one request at a time, waiting for each answer.
+    # (not ones whose I-Am came relayed by a BBMD: they never answer directly, see 3c)
+    $slow = @($targets | Where-Object { (-not $_.Name -or -not $_.Model) -and "$($_.HeardVia)" -notlike "BBMD*" })
+    if ($slow.Count) { Write-Host ("  {0} controllers still missing a name or model; asking them one at a time..." -f $slow.Count) }
+    $inv = 100
+    foreach ($d in $slow) {
+        $ep = [Net.IPEndPoint]::new([Net.IPAddress]::Parse($d.IP), 47808)
+        foreach ($p in $PropIds.Keys) {
+            if ($d[$p]) { continue }
+            $inv = if ($inv -ge 250) { 100 } else { $inv + 1 }
+            $req = @{ Data = (New-ReadProperty $inv $d.DeviceID $PropIds[$p] $d.RoutedNet "$($d.RoutedMac)"); Ep = $ep }
+            $dk = "$($d.IP)|$($d.RoutedNet)|$($d.RoutedMac)|$p"
+            if (-not $diag.ContainsKey($dk)) { $diag[$dk] = "no reply" }
+            foreach ($r in (Invoke-Udp $tx @($req) (600 + 30 * [int][bool]$d.RoutedNet * 20) @($sock, $listen))) {
+                $n = Split-Bvlc $r.Data
+                if (-not $n -or $n.Apdu.Length -lt 3 -or $r.Ip -ne $d.IP -or $n.Apdu[1] -ne $inv) { continue }
+                $diag[$dk] = "one-at-a-time from port $($r.Port): " + (Get-ReplyText $n.Apdu)
+                $v = Read-RpAck $n.Apdu; if ($v) { $d[$p] = $v }
+            }
         }
     }
     foreach ($d in ($targets | Sort-Object { [version]($_.IP) }, { $_.RoutedNet }, { $_.DeviceID })) {
         $where = if ($d.RoutedNet) { "$($d.IP) net $($d.RoutedNet) mac $($d.RoutedMac)" } else { $d.IP }
         Write-Host ("  {0,-30} {1,-8} {2}" -f $where, $d.DeviceID, $d.Name)
+    }
+
+    # 3c. Controllers that never answer the laptop directly (their I-Am came relayed
+    #     by a BBMD) can still give their name: Who-Has for their device object is
+    #     a broadcast, which BBMDs relay, and the I-Have reply carries the name.
+    $noName = @($targets | Where-Object { -not $_.Name -and -not $_.RoutedNet })
+    if ($noName.Count -and $listen) {
+        Write-Host ("  Asking {0} controllers for their names by broadcast (Who-Has)..." -f $noName.Count)
+        $byId = @{}
+        foreach ($d in $noName) { $byId["$($d.DeviceID)"] = $d }
+        $reqs = @()
+        foreach ($d in $noName) {
+            $oid = (8 -shl 22) -bor ($d.DeviceID -band 0x3FFFFF)
+            $pdu = [byte[]](0x81, 0x0B, 0x00, 0x0D, 0x01, 0x00, 0x10, 0x07, 0x2C,
+                (($oid -shr 24) -band 0xFF), (($oid -shr 16) -band 0xFF), (($oid -shr 8) -band 0xFF), ($oid -band 0xFF))
+            foreach ($b in @("$Subnet.255", "255.255.255.255")) {
+                $reqs += @{ Data = $pdu; Ep = [Net.IPEndPoint]::new([Net.IPAddress]::Parse($b), 47808) }
+            }
+        }
+        $got = 0
+        foreach ($r in (Invoke-Udp $listen $reqs 4000 @($sock))) {
+            $n = Split-Bvlc $r.Data
+            if (-not $n -or $n.Apdu.Length -lt 14 -or $n.Apdu[0] -ne 0x10 -or $n.Apdu[1] -ne 0x01) { continue }
+            try {
+                $dev = Read-AppValue $n.Apdu 2
+                $name = Read-AppValue $n.Apdu 12
+            } catch { continue }
+            $d = $byId["$(($dev -split ',')[1])"]
+            if ($d -and $name -and -not $d.Name) {
+                $d.Name = $name; $got++
+                $diag["$($d.IP)|$($d.RoutedNet)|$($d.RoutedMac)|Name"] = "I-Have from $($r.Ip)" + $(if ($n.Ip) { " (relayed for $($n.Ip))" } else { "" }) + ": $name"
+            }
+        }
+        Write-Host "    $got names found"
     }
 
     # 4. MAC addresses from the ARP table (only for devices on this subnet)
@@ -311,6 +389,20 @@ if (-not $SkipScan) {
         Sort-Object { [version]($_.IP) }, RoutedNet, DeviceID |
         Export-Csv -NoTypeInformation -Encoding UTF8 -Path $devCsv
     Write-Host "Device list: $devCsv" -ForegroundColor Green
+
+    # Scan log: what each controller answered for each property, for sorting out gaps
+    $log = New-Object System.Collections.ArrayList
+    [void]$log.Add("EBO-NetScan log $stamp   laptop $localIp ($($adapter.Name))   47808 listen: $([bool]$listen)   unmatched replies: $stray")
+    foreach ($d in ($targets | Sort-Object { [version]($_.IP) }, { $_.RoutedNet }, { $_.DeviceID })) {
+        [void]$log.Add(("{0} net {1} mac {2}  device {3}  {4}  heard {5}  MAC {6}" -f $d.IP, $d.RoutedNet, $d.RoutedMac, $d.DeviceID, $d.Name, $d.HeardVia, $d.MAC))
+        foreach ($p in $PropIds.Keys) {
+            $t = $diag["$($d.IP)|$($d.RoutedNet)|$($d.RoutedMac)|$p"]
+            [void]$log.Add(("    {0,-9} {1}" -f $p, $(if ($t) { $t } else { "no reply" })))
+        }
+    }
+    $logFile = Join-Path $OutDir "Scan log $stamp.txt"
+    [IO.File]::WriteAllLines($logFile, [string[]]$log)
+    Write-Host "Scan log: $logFile"
 }
 
 # ---------------------------------------------------------------- RSTP capture helpers
