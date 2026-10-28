@@ -485,7 +485,7 @@ function Get-BpdusPktmon([int]$seconds) {
         pktmon filter remove | Out-Null
         $o = pktmon filter add NetScanSTP -m 01-80-C2-00-00-00 2>&1              # the STP multicast address
         Write-StpLog "pktmon filter add: $LASTEXITCODE $(($o | Out-String).Trim())"
-        $o = pktmon start --capture --comp nics --pkt-size 0 --file-name $etl 2>&1
+        $o = pktmon start --capture --comp nics --pkt-size 0 --file-size 8 --file-name $etl 2>&1   # small buffer: BPDUs are tiny
         Write-StpLog "pktmon start: $LASTEXITCODE $(($o | Out-String).Trim())"
         if ($LASTEXITCODE -ne 0) { return $null }
         $started = $true

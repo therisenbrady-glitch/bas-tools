@@ -82,6 +82,7 @@ ol.steps{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction:c
 @media (max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}
 .mapbox{background:var(--sunk);border:1px solid var(--line);border-radius:8px;overflow-x:auto}
 .mapbox svg{display:block;width:100%;height:auto;min-width:320px;margin:0 auto}
+.mapbox svg + svg{border-top:1px solid var(--line)}
 .mapbox .node{cursor:pointer}
 .mapbox .node:focus{outline:none}
 .mapbox .node:focus-visible rect.box{stroke:var(--accent);stroke-width:2.5}
@@ -140,7 +141,7 @@ footer{font-size:12px;color:var(--muted)}
       <li>For the cable order, take a reading at a few spots along the chain. Click <b>Yes</b> when Windows asks for administrator (it uses Windows' own packet capture). The kit's README explains where to plug in.</li>
     </ol>
     <div class="btns">
-      <a class="btn pri" href="scan/EBO-NetScan.zip?v=ed17679" download><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download scan kit (.zip)</a>
+      <a class="btn pri" href="scan/EBO-NetScan.zip?v=adb4964" download><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download scan kit (.zip)</a>
     </div>
     <p class="small"><a href="scan/README.txt">README.txt</a><a href="scan/EBO-NetScan.ps1">EBO-NetScan.ps1</a><a href="scan/Run%20EBO-NetScan.bat">Run EBO-NetScan.bat</a></p>
     <p class="hint">Read-only: the scan only asks controllers who they are. It never writes to one.</p>
@@ -191,7 +192,7 @@ footer{font-size:12px;color:var(--muted)}
   <section class="panel" aria-labelledby="h4k" id="listPanel" hidden>
     <h2 id="h4k"><span class="num">04</span>Device list</h2>
     <p class="hint">In cable order, then the controllers not placed yet. <span class="dot" style="margin:0 2px 0 0"></span> marks firmware that differs from most of that model on this network.</p>
-    <div class="tablewrap"><table><thead><tr><th>#</th><th>Name</th><th>IP</th><th>Dev ID</th><th>Model</th><th>Firmware</th><th>MAC</th><th>Hop</th><th>Side</th></tr></thead><tbody id="tbody"></tbody></table></div>
+    <div class="tablewrap"><table><thead><tr><th>#</th><th>Name</th><th>IP</th><th>Dev ID</th><th>Model</th><th>Firmware</th><th>MAC</th><th>Loop</th><th>Hop</th><th>Side</th></tr></thead><tbody id="tbody"></tbody></table></div>
     <div class="btns">
       <button type="button" class="btn pri" id="saveCsv"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Save device list (CSV)</button>
       <button type="button" class="btn" id="savePng"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>Save map picture (PNG)</button>
@@ -370,11 +371,21 @@ footer{font-size:12px;color:var(--muted)}
       n.hop = e.hop != null && e.hop !== '' ? +e.hop : n.readHop;
       if (n === root) n.hop = 0;
       n.kind = kindOf(n.d.model);
+      n.loop = e.loop ? String(e.loop) : '';
     });
     const placed = [...nodes.values()].filter(n => n !== root && n.hop != null && n.hop > 0);
-    const byHop = new Map();
     placed.sort((a, b) => a.hop - b.hop || ipNum(a.d.ip) - ipNum(b.d.ip) || String(a.d.mac).localeCompare(String(b.d.mac)));
-    placed.forEach(n => { if (!byHop.has(n.hop)) byHop.set(n.hop, []); byHop.get(n.hop).push(n); });
+    // Several loops can hang off one root (e.g. three loops on the root switch).
+    // Each loop is laid out on its own; controllers with no loop set share one group.
+    const loops = [...new Set(placed.map(n => n.loop))].sort((a, b) => (a === '') - (b === '') || (+a) - (+b));
+    const groups = loops.map(loop => {
+      const g = {loop, placed: placed.filter(n => n.loop === loop), byHop: new Map()};
+      g.placed.forEach(n => { if (!g.byHop.has(n.hop)) g.byHop.set(n.hop, []); g.byHop.get(n.hop).push(n); });
+      sides(g, loop ? `in loop ${loop}` : (loops.length > 1 ? 'with no loop set' : ''));
+      return g;
+    });
+    function sides(g, where){
+    const byHop = g.byHop, placed = g.placed;
     const twoWay = [...byHop.values()].some(l => l.length > 1) || placed.some(n => (S.edits[n.key] || {}).side === 'B');
     byHop.forEach((list, h) => {
       // a hand-set side pushes the other controller at this hop to the opposite side
@@ -383,8 +394,11 @@ footer{font-size:12px;color:var(--muted)}
       let i = 0;
       list.forEach(n => { const s = (S.edits[n.key] || {}).side; n.side = s || open[i++] || (i % 2 ? 'A' : 'B'); n.sideGuess = !s && set.length === 0 && twoWay; });
       const a = list.filter(n => n.side === 'A').length, b = list.length - a;
-      if (a > 1 || b > 1) warns.push(`${list.length} controllers read ${h} hop${h > 1 ? 's' : ''} from the root. A chain or ring has at most two at each hop, so check the readings (or a link speed other than 100 Mb).`);
+      if (a > 1 || b > 1) warns.push(`${list.length} controllers ${where ? where + ' ' : ''}read ${h} hop${h > 1 ? 's' : ''} from the root. A chain or ring has at most two at each hop. If several loops hang off the root, set each controller's Loop; otherwise check the readings.`);
     });
+    // a loop read from one direction only is drawn as one column
+    if (!placed.some(n => n.side === 'A')) placed.forEach(n => { n.side = 'A'; n.sideGuess = false; });
+    }
     const unplaced = [...nodes.values()].filter(n => n !== root && (n.hop == null || n.hop <= 0) && !n.ghostDev)
       .sort((a, b) => ipNum(a.d.ip) - ipNum(b.d.ip));
     const zero = [...nodes.values()].filter(n => n !== root && n.hop === 0 && n.reads.length);
@@ -401,7 +415,7 @@ footer{font-size:12px;color:var(--muted)}
     ipDevs.forEach(d => { if (d.model && d.fw){ fwBy[d.model] = fwBy[d.model] || {}; fwBy[d.model][d.fw] = (fwBy[d.model][d.fw] || 0) + 1; } });
     const fwMain = {};
     Object.keys(fwBy).forEach(m => { const e = Object.entries(fwBy[m]).sort((a, b) => b[1] - a[1]); if (e.length > 1) fwMain[m] = e[0][0]; });
-    return {nodes, root, placed, byHop, unplaced, warns, ring, fwMain, ipDevs};
+    return {nodes, root, placed, groups, unplaced, warns, ring, fwMain, ipDevs};
   }
 
   // ------------------------------------------------------------ SVG
@@ -412,25 +426,25 @@ footer{font-size:12px;color:var(--muted)}
   }
   const trunc = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
-  function drawSvg(M, forExport){
+  function drawSvg(M, G, forExport){
     const P = palette();
-    const W = 152, H = 60, GX = 26, G = 24, RH = 86, TOP = 30;
-    const hasB = M.placed.some(n => n.side === 'B');
-    const maxHop = M.placed.reduce((m, n) => Math.max(m, n.hop), 0);
+    const W = 152, H = 60, GX = 26, GAP = 24, RH = 86, TOP = 30;
+    const hasB = G.placed.some(n => n.side === 'B');
+    const maxHop = G.placed.reduce((m, n) => Math.max(m, n.hop), 0);
     // rows: one per hop, taller if a side holds two at that hop
     const rowsAt = [];
     for (let h = 1; h <= maxHop; h++){
-      const l = M.byHop.get(h) || [];
+      const l = G.byHop.get(h) || [];
       rowsAt[h] = Math.max(1, l.filter(n => n.side === 'A').length, l.filter(n => n.side === 'B').length);
     }
-    const colX = hasB ? [GX + 6, GX + 6 + W + G] : [GX + 6 + W / 2];
+    const colX = hasB ? [GX + 6, GX + 6 + W + GAP] : [GX + 6 + W / 2];
     const width = hasB ? colX[1] + W + 10 : colX[0] + W + 40;
     const rootX = hasB ? (colX[0] + colX[1]) / 2 : colX[0];
     const yOf = []; let y = TOP + (M.root ? RH : 0);
     for (let h = 1; h <= maxHop; h++){ yOf[h] = y; y += rowsAt[h] * RH; }
     const height = y + (M.ring ? 36 : 6);
     const out = [];
-    out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${forExport ? '' : ` style="max-width:${Math.round(width * 1.1)}px"`} role="img" aria-label="Network map, ${M.placed.length + (M.root ? 1 : 0)} controllers in cable order" font-family="IBM Plex Sans, Segoe UI, system-ui, sans-serif">`);
+    out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${forExport ? '' : ` style="max-width:${Math.round(width * 1.1)}px"`} role="img" aria-label="Network map${G.loop ? ', loop ' + G.loop : ''}, ${G.placed.length} controllers in cable order" font-family="IBM Plex Sans, Segoe UI, system-ui, sans-serif">`);
     out.push(`<rect width="${width}" height="${height}" fill="${P.bg}"/>`);
     const links = [], boxes = [];
     const box = (n, x, y, opts = {}) => {
@@ -456,13 +470,14 @@ footer{font-size:12px;color:var(--muted)}
     if (M.root) out.push(`<text x="12" y="${TOP + H / 2 + 4}" font-size="11" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">0</text>`);
     for (let h = 1; h <= maxHop; h++) out.push(`<text x="12" y="${yOf[h] + H / 2 + 4}" font-size="11" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">${h}</text>`);
     out.push(`<text x="12" y="16" font-size="9.5" fill="${P.muted}" letter-spacing=".1em" font-family="IBM Plex Mono, Consolas, monospace">HOP</text>`);
+    if (M.groups.length > 1) out.push(`<text x="${width - 10}" y="18" font-size="13" font-weight="700" text-anchor="end" fill="${P.accent}" letter-spacing=".06em">${G.loop ? 'LOOP ' + esc(G.loop) : 'NO LOOP SET'}</text>`);
     const lc = P.muted;
     if (M.root) box(M.root, rootX, TOP, {badge: 'RSTP ROOT'});
     const ends = {};
     ['A', 'B'].forEach((s, si) => {
       if (si === 1 && !hasB) return;
       const x = colX[si];
-      const list = M.placed.filter(n => n.side === s);
+      const list = G.placed.filter(n => n.side === s);
       if (!list.length) return;
       const top = list[list.length - 1].hop;
       let prev = M.root ? {x: rootX + W / 2, y: TOP + H} : null;
@@ -518,7 +533,7 @@ footer{font-size:12px;color:var(--muted)}
     $('mapTools').hidden = !has;
     document.querySelectorAll('[data-ring]').forEach(b => b.setAttribute('aria-pressed', String(M.ring === (b.dataset.ring === '1'))));
     $('legend').hidden = $('mapHint').hidden = !has;
-    if (has) $('mapbox').innerHTML = drawSvg(M);
+    if (has) $('mapbox').innerHTML = (M.groups.length ? M.groups : [{loop: '', placed: [], byHop: new Map()}]).map(G => drawSvg(M, G)).join('');
     else if (total) $('mapbox').innerHTML = `<div class="empty">No RSTP readings yet, so the cable order isn't known. The controllers found are listed below.<br>Take a reading (click Yes when Windows asks for administrator), or load <b>RSTP readings.csv</b>.</div>`;
     else $('mapbox').innerHTML = `<div class="empty">Load a scan to draw the map.</div>`;
     $('unplacedBox').hidden = !M.unplaced.length;
@@ -529,7 +544,7 @@ footer{font-size:12px;color:var(--muted)}
     $('listPanel').hidden = !order.length && !routed.length;
     $('tbody').innerHTML = order.map((n, i) => {
       const d = n.d, odd = d.model && M.fwMain[d.model] && d.fw !== M.fwMain[d.model];
-      return `<tr data-k="${esc(n.key)}"${sel === n.key ? ' class="on"' : ''}><td>${i + 1}</td><td class="nm">${esc(d.name || '—')}</td><td>${esc(d.ip)}</td><td>${esc(d.id)}</td><td>${esc(d.model)}</td><td>${esc(d.fw)}${odd ? `<span class="dot" title="Most ${esc(d.model)} here run ${esc(M.fwMain[d.model])}"></span>` : ''}</td><td>${esc(d.mac)}</td><td>${n === M.root ? 'root' : (n.hop > 0 ? n.hop : '—')}</td><td>${n.side && n !== M.root && n.hop > 0 ? n.side : ''}</td></tr>`;
+      return `<tr data-k="${esc(n.key)}"${sel === n.key ? ' class="on"' : ''}><td>${i + 1}</td><td class="nm">${esc(d.name || '—')}</td><td>${esc(d.ip)}</td><td>${esc(d.id)}</td><td>${esc(d.model)}</td><td>${esc(d.fw)}${odd ? `<span class="dot" title="Most ${esc(d.model)} here run ${esc(M.fwMain[d.model])}"></span>` : ''}</td><td>${esc(d.mac)}</td><td>${esc(n.loop || '')}</td><td>${n === M.root ? 'root' : (n.hop > 0 ? n.hop : '—')}</td><td>${n.side && n !== M.root && n.hop > 0 ? n.side : ''}</td></tr>`;
     }).join('');
     // routed
     $('routedBox').hidden = !routed.length;
@@ -554,8 +569,9 @@ footer{font-size:12px;color:var(--muted)}
     renderSel();
   }
   function orderList(){
-    const a = M.placed.filter(n => n.side === 'A'), b = M.placed.filter(n => n.side === 'B').reverse();
-    return [...(M.root ? [M.root] : []), ...a, ...b, ...M.unplaced];
+    const out = M.root ? [M.root] : [];
+    M.groups.forEach(G => out.push(...G.placed.filter(n => n.side === 'A'), ...G.placed.filter(n => n.side === 'B').reverse()));
+    return [...out, ...M.unplaced];
   }
 
   function renderSel(){
@@ -565,19 +581,21 @@ footer{font-size:12px;color:var(--muted)}
     p.hidden = false;
     const d = n.d, e = S.edits[n.key] || {};
     const last = n.reads[n.reads.length - 1];
-    const kv = [['IP', d.ip], ['Device ID', d.id], ['Model', d.model], ['Vendor', d.vendor], ['Firmware', d.fw], ['App version', d.app], ['MAC', d.mac], ['Serial', d.serial], ['Scan list name', d.scanName], ['Location', d.loc],
+    const kv = [['Loop', n.loop], ['IP', d.ip], ['Device ID', d.id], ['Model', d.model], ['Vendor', d.vendor], ['Firmware', d.fw], ['App version', d.app], ['MAC', d.mac], ['Serial', d.serial], ['Scan list name', d.scanName], ['Location', d.loc],
       ['Last reading', last ? `${last.label || 'no label'} · ${last.time}` : ''], ['Port role', last ? last.role : '']].filter(x => x[1]);
     const isRoot = n === M.root;
-    p.innerHTML = `<div class="sel-head"><div><span class="eyebrow">${isRoot ? 'RSTP root' : n.hop > 0 ? 'Hop ' + n.hop + (n.side ? ' · side ' + n.side : '') : 'Not placed'}</span><h3>${esc(d.name || d.mac || d.ip)}</h3></div><button type="button" class="link" id="selClose">Close</button></div>` +
+    p.innerHTML = `<div class="sel-head"><div><span class="eyebrow">${isRoot ? 'RSTP root' : n.hop > 0 ? (n.loop ? 'Loop ' + esc(n.loop) + ' · ' : '') + 'Hop ' + n.hop + (n.side ? ' · side ' + n.side : '') : 'Not placed'}</span><h3>${esc(d.name || d.mac || d.ip)}</h3></div><button type="button" class="link" id="selClose">Close</button></div>` +
       `<div class="kv">${kv.map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('')}</div>` +
       (isRoot ? '' : `<div class="edit"><label>Hop <input type="number" min="1" step="1" inputmode="numeric" id="selHop" value="${e.hop != null && e.hop !== '' ? esc(e.hop) : ''}" placeholder="${n.readHop != null ? n.readHop : '—'}"></label>` +
+      `<label>Loop <input type="number" min="1" step="1" inputmode="numeric" id="selLoop" value="${e.loop ? esc(e.loop) : ''}" placeholder="—"></label>` +
       `<label>Side <span class="seg" role="group" aria-label="Side"><button type="button" data-side="A" aria-pressed="${n.side === 'A'}">A</button><button type="button" data-side="B" aria-pressed="${n.side === 'B'}">B</button></span></label>` +
-      ((e.hop != null && e.hop !== '') || e.side ? `<button type="button" class="link" id="selReset">Back to the reading</button>` : '') + `</div>` +
-      `<p class="hint">Hop comes from the newest RSTP reading. Type one to place a controller by hand (for example from the cable you can see). Side A and B are the two directions out of the root.</p>`);
+      ((e.hop != null && e.hop !== '') || e.side || e.loop ? `<button type="button" class="link" id="selReset">Back to the reading</button>` : '') + `</div>` +
+      `<p class="hint">Hop comes from the newest RSTP reading. Type one to place a controller by hand (for example from the cable you can see). Side A and B are the two directions out of the root. Loop groups controllers when several loops hang off the root, as with loops on a root switch.</p>`);
     $('selClose').onclick = () => { sel = null; render(); };
     if (!isRoot){
       $('selHop').onchange = ev => { const v = ev.target.value.trim(); edit(n.key, {hop: v === '' ? null : Math.max(1, Math.round(+v))}); };
       p.querySelectorAll('[data-side]').forEach(b => b.onclick = () => edit(n.key, {side: b.dataset.side}));
+      $('selLoop').onchange = ev => { const v = ev.target.value.trim(); edit(n.key, {loop: v === '' ? null : Math.max(1, Math.round(+v))}); };
       if ($('selReset')) $('selReset').onclick = () => { delete S.edits[n.key]; save(); render(); };
     }
   }
@@ -607,24 +625,26 @@ footer{font-size:12px;color:var(--muted)}
   const stamp = () => new Date().toISOString().slice(0, 10);
   $('saveCsv').onclick = () => {
     const q = v => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    const head = ['ORDER', 'NAME', 'IP', 'DEVICE ID', 'MODEL', 'VENDOR', 'FIRMWARE', 'MAC', 'HOP', 'SIDE', 'LAST READING', 'SERIAL'];
+    const head = ['ORDER', 'NAME', 'IP', 'DEVICE ID', 'MODEL', 'VENDOR', 'FIRMWARE', 'MAC', 'LOOP', 'HOP', 'SIDE', 'LAST READING', 'SERIAL'];
     const rows = orderList().map((n, i) => { const d = n.d, last = n.reads[n.reads.length - 1];
-      return [i + 1, d.name, d.ip, d.id, d.model, d.vendor, d.fw, d.mac, n === M.root ? 0 : (n.hop > 0 ? n.hop : ''), n === M.root || !(n.hop > 0) ? '' : n.side, last ? last.label : '', d.serial]; });
-    S.devs.filter(d => d.net).forEach(d => rows.push(['', d.name, d.ip + ' net ' + d.net + ' mac ' + d.rmac, d.id, d.model, d.vendor, d.fw, '', '', '', '', d.serial]));
+      return [i + 1, d.name, d.ip, d.id, d.model, d.vendor, d.fw, d.mac, n.loop || '', n === M.root ? 0 : (n.hop > 0 ? n.hop : ''), n === M.root || !(n.hop > 0) ? '' : n.side, last ? last.label : '', d.serial]; });
+    S.devs.filter(d => d.net).forEach(d => rows.push(['', d.name, d.ip + ' net ' + d.net + ' mac ' + d.rmac, d.id, d.model, d.vendor, d.fw, '', '', '', '', '', d.serial]));
     saveBlob(new Blob([[head, ...rows].map(r => r.map(q).join(',')).join('\r\n')], {type: 'text/csv'}), `Network map ${stamp()}.csv`, 'text/csv', 'csv');
   };
   $('savePng').onclick = () => {
     if (!M || !(M.placed.length || M.root)){ toast('Nothing is placed on the map yet.', true); return; }
-    const svg = drawSvg(M, true), m = svg.match(/width="(\d+(?:\.\d+)?)" height="(\d+(?:\.\d+)?)"/);
-    const w = +m[1], h = +m[2], sc = 2;
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement('canvas'); c.width = w * sc; c.height = h * sc;
-      const x = c.getContext('2d'); x.scale(sc, sc); x.drawImage(img, 0, 0);
-      c.toBlob(b => saveBlob(b, `Network map ${stamp()}.png`, 'image/png', 'png'), 'image/png');
-    };
-    img.onerror = () => toast("The picture couldn't be made in this browser.", true);
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    // one picture per loop, stacked
+    const svgs = (M.groups.length ? M.groups : [{loop: '', placed: [], byHop: new Map()}]).map(G => drawSvg(M, G, true));
+    const dims = svgs.map(s => { const m = s.match(/width="(\d+(?:\.\d+)?)" height="(\d+(?:\.\d+)?)"/); return [+m[1], +m[2]]; });
+    const w = Math.max(...dims.map(d => d[0])), h = dims.reduce((t, d) => t + d[1], 0), sc = 2;
+    Promise.all(svgs.map(s => new Promise((ok, bad) => { const img = new Image(); img.onload = () => ok(img); img.onerror = bad; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s); })))
+      .then(imgs => {
+        const c = document.createElement('canvas'); c.width = w * sc; c.height = h * sc;
+        const x = c.getContext('2d'); x.scale(sc, sc); x.fillStyle = palette().bg; x.fillRect(0, 0, w, h);
+        let y = 0; imgs.forEach((img, i) => { x.drawImage(img, 0, y); y += dims[i][1]; });
+        c.toBlob(b => saveBlob(b, `Network map ${stamp()}.png`, 'image/png', 'png'), 'image/png');
+      })
+      .catch(() => toast("The picture couldn't be made in this browser.", true));
   };
 
   // ------------------------------------------------------------ sample

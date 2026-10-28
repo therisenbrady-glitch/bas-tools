@@ -79,18 +79,19 @@ The kit opens the map by itself. To look at a job later or on another computer, 
 ## Reading the map
 - The **RSTP root** is at the top. Each row below it is one cable hop from the root, worked out from the root path cost (200000 per 100 Mb hop, or 19 per hop on controllers that use the old short costs).
 - A ring or a root in the middle of a chain has **two sides**, A and B, one for each direction out of the root. Two controllers at the same hop go on opposite sides. The readings can't say which side is which, so those get a **SIDE?** tag: tap one and pick its side, and the other at that hop moves across.
+- **Loops:** when several loops hang off the root (for example three loops that each run out of and back into a managed switch, which is then the RSTP root), give each controller its **Loop** number in its details. Each loop is then drawn as its own map with its own sides, under a LOOP heading. Controllers with no loop set share one group.
 - **Open chain / Ring** sets whether the two ends join. It starts on Open chain, or on Ring when a reading saw an Alternate port (the blocked backup link where a ring closes). An open chain maps the same way as a ring: RSTP still runs and every controller still reports its hops from the root. If the root is partway along the chain, the two directions out of it are sides A and B.
 - A **dashed box** is a hop with no reading yet. At least one controller sits there.
 - **Unknown controller** is an RSTP neighbor whose MAC isn't in the device list. Load a newer scan, or it may have BACnet/IP turned off.
 - **≈MAC** means the reading matched a MAC one or two off the controller's own (its bridge MAC can differ slightly from its IP MAC).
 - Box colors: server (AS-P/AS-B), MP-C, MP-V, RP-C, other.
 
-Tap any controller (on the map, in **Not placed yet**, or in the list) to see its details. There you can type a **Hop** to place it by hand, for example from a cable you can see, and set its **Side**. **Back to the reading** undoes your edits for that controller.
+Tap any controller (on the map, in **Not placed yet**, or in the list) to see its details. There you can type a **Hop** to place it by hand, for example from a cable you can see, and set its **Loop** and **Side**. **Back to the reading** undoes your edits for that controller.
 
 The page also warns when readings don't add up: more than two controllers at one hop, a controller reading 0 hops that isn't the root, or readings that name different root bridges.
 
 ## Device list and saving
 The **Device list** is in cable order (root, side A out, side B back), then the controllers not placed yet. An amber dot next to a firmware version means it differs from most controllers of that model on this network. Devices behind BACnet routers are listed by MS/TP network underneath, and every RSTP reading is listed at the bottom.
 
-- **Save device list (CSV):** order, name, IP, device ID, model, vendor, firmware, MAC, hop, side, last reading label, and serial (if a scan list was loaded), plus the routed MS/TP devices.
+- **Save device list (CSV):** order, name, IP, device ID, model, vendor, firmware, MAC, loop, hop, side, last reading label, and serial (if a scan list was loaded), plus the routed MS/TP devices.
 - **Save map picture (PNG):** the map as an image, for the job folder or a punch list.
