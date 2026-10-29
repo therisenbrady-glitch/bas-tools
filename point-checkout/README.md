@@ -44,10 +44,10 @@ Points are pulled from the controller's actual database:
 
 Left out: trends, programs, functions, graphics, alarm objects, ports/Modbus/room bus, consumer values, PID tuning, limits, differentials, delays, and calculated values.
 
-**Hot water system on the AS-P.** HWS panels usually run on the AS-P with SmartX IO expansion modules, so the AS-P is handled differently from the MP controllers. The AS-P itself can only be backed up, not exported, and the importer can't read a backup. So export two files: select the modules under **IO Bus** and export them, then export the **HWS** folder under Application. Import both and the importer builds one unit called **HWS** (or **Hot Water System**, after the folder's name), model **AS-P**:
+**Hot or chilled water system on the AS-P.** HWS panels usually run on the AS-P with SmartX IO expansion modules, so the AS-P is handled differently from the MP controllers. The AS-P itself can only be backed up, not exported, and the importer can't read a backup. So export two files: select the modules under **IO Bus** and export them, then export the **HWS** folder under Application. Import both and the importer builds one unit called **HWS** (or **Hot Water System**, after the folder's name), model **AS-P**. A chilled water plant works the same way with a folder named **CHWS** or **Chilled Water System**, and lands on the CHWS tab. An AS-P with both plants gets one unit for its IO modules, so export each plant's folder on its own and split the IO points by hand if needed:
 
 - Every point on the AS-P's IO modules is listed with its module slot and channel, for example `Blr1Ena — Boiler 1 Enable (Slot03 DO 1)` or `HwSTmp — HW Supply Temp To Building (Slot05 UI 4)`.
-- Software values come from the folder named `HWS` or `Hot Water System`: enables, setpoints, lead selections, fails, alarms, hand status, occupancy and modes, marked **◦**. Run hours, pump and boiler request values, and the Programs, Functions, Trends and Graphics folders are left out.
+- Software values come from the folder named `HWS`, `Hot Water System`, `CHWS` or `Chilled Water System`: enables, setpoints, lead selections, fails, alarms, hand status, occupancy and modes, marked **◦**. Run hours, pump, boiler and chiller request values, and the Programs, Functions, Trends and Graphics folders are left out.
 - An IO-only export gives the unit with just its IO points; an HWS-folder-only export gives just the values. Import both and they merge into the same unit.
 - The AS-P itself, script programs, functions and graphics never show up as units of their own.
 
@@ -112,7 +112,7 @@ Then tap **Add N units**. A counter at the bottom of the screen shows progress.
 
 ## Doing the checkout
 
-- **Type tabs** across the top (All, AHU, VAV, UV, FCU, HWS, Other…) split the job by unit type. Each tab shows its count, % complete, and fails. The progress panel below reflects the selected tab.
+- **Type tabs** across the top (All, AHU, VAV, UV, FCU, HWS, CHWS, Other…) split the job by unit type. Each tab shows its count, % complete, and fails. The progress panel below reflects the selected tab.
 - **Show** (All / Open / Fails / Done), just above the unit list, filters within the current tab.
 - Tap a unit to open its point list, then mark each point:
   - **PASS**: verified
@@ -131,7 +131,7 @@ Then tap **Add N units**. A counter at the bottom of the screen shows progress.
 
 ### Standard templates
 Used for spreadsheet imports, hand-added units, or when you override "Points from file":
-VAV reheat, VAV cooling only, AHU, RTU, FCU, Unit ventilator, Exhaust fan, Hot water system, Blank.
+VAV reheat, VAV cooling only, AHU, RTU, FCU, Unit ventilator, Exhaust fan, Hot water system, Chilled water system, Blank.
 
 ---
 
