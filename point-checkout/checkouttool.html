@@ -311,6 +311,7 @@ footer{font-size:12px;color:var(--muted)}
       <button type="button" data-f="open" aria-pressed="false">Open</button>
       <button type="button" data-f="fail" aria-pressed="false">Fails</button>
       <button type="button" data-f="done" aria-pressed="false">Done</button>
+      <button type="button" data-f="note" aria-pressed="false">Notes</button>
     </div>
   </div>
   <div class="units" id="units"></div>
@@ -460,7 +461,7 @@ footer{font-size:12px;color:var(--muted)}
     $('projName').readOnly = !canWrite;
 
     const list = units.slice().sort((a,b) => a.tag.localeCompare(b.tag, undefined, {numeric:true}))
-      .filter(u => inTab(u) && (filter === 'all' || unitState(counts(u)) === filter));
+      .filter(u => inTab(u) && (filter === 'all' || (filter === 'note' ? counts(u).note > 0 : unitState(counts(u)) === filter)));
 
     if (!units.length) {
       $('units').innerHTML = `<div class="empty"><b>No units yet</b><p>${canWrite ? 'Add your first unit with <strong>Add unit</strong>. Pick VAV, AHU, RTU, or FCU and a standard point list loads for it. Then work down the list marking each point PASS, FAIL, or N/A.' : 'Units added by the commissioning tech will show here with each point\'s status.'}</p></div>`;

@@ -113,7 +113,7 @@ Then tap **Add N units**. A counter at the bottom of the screen shows progress.
 ## Doing the checkout
 
 - **Type tabs** across the top (All, AHU, VAV, UV, FCU, HWS, CHWS, Other…) split the job by unit type. Each tab shows its count, % complete, and fails. The progress panel below reflects the selected tab.
-- **Show** (All / Open / Fails / Done), just above the unit list, filters within the current tab.
+- **Show** (All / Open / Fails / Done / Notes; Notes lists units with any point marked Note), just above the unit list, filters within the current tab.
 - Tap a unit to open its point list, then mark each point:
   - **PASS**: verified
   - **FAIL**: opens a note field. Describe the problem; it goes on the punch list.
