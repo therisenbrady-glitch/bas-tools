@@ -17,7 +17,7 @@
 :root{
   --bg:#eef1f3; --panel:#ffffff; --ink:#18222b; --muted:#5b6873; --line:#cfd6dc; --sunk:#f5f7f8;
   --steel:#2f4a5e; --accent:#d98a10; --accent-ink:#1b1305;
-  --ok:#2e7d4f; --ok-bg:#e3f2e9; --bad:#b3362c; --bad-bg:#f8e3e1; --na:#6b7782; --na-bg:#e6eaed;
+  --ok:#2e7d4f; --ok-bg:#e3f2e9; --bad:#b3362c; --bad-bg:#f8e3e1; --na:#6b7782; --na-bg:#e6eaed; --note:#b35c00; --note-bg:#fbead6;
   --readout:#17232d; --readout-ink:#e9f0f4; --readout-dim:#8fa3b2;
   --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -27,13 +27,13 @@
   --logo-l:none; --logo-d:block;
   --bg:#10171d; --panel:#18222a; --ink:#e3eaef; --muted:#93a3af; --line:#2b3944; --sunk:#131c23;
   --steel:#9cb8cc; --accent:#f0a22e; --accent-ink:#1b1305;
-  --ok:#5fc48a; --ok-bg:#16301f; --bad:#ef6f62; --bad-bg:#3a1a17; --na:#93a3af; --na-bg:#232f38;
+  --ok:#5fc48a; --ok-bg:#16301f; --bad:#ef6f62; --bad-bg:#3a1a17; --na:#93a3af; --na-bg:#232f38; --note:#f0a04b; --note-bg:#3a2810;
   --readout:#0a1015; --readout-ink:#e9f0f4; --readout-dim:#7f93a2; color-scheme:dark}}
 :root[data-theme="dark"]{
   --logo-l:none; --logo-d:block;
   --bg:#10171d; --panel:#18222a; --ink:#e3eaef; --muted:#93a3af; --line:#2b3944; --sunk:#131c23;
   --steel:#9cb8cc; --accent:#f0a22e; --accent-ink:#1b1305;
-  --ok:#5fc48a; --ok-bg:#16301f; --bad:#ef6f62; --bad-bg:#3a1a17; --na:#93a3af; --na-bg:#232f38;
+  --ok:#5fc48a; --ok-bg:#16301f; --bad:#ef6f62; --bad-bg:#3a1a17; --na:#93a3af; --na-bg:#232f38; --note:#f0a04b; --note-bg:#3a2810;
   --readout:#0a1015; --readout-ink:#e9f0f4; --readout-dim:#7f93a2; color-scheme:dark}
 
 *{box-sizing:border-box}
@@ -120,6 +120,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;mar
 .mini i{display:block;height:100%}
 .flag{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px}
 .flag.fail{color:var(--bad);background:var(--bad-bg)}
+.flag.notef{color:var(--note);background:var(--note-bg)}
 .flag.done{color:var(--ok);background:var(--ok-bg)}
 .flag.ex{color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,transparent)}
 .flag.chk{color:var(--accent);background:color-mix(in srgb,var(--accent) 15%,transparent)}
@@ -149,14 +150,22 @@ h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;mar
 .sbtns button[data-v="na"][aria-pressed="true"]{background:var(--na);color:var(--panel)}
 .note{grid-column:2/-1;margin-top:6px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--ink);font-size:13.5px;padding:7px 9px;width:100%;font-family:var(--f-body)}
 .pt[data-s="fail"] .note{border-color:var(--bad)}
+.pt[data-sev="note"] .note{border-color:var(--note)}
+.pt[data-sev="note"] .stripe{background:var(--note)}
+.pt[data-sev="note"] .sbtns button[data-v="fail"][aria-pressed="true"]{background:var(--note)}
 .pdel{border:1px solid transparent;background:transparent;color:var(--muted);border-radius:6px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;padding:0}
 .pdel svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .pdel:hover{color:var(--bad);border-color:var(--line)}
 .pdel[data-armed]{width:auto;padding:0 8px;color:var(--panel);background:var(--bad);border-color:var(--bad)}
-.frow{grid-column:2/-1;display:flex;gap:8px;align-items:stretch;margin-top:6px}
-.frow .note{grid-column:auto;margin-top:0;flex:1;min-width:0}
+.frow{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin-top:6px}
+.frow .note{grid-column:auto;margin-top:0;flex:1;min-width:160px}
 .crit{flex:none;border:1px solid var(--bad);background:transparent;color:var(--bad);font-weight:700;font-size:12px;letter-spacing:.03em;padding:6px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
-.crit[aria-pressed="true"]{background:var(--bad);color:var(--panel)}
+.sev{flex:none;display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.sev button{border:0;background:var(--panel);color:var(--muted);font-weight:700;font-size:12px;letter-spacing:.03em;padding:6px 9px;white-space:nowrap;cursor:pointer}
+.sev button+button{border-left:1px solid var(--line)}
+.sev button[data-sv="crit"][aria-pressed="true"]{background:var(--bad);color:var(--panel)}
+.sev button[data-sv="minor"][aria-pressed="true"]{background:var(--bad-bg);color:var(--bad)}
+.sev button[data-sv="note"][aria-pressed="true"]{background:var(--note);color:var(--panel)}
 .flag.critf{color:var(--panel);background:var(--bad)}
 .devbar{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:8px 14px;border-top:1px solid var(--line);font-family:var(--f-mono);font-size:12px;color:var(--ink);overflow-wrap:anywhere}
 .devlbl{font-family:var(--f-body);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
@@ -306,7 +315,7 @@ footer{font-size:12px;color:var(--muted)}
   </div>
   <div class="units" id="units"></div>
 
-  <footer id="foot">Tap a unit to open its points. PASS, FAIL, or N/A each point; a fail opens a note for the punch list and a Critical / Non-critical toggle (critical items go first on the copied punch list). Save checkout CSV writes every point with its status for Excel or closeout. Export saves the whole job to a file; Import takes an exported job file, an EBO XML export or Niagara .bog (pulls each controller's I/O and key points), or an Excel/CSV list of controllers to start a new job. Points marked ◦ are software values.</footer>
+  <footer id="foot">Tap a unit to open its points. PASS, FAIL, or N/A each point; a fail opens a note for the punch list and a Critical / Non-critical / Note choice (critical items go first on the copied punch list; a Note, shown orange, is still an issue but not one for controls, and lists last). Save checkout CSV writes every point with its status for Excel or closeout. Export saves the whole job to a file; Import takes an exported job file, an EBO XML export or Niagara .bog (pulls each controller's I/O and key points), or an Excel/CSV list of controllers to start a new job. Points marked ◦ are software values.</footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -398,7 +407,8 @@ footer{font-size:12px;color:var(--muted)}
   function counts(u){
     const c = {pass:0,fail:0,na:0,open:0,total:u.points.length};
     u.points.forEach(p => { c[p.s || 'open'] = (c[p.s || 'open']||0) + 1; });
-    c.crit = u.points.filter(p => p.s === 'fail' && p.crit).length;
+    c.note = u.points.filter(p => p.s === 'fail' && p.info).length; c.fail -= c.note;
+    c.crit = u.points.filter(p => p.s === 'fail' && p.crit && !p.info).length;
     c.applicable = c.total - c.na; c.done = c.pass;
     return c;
   }
@@ -406,9 +416,9 @@ footer{font-size:12px;color:var(--muted)}
   function fmtTime(t){ if (!t) return ''; const d = new Date(t); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
 
   function renderSummary(){
-    let pts=0,pass=0,fail=0,na=0;
+    let pts=0,pass=0,fail=0,na=0,note=0;
     const scope = units.filter(inTab);
-    scope.forEach(u => { const c = counts(u); pts+=c.total; pass+=c.pass; fail+=c.fail; na+=c.na; });
+    scope.forEach(u => { const c = counts(u); pts+=c.total; pass+=c.pass; fail+=c.fail; na+=c.na; note+=c.note; });
     const app = pts - na;
     $('sUnitsLbl').textContent = typeTab === 'all' ? 'Units' : typeTab + ' units';
     $('sUnits').textContent = scope.length;
@@ -416,7 +426,7 @@ footer{font-size:12px;color:var(--muted)}
     $('sPct').textContent = app ? Math.round(pass/app*100) + '%' : '0%';
     $('sFails').textContent = fail;
     const w = v => pts ? (v/pts*100) + '%' : '0';
-    $('sBar').innerHTML = `<i style="width:${w(pass)};background:var(--ok)"></i><i style="width:${w(fail)};background:var(--bad)"></i><i style="width:${w(na)};background:var(--na)"></i>`;
+    $('sBar').innerHTML = `<i style="width:${w(pass)};background:var(--ok)"></i><i style="width:${w(fail)};background:var(--bad)"></i><i style="width:${w(note)};background:var(--note)"></i><i style="width:${w(na)};background:var(--na)"></i>`;
   }
 
   function renderTabs(){
@@ -460,7 +470,7 @@ footer{font-size:12px;color:var(--muted)}
     $('units').innerHTML = list.map(u => {
       const c = counts(u), st = unitState(c), isOpen = open.has(u.id);
       const w = v => c.total ? (v/c.total*100)+'%' : '0';
-      const flag = (u.dev && u.dev.fuzzy ? '<span class="flag chk">Check scan</span>' : '') + (u.example ? '<span class="flag ex">Example</span>' : st==='fail' ? (c.crit ? `<span class="flag critf">${c.crit} critical</span>` : '') + `<span class="flag fail">${c.fail} fail</span>` : st==='done' ? '<span class="flag done">Done</span>' : '');
+      const flag = (u.dev && u.dev.fuzzy ? '<span class="flag chk">Check scan</span>' : '') + (u.example ? '<span class="flag ex">Example</span>' : (st==='fail' ? (c.crit ? `<span class="flag critf">${c.crit} critical</span>` : '') + `<span class="flag fail">${c.fail} fail</span>` : st==='done' ? '<span class="flag done">Done</span>' : '') + (c.note ? `<span class="flag notef">${c.note} note${c.note===1?'':'s'}</span>` : ''));
       const bulkN = u.points.filter(p => p.bulk && p.s === 'pass').length;
       const openN = u.points.filter(p => !p.s).length;
       const passAll = isOpen && canWrite && (bulkN || openN) ? `<div class="pabar"><span class="pahint">${bulkN ? `${bulkN} point${bulkN===1?'':'s'} passed in bulk` : `${openN} open point${openN===1?'':'s'}`}</span><button type="button" class="pabtn" data-passall="${u.id}" aria-pressed="${!!bulkN}">${bulkN ? 'Undo pass all' : 'Pass all points'}</button></div>` : '';
@@ -472,19 +482,21 @@ footer{font-size:12px;color:var(--muted)}
         const who = p.by && names[p.by] ? names[p.by] + ' · ' : '';
         const meta = s ? `<div class="pmeta">${esc(who)}${esc(fmtTime(p.at))}</div>` : '';
         const noteIn = (s === 'fail' || p.note) ? `<input class="note" data-u="${u.id}" data-i="${i}" placeholder="What failed? (goes on punch list)" value="${esc(p.note||'')}" ${canWrite?'':'readonly'} aria-label="Note for ${esc(p.n)}">` : '';
-        const critBtn = s === 'fail' ? `<button type="button" class="crit" data-crit="${u.id}" data-i="${i}" aria-pressed="${!!p.crit}" ${canWrite?'':'disabled'} title="Critical failures go first on the punch list">${p.crit ? 'Critical' : 'Non-critical'}</button>` : '';
+        const sv = p.info ? 'note' : p.crit ? 'crit' : 'minor';
+        const sb = (v, l, tip) => `<button type="button" data-sevu="${u.id}" data-i="${i}" data-sv="${v}" aria-pressed="${sv===v}" ${canWrite?'':'disabled'} title="${tip}">${l}</button>`;
+        const critBtn = s === 'fail' ? `<div class="sev" role="group" aria-label="How serious">${sb('crit','Critical','Controls must fix; first on the punch list')}${sb('minor','Non-critical','Controls should fix')}${sb('note','Note','Still an issue, but not one for controls to fix')}</div>` : '';
         const note = noteIn || critBtn ? `<div class="frow">${noteIn}${critBtn}</div>` : '';
         const b = v => `<button type="button" data-u="${u.id}" data-i="${i}" data-v="${v}" aria-pressed="${s===v}" ${canWrite?'':'disabled'}>${v==='na'?'N/A':v.toUpperCase()}</button>`;
         const armed = delPt === u.id + ':' + i;
         const del = canWrite ? `<button type="button" class="pdel" data-delpt="${u.id}" data-i="${i}" ${armed ? 'data-armed="1"' : ''} aria-label="${armed ? 'Tap again to delete' : 'Delete'} ${esc(p.n)}" title="Delete point">${armed ? 'Delete?' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>'}</button>` : '';
-        return `<div class="pt" data-s="${s}"><span class="stripe"></span><div class="pname">${esc(p.n)}${meta}</div><div class="sbtns" role="group" aria-label="${esc(p.n)}">${b('pass')}${b('fail')}${b('na')}</div>${del}${note}</div>`;
+        return `<div class="pt" data-s="${s}" ${s === 'fail' && p.info ? 'data-sev="note"' : ''}><span class="stripe"></span><div class="pname">${esc(p.n)}${meta}</div><div class="sbtns" role="group" aria-label="${esc(p.n)}">${b('pass')}${b('fail')}${b('na')}</div>${del}${note}</div>`;
       }).join('') || '<div class="pt"><span class="stripe"></span><div class="pname" style="color:var(--muted)">No points yet. Add one below.</div></div>'}</div>
       ${canWrite ? `<div class="ufoot"><input class="newpt" data-u="${u.id}" placeholder="Add a point, e.g. CO2 sensor" maxlength="80" aria-label="New point for ${esc(u.tag)}"><button class="btn" type="button" data-addpt="${u.id}">Add point</button><button class="btn danger" type="button" data-del="${u.id}">${delArm===u.id?'Tap again to delete':'Delete unit'}</button></div>` : ''}` : '';
       return `<article class="unit${u.example?' example':''}">
         <button class="uhead" type="button" data-toggle="${u.id}" aria-expanded="${isOpen}">
           <span class="type">${TYPE_LABEL[u.type]||esc(u.type)}</span>
           <span class="uname"><b>${esc(u.tag)}</b><span>${esc([u.dev && u.dev.did !== '' ? 'ID ' + u.dev.did : '', u.loc, u.model].filter(Boolean).join(' · '))}</span></span>
-          <span class="ustat"><span class="n">${c.pass}/${c.applicable} pass</span><span class="mini"><i style="width:${w(c.pass)};background:var(--ok)"></i><i style="width:${w(c.fail)};background:var(--bad)"></i><i style="width:${w(c.na)};background:var(--na)"></i></span>${flag}</span>
+          <span class="ustat"><span class="n">${c.pass}/${c.applicable} pass</span><span class="mini"><i style="width:${w(c.pass)};background:var(--ok)"></i><i style="width:${w(c.fail)};background:var(--bad)"></i><i style="width:${w(c.note)};background:var(--note)"></i><i style="width:${w(c.na)};background:var(--na)"></i></span>${flag}</span>
         </button>${pts}</article>`;
     }).join('');
   }
@@ -572,14 +584,15 @@ footer{font-size:12px;color:var(--muted)}
       const u = units.find(x => x.id === t.dataset.u); if (!u) return;
       const p = u.points[+t.dataset.i];
       const v = t.dataset.v;
-      p.s = p.s === v ? '' : v; p.at = p.s ? Date.now() : null; p.by = p.s ? me : null; p.bulk = false; p.crit = false;
+      p.s = p.s === v ? '' : v; p.at = p.s ? Date.now() : null; p.by = p.s ? me : null; p.bulk = false; p.crit = false; p.info = false;
       writeUnit(u); render();
       if (p.s === 'fail') { const n = document.querySelector(`.note[data-u="${u.id}"][data-i="${t.dataset.i}"]`); if (n) n.focus(); }
       return;
     }
-    if (t.dataset.crit && canWrite) {
-      const u = units.find(x => x.id === t.dataset.crit); if (!u) return;
-      const p = u.points[+t.dataset.i]; p.crit = !p.crit;
+    if (t.dataset.sevu && canWrite) {
+      const u = units.find(x => x.id === t.dataset.sevu); if (!u) return;
+      const p = u.points[+t.dataset.i], v = t.dataset.sv;
+      p.crit = v === 'crit'; p.info = v === 'note';
       writeUnit(u); render();
       return;
     }
@@ -635,11 +648,11 @@ footer{font-size:12px;color:var(--muted)}
 
   $('copyPunch').addEventListener('click', () => {
     // One block per unit per section, so a unit with several fails stays together.
-    const crit = [], minor = [];
+    const crit = [], minor = [], info = [];
     units.slice().sort((a,b)=>a.tag.localeCompare(b.tag,undefined,{numeric:true})).forEach(u => {
       const fails = u.points.filter(p => p.s === 'fail'); if (!fails.length) return;
       const item = p => `${u.tag}${u.loc?' ('+u.loc+')':''} – ${p.n}${p.note?': '+p.note:''}`;
-      [[crit, fails.filter(p => p.crit)], [minor, fails.filter(p => !p.crit)]].forEach(([list, ps]) => { if (ps.length) list.push(ps.map(item)); });
+      [[crit, fails.filter(p => p.crit && !p.info)], [minor, fails.filter(p => !p.crit && !p.info)], [info, fails.filter(p => p.info)]].forEach(([list, ps]) => { if (ps.length) list.push(ps.map(item)); });
     });
     // Critical items first under their own heading, numbered straight through.
     // A unit with more than one item in a section gets a dash line above and below.
@@ -656,11 +669,11 @@ footer{font-size:12px;color:var(--muted)}
       });
       return out.join('\n');
     };
-    const lines = crit.flat().concat(minor.flat());
+    const lines = crit.flat().concat(minor.flat(), info.flat());
     const head = (project.name ? project.name + ' – ' : '') + 'Controls punch list, ' + new Date().toLocaleDateString();
-    const text = lines.length ? head + '\n\n' + [sect('CRITICAL', crit), sect('NON-CRITICAL', minor)].filter(Boolean).join('\n\n') : head + '\n\nNo open fails.';
-    const nCrit = crit.flat().length;
-    const done = () => toast(lines.length ? `Copied ${lines.length} item${lines.length>1?'s':''}${nCrit ? `, ${nCrit} critical` : ''}` : 'Copied. No fails to list.');
+    const text = lines.length ? head + '\n\n' + [sect('CRITICAL', crit), sect('NON-CRITICAL', minor), sect('NOTES, NOT FOR CONTROLS', info)].filter(Boolean).join('\n\n') : head + '\n\nNo open fails.';
+    const nCrit = crit.flat().length, nInfo = info.flat().length;
+    const done = () => toast(lines.length ? `Copied ${lines.length} item${lines.length>1?'s':''}${nCrit ? `, ${nCrit} critical` : ''}${nInfo ? `, ${nInfo} note${nInfo>1?'s':''}` : ''}` : 'Copied. No fails to list.');
     try { navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done)); } catch(e) { fallbackCopy(text, done); }
   });
   // ---------- export / import ----------
@@ -721,7 +734,7 @@ footer{font-size:12px;color:var(--muted)}
     const fmtAt = t => { const d = new Date(t); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); };
     const CELL = {pass:'PASS', fail:'FAIL', na:'N/A', '':''};
     const rows = [];
-    const tot = {pass:0, fail:0, na:0, open:0};
+    const tot = {pass:0, fail:0, note:0, na:0, open:0};
     rows.push(['Point checkout' + (project.name ? ': ' + project.name : '')]);
     rows.push(['Saved ' + fmtAt(Date.now())]);
     const sumRow = rows.length; rows.push([]);
@@ -732,22 +745,22 @@ footer{font-size:12px;color:var(--muted)}
       g.units.forEach(u => u.points.forEach(p => { const k = shortName(p.n); if (k && !cols.includes(k)) cols.push(k); }));
       rows.push([]);
       rows.push([`${g.t} (${g.units.length} unit${g.units.length === 1 ? '' : 's'})`]);
-      rows.push(['Unit', 'Location', 'Model', 'Device ID', 'Serial', '% complete', 'Pass', 'Fail', 'N/A', 'Open', 'Fail notes', 'Last checked', ...cols]);
+      rows.push(['Unit', 'Location', 'Model', 'Device ID', 'Serial', '% complete', 'Pass', 'Fail', 'Note', 'N/A', 'Open', 'Fail notes', 'Last checked', ...cols]);
       g.units.forEach(u => {
-        const c = counts(u); tot.pass += c.pass; tot.fail += c.fail; tot.na += c.na; tot.open += c.open || 0;
+        const c = counts(u); tot.pass += c.pass; tot.fail += c.fail; tot.note += c.note; tot.na += c.na; tot.open += c.open || 0;
         const byName = {}; u.points.forEach(p => { byName[shortName(p.n)] = p; });
-        const notes = u.points.filter(p => p.s === 'fail').sort((a, b) => !!b.crit - !!a.crit).map(p => (p.crit ? 'CRITICAL ' : '') + shortName(p.n) + (p.note ? ': ' + p.note : '')).join('; ');
+        const notes = u.points.filter(p => p.s === 'fail').sort((a, b) => (!!a.info - !!b.info) || (!!b.crit - !!a.crit)).map(p => (p.info ? 'NOTE ' : p.crit ? 'CRITICAL ' : '') + shortName(p.n) + (p.note ? ': ' + p.note : '')).join('; ');
         const last = u.points.reduce((m, p) => p.at && (!m || p.at > m.at) ? p : m, null);
         const lastTxt = last ? fmtAt(last.at) + (last.by && names[last.by] ? ' (' + names[last.by] + ')' : '') : '';
-        rows.push([u.tag, u.loc || '', u.model || (u.dev && u.dev.model) || '', u.dev ? u.dev.did : '', u.dev ? u.dev.serial : '', c.applicable ? Math.round(c.pass / c.applicable * 100) + '%' : '', c.pass, c.fail, c.na, c.open || 0, notes, lastTxt,
-          ...cols.map(k => byName[k] ? (CELL[byName[k].s || ''] ?? '') : '—')]);
+        rows.push([u.tag, u.loc || '', u.model || (u.dev && u.dev.model) || '', u.dev ? u.dev.did : '', u.dev ? u.dev.serial : '', c.applicable ? Math.round(c.pass / c.applicable * 100) + '%' : '', c.pass, c.fail, c.note, c.na, c.open || 0, notes, lastTxt,
+          ...cols.map(k => byName[k] ? (byName[k].s === 'fail' && byName[k].info ? 'NOTE' : CELL[byName[k].s || ''] ?? '') : '—')]);
       });
     });
-    const app = tot.pass + tot.fail + tot.open;
-    rows[sumRow] = [`${list.length} units · ${app ? Math.round(tot.pass / app * 100) : 0}% complete · ${tot.pass} pass · ${tot.fail} fail · ${tot.na} N/A · ${tot.open} open`];
+    const app = tot.pass + tot.fail + tot.note + tot.open;
+    rows[sumRow] = [`${list.length} units · ${app ? Math.round(tot.pass / app * 100) : 0}% complete · ${tot.pass} pass · ${tot.fail} fail · ${tot.note} note · ${tot.na} N/A · ${tot.open} open`];
     rows.push([]);
     rows.push(['Blank = not checked yet. — = point not on that unit.']);
-    const n = tot.pass + tot.fail + tot.na + tot.open;
+    const n = tot.pass + tot.fail + tot.note + tot.na + tot.open;
     const text = '\ufeff' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
     await saveFile(`checkout-${slug(project.name)}-${new Date().toISOString().slice(0,10)}.csv`, text, 'text/csv', `Saved CSV: ${list.length} units, ${n} points`);
   });
@@ -770,7 +783,7 @@ footer{font-size:12px;color:var(--muted)}
       let added = 0, updated = 0;
       data.units.forEach(x => {
         if (!x || !x.tag) return;
-        const pts = Array.isArray(x.points) ? x.points.map(p => ({n:String(p.n||''), s:['pass','fail','na'].includes(p.s)?p.s:'', note:p.note?String(p.note):'', crit:!!p.crit, by:p.by||null, at:p.at||null, bulk:!!p.bulk})).filter(p => p.n) : [];
+        const pts = Array.isArray(x.points) ? x.points.map(p => ({n:String(p.n||''), s:['pass','fail','na'].includes(p.s)?p.s:'', note:p.note?String(p.note):'', crit:!!p.crit, info:!!p.info, by:p.by||null, at:p.at||null, bulk:!!p.bulk})).filter(p => p.n) : [];
         let u = units.find(y => y.tag.toLowerCase() === String(x.tag).toLowerCase());
         if (u) { u.type = String(x.type||u.type); u.loc = String(x.loc||''); u.model = String(x.model||''); if (x.dev) u.dev = cleanDev(x.dev); u.points = pts; u.example = !!x.example; updated++; }
         else { u = {id:'u'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), tag:String(x.tag), type:String(x.type||'BLANK'), loc:String(x.loc||''), model:String(x.model||''), dev:cleanDev(x.dev), example:!!x.example, points:pts}; units.push(u); added++; }
@@ -1295,7 +1308,7 @@ footer{font-size:12px;color:var(--muted)}
     $('mode').textContent = canWrite ? 'Shared · live' : 'Shared · view only';
     units = []; project = {name:''}; render();
     db.collection('units').onSnapshot(snap => {
-      units = snap.docs.map(doc => { const x = doc.data() || {}; return {id: doc.id, tag: String(x.tag||doc.id), type: String(x.type||'BLANK'), loc: String(x.loc||''), model: String(x.model||''), dev: cleanDev(x.dev), example: !!x.example, at: x.at, points: Array.isArray(x.points) ? x.points.map(p => ({n:String(p.n||''), s: ['pass','fail','na'].includes(p.s)?p.s:'', note: p.note?String(p.note):'', crit: !!p.crit, by: p.by||null, at: p.at||null, bulk: !!p.bulk})) : []}; });
+      units = snap.docs.map(doc => { const x = doc.data() || {}; return {id: doc.id, tag: String(x.tag||doc.id), type: String(x.type||'BLANK'), loc: String(x.loc||''), model: String(x.model||''), dev: cleanDev(x.dev), example: !!x.example, at: x.at, points: Array.isArray(x.points) ? x.points.map(p => ({n:String(p.n||''), s: ['pass','fail','na'].includes(p.s)?p.s:'', note: p.note?String(p.note):'', crit: !!p.crit, info: !!p.info, by: p.by||null, at: p.at||null, bulk: !!p.bulk})) : []}; });
       render(); resolveNames();
     }, () => { $('mode').textContent = 'Offline · reload to reconnect'; });
     db.doc('meta/project').onSnapshot(s => { project = {name: (s.exists && s.data().name) || ''}; render(); }, () => {});
