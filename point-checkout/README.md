@@ -123,6 +123,8 @@ Then tap **Add N units**. A counter at the bottom of the screen shows progress.
 - **Pass all points** (top of an open unit) marks every *open* point on that unit PASS in one tap. Points already marked FAIL or N/A are left alone.
   - The button turns solid and changes to **Undo pass all**. Tapping it sets only the bulk-passed points back to open.
   - Any point you change by hand after a pass all is yours, and Undo won't touch it.
+- **Name, Type and Location** at the top of an open unit can be changed at any time. Changing the type moves the unit to that tab and keeps its points and results; it doesn't load a new point list. Two units can't share a name.
+- The trash button at the end of a point deletes it. It asks for a second tap first, and the point's result goes with it.
 - **Add point** at the bottom of a unit adds a custom point. **Delete unit** asks for a second tap to confirm.
 - **Add unit** adds a single unit by hand using a standard template.
 - **Clear job** (next to the project name) erases every unit and point to start a new job. It takes three taps: **Clear job → Clear job? → Erase N units**. Tapping anywhere else, or waiting a few seconds, cancels it. Use **Export job** first if you might need the old job.

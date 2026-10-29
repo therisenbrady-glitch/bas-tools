@@ -132,7 +132,7 @@ h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;mar
 .fzbtns button[data-ok="1"]{border-color:var(--ok);color:var(--ok)}
 
 .points{border-top:1px solid var(--line);display:flex;flex-direction:column}
-.pt{display:grid;grid-template-columns:4px 1fr auto;gap:0 10px;align-items:center;padding:8px 14px 8px 0;border-bottom:1px solid var(--line)}
+.pt{display:grid;grid-template-columns:4px 1fr auto auto;gap:0 10px;align-items:center;padding:8px 14px 8px 0;border-bottom:1px solid var(--line)}
 .pt:last-of-type{border-bottom:0}
 .pt .stripe{align-self:stretch;background:transparent}
 .pt[data-s="pass"] .stripe{background:var(--ok)}
@@ -149,6 +149,10 @@ h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;mar
 .sbtns button[data-v="na"][aria-pressed="true"]{background:var(--na);color:var(--panel)}
 .note{grid-column:2/-1;margin-top:6px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--ink);font-size:13.5px;padding:7px 9px;width:100%;font-family:var(--f-body)}
 .pt[data-s="fail"] .note{border-color:var(--bad)}
+.pdel{border:1px solid transparent;background:transparent;color:var(--muted);border-radius:6px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;padding:0}
+.pdel svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.pdel:hover{color:var(--bad);border-color:var(--line)}
+.pdel[data-armed]{width:auto;padding:0 8px;color:var(--panel);background:var(--bad);border-color:var(--bad)}
 .frow{grid-column:2/-1;display:flex;gap:8px;align-items:stretch;margin-top:6px}
 .frow .note{grid-column:auto;margin-top:0;flex:1;min-width:0}
 .crit{flex:none;border:1px solid var(--bad);background:transparent;color:var(--bad);font-weight:700;font-size:12px;letter-spacing:.03em;padding:6px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
@@ -163,6 +167,9 @@ h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;mar
 .pahint{font-size:12.5px;color:var(--muted)}
 .pabtn{border:1px solid var(--ok);background:transparent;color:var(--ok);font-weight:700;font-size:12.5px;letter-spacing:.02em;padding:6px 12px;border-radius:6px;cursor:pointer;white-space:nowrap}
 .pabtn[aria-pressed="true"]{background:var(--ok);color:var(--panel)}
+.edbar{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;border-top:1px solid var(--line);align-items:center}
+.edbar label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px;flex:1;min-width:120px}
+.edbar input,.edbar select{border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:14px;padding:7px 9px;font-family:inherit}
 .ufoot{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--sunk);border-top:1px solid var(--line);align-items:center}
 .ufoot input{flex:1;min-width:140px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:14px;padding:7px 9px}
 
@@ -328,6 +335,7 @@ footer{font-size:12px;color:var(--muted)}
   let typeTab = 'all';
   try { typeTab = localStorage.getItem('pct-tab') || 'all'; } catch(e) {}
   const TAB_ORDER = ['AHU','RTU','VAV','UV','FCU','EF','HWS','Other'];
+  const TYPE_OPTS = [['VAV','VAV · reheat'],['VAVC','VAV · cooling only'],['AHU','AHU'],['RTU','RTU'],['FCU','FCU'],['UV','Unit ventilator'],['EF','Exhaust fan'],['HWS','Hot water system'],['BLANK','Blank (no points)']];
   const tabOf = u => { const l = TYPE_LABEL[u.type]; return !l || l === '—' ? 'Other' : l; };
   const inTab = u => typeTab === 'all' || tabOf(u) === typeTab;
   const open = new Set();
@@ -431,7 +439,7 @@ footer{font-size:12px;color:var(--muted)}
   }
 
   function render(){
-    if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('note')) { pendingRender = true; return; }
+    if (document.activeElement && document.activeElement.classList && (document.activeElement.classList.contains('note') || document.activeElement.classList.contains('uedit'))) { pendingRender = true; return; }
     pendingRender = false;
     renderTabs();
     renderSummary();
@@ -456,9 +464,10 @@ footer{font-size:12px;color:var(--muted)}
       const bulkN = u.points.filter(p => p.bulk && p.s === 'pass').length;
       const openN = u.points.filter(p => !p.s).length;
       const passAll = isOpen && canWrite && (bulkN || openN) ? `<div class="pabar"><span class="pahint">${bulkN ? `${bulkN} point${bulkN===1?'':'s'} passed in bulk` : `${openN} open point${openN===1?'':'s'}`}</span><button type="button" class="pabtn" data-passall="${u.id}" aria-pressed="${!!bulkN}">${bulkN ? 'Undo pass all' : 'Pass all points'}</button></div>` : '';
+      const edbar = isOpen && canWrite && !u.example ? `<div class="edbar"><label>Name<input class="uedit" data-ue="${u.id}" data-k="tag" value="${esc(u.tag)}" maxlength="40" autocomplete="off"></label><label>Type<select class="uedit" data-ue="${u.id}" data-k="type">${TYPE_OPTS.concat(TYPE_OPTS.some(o => o[0] === u.type) ? [] : [[u.type, u.type]]).map(([v,l]) => `<option value="${esc(v)}" ${u.type===v?'selected':''}>${esc(v==='BLANK'?'Other':l)}</option>`).join('')}</select></label><label>Location / serves<input class="uedit" data-ue="${u.id}" data-k="loc" value="${esc(u.loc||'')}" maxlength="80" autocomplete="off"></label></div>` : '';
       const devbar = isOpen && u.dev ? `<div class="devbar"><span class="devlbl">Device</span>${esc(devLine(u.dev))}</div>` : '';
       const fzbar = isOpen && u.dev && u.dev.fuzzy ? `<div class="fzbar"><span>Scan matched by ${esc(u.dev.fuzzy)}. Is this the right device?</span>${canWrite ? fzBtns(u.id) : ''}</div>` : '';
-      const pts = isOpen ? devbar + fzbar + passAll + `<div class="points">${u.points.map((p,i) => {
+      const pts = isOpen ? edbar + devbar + fzbar + passAll + `<div class="points">${u.points.map((p,i) => {
         const s = p.s || '';
         const who = p.by && names[p.by] ? names[p.by] + ' · ' : '';
         const meta = s ? `<div class="pmeta">${esc(who)}${esc(fmtTime(p.at))}</div>` : '';
@@ -466,7 +475,9 @@ footer{font-size:12px;color:var(--muted)}
         const critBtn = s === 'fail' ? `<button type="button" class="crit" data-crit="${u.id}" data-i="${i}" aria-pressed="${!!p.crit}" ${canWrite?'':'disabled'} title="Critical failures go first on the punch list">${p.crit ? 'Critical' : 'Non-critical'}</button>` : '';
         const note = noteIn || critBtn ? `<div class="frow">${noteIn}${critBtn}</div>` : '';
         const b = v => `<button type="button" data-u="${u.id}" data-i="${i}" data-v="${v}" aria-pressed="${s===v}" ${canWrite?'':'disabled'}>${v==='na'?'N/A':v.toUpperCase()}</button>`;
-        return `<div class="pt" data-s="${s}"><span class="stripe"></span><div class="pname">${esc(p.n)}${meta}</div><div class="sbtns" role="group" aria-label="${esc(p.n)}">${b('pass')}${b('fail')}${b('na')}</div>${note}</div>`;
+        const armed = delPt === u.id + ':' + i;
+        const del = canWrite ? `<button type="button" class="pdel" data-delpt="${u.id}" data-i="${i}" ${armed ? 'data-armed="1"' : ''} aria-label="${armed ? 'Tap again to delete' : 'Delete'} ${esc(p.n)}" title="Delete point">${armed ? 'Delete?' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>'}</button>` : '';
+        return `<div class="pt" data-s="${s}"><span class="stripe"></span><div class="pname">${esc(p.n)}${meta}</div><div class="sbtns" role="group" aria-label="${esc(p.n)}">${b('pass')}${b('fail')}${b('na')}</div>${del}${note}</div>`;
       }).join('') || '<div class="pt"><span class="stripe"></span><div class="pname" style="color:var(--muted)">No points yet. Add one below.</div></div>'}</div>
       ${canWrite ? `<div class="ufoot"><input class="newpt" data-u="${u.id}" placeholder="Add a point, e.g. CO2 sensor" maxlength="80" aria-label="New point for ${esc(u.tag)}"><button class="btn" type="button" data-addpt="${u.id}">Add point</button><button class="btn danger" type="button" data-del="${u.id}">${delArm===u.id?'Tap again to delete':'Delete unit'}</button></div>` : ''}` : '';
       return `<article class="unit${u.example?' example':''}">
@@ -477,7 +488,7 @@ footer{font-size:12px;color:var(--muted)}
         </button>${pts}</article>`;
     }).join('');
   }
-  let pendingRender = false, delArm = null;
+  let pendingRender = false, delArm = null, delPt = null;
 
   function toast(msg, bad, sticky){ const t = $('toast'); t.textContent = msg; t.classList.toggle('bad', !!bad); clearTimeout(toast._t); if (!sticky) toast._t = setTimeout(()=> t.textContent = '', bad ? 7000 : 3500); }
 
@@ -547,6 +558,15 @@ footer{font-size:12px;color:var(--muted)}
 
   $('units').addEventListener('click', e => {
     const t = e.target.closest('button'); if (!t) return;
+    if (delPt && !t.dataset.delpt) delPt = null;
+    if (t.dataset.delpt && canWrite) {
+      const u = units.find(x => x.id === t.dataset.delpt); if (!u) return;
+      const key = u.id + ':' + t.dataset.i;
+      if (delPt !== key) { delPt = key; render(); return; }
+      const [gone] = u.points.splice(+t.dataset.i, 1); delPt = null;
+      writeUnit(u); render(); toast(`Deleted ${gone ? gone.n : 'point'} from ${u.tag}`);
+      return;
+    }
     if (t.dataset.toggle) { const id = t.dataset.toggle; open.has(id) ? open.delete(id) : open.add(id); delArm = null; render(); return; }
     if (t.dataset.v && canWrite) {
       const u = units.find(x => x.id === t.dataset.u); if (!u) return;
@@ -596,7 +616,21 @@ footer{font-size:12px;color:var(--muted)}
     const p = u.points[+e.target.dataset.i]; const v = e.target.value.trim();
     if ((p.note||'') !== v) { p.note = v; writeUnit(u); }
   });
-  $('units').addEventListener('focusout', e => { if (e.target.classList.contains('note') && pendingRender) setTimeout(render, 0); });
+  $('units').addEventListener('change', e => {
+    const k = e.target.dataset.k; if (!e.target.classList.contains('uedit') || !canWrite) return;
+    const u = units.find(x => x.id === e.target.dataset.ue); if (!u) return;
+    const v = e.target.value.trim();
+    if (k === 'tag') {
+      if (!v) { e.target.value = u.tag; toast('A unit needs a name.', true); return; }
+      if (units.some(x => x !== u && x.tag.toLowerCase() === v.toLowerCase())) { e.target.value = u.tag; toast(`${v} is already on the list.`, true); return; }
+    }
+    if ((u[k] || '') === v) return;
+    const was = k === 'type' ? (TYPE_LABEL[u.type] || u.type) : u[k];
+    u[k] = v; writeUnit(u);
+    toast(k === 'tag' ? `Renamed ${was} to ${v}` : k === 'type' ? `${u.tag} moved to ${tabOf(u)}` : `Saved location for ${u.tag}`);
+    if (k === 'type') render(); else pendingRender = true;
+  });
+  $('units').addEventListener('focusout', e => { if ((e.target.classList.contains('note') || e.target.classList.contains('uedit')) && pendingRender) setTimeout(render, 0); });
   $('projName').addEventListener('change', () => { project.name = $('projName').value.trim(); writeProject(); });
 
   $('copyPunch').addEventListener('click', () => {
@@ -752,7 +786,6 @@ footer{font-size:12px;color:var(--muted)}
 
   // ---------- spreadsheet import ----------
   let xl = null;
-  const TYPE_OPTS = [['VAV','VAV · reheat'],['VAVC','VAV · cooling only'],['AHU','AHU'],['RTU','RTU'],['FCU','FCU'],['UV','Unit ventilator'],['EF','Exhaust fan'],['HWS','Hot water system'],['BLANK','Blank (no points)']];
   function guessType(s){
     s = s.toUpperCase();
     if (/\bAHU\b|AHU-?\d|AHU-[A-Z]/.test(s)) return 'AHU';
