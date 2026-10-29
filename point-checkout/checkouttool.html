@@ -673,7 +673,7 @@ footer{font-size:12px;color:var(--muted)}
     };
     const lines = crit.flat().concat(minor.flat(), info.flat());
     const head = (project.name ? project.name + ' – ' : '') + 'Controls punch list, ' + new Date().toLocaleDateString();
-    const text = lines.length ? head + '\n\n' + [sect('CRITICAL', crit), sect('NON-CRITICAL', minor), sect('NOTES, NOT FOR CONTROLS', info)].filter(Boolean).join('\n\n') : head + '\n\nNo open fails.';
+    const text = lines.length ? head + '\n\n' + [sect('CRITICAL', crit), sect('NON-CRITICAL', minor), sect('NOTES', info)].filter(Boolean).join('\n\n') : head + '\n\nNo open fails.';
     const nCrit = crit.flat().length, nInfo = info.flat().length;
     const done = () => toast(lines.length ? `Copied ${lines.length} item${lines.length>1?'s':''}${nCrit ? `, ${nCrit} critical` : ''}${nInfo ? `, ${nInfo} note${nInfo>1?'s':''}` : ''}` : 'Copied. No fails to list.');
     try { navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done)); } catch(e) { fallbackCopy(text, done); }
