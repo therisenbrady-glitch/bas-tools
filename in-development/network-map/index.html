@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="../../assets/favicon.png">
+<style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<a href="../../" style="display:block;max-width:640px;margin:0 auto;padding:10px 16px 0;font:600 12.5px/1.2 system-ui,-apple-system,sans-serif;color:var(--muted,#5b6873);text-decoration:none">← All field tools</a>
+<title>Network Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column; nameplate header, scan kit card, load card, map panel (SVG), selected-device editor, device table, readings */
+:root{
+  --bg:#eef1f3; --panel:#ffffff; --ink:#18222b; --muted:#5b6873; --line:#cfd6dc; --sunk:#f5f7f8;
+  --steel:#2f4a5e; --accent:#d98a10; --accent-ink:#1b1305;
+  --ok:#2e7d4f; --warn:#b26a00; --bad:#b3362c;
+  --readout:#17232d; --readout-ink:#e9f0f4; --readout-dim:#8fa3b2;
+  --n-srv:#2f4a5e; --n-mpc:#d98a10; --n-mpv:#2e7d4f; --n-rpc:#7a5aa6; --n-oth:#8a97a1;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --logo-l:none; --logo-d:block;
+  --bg:#10171d; --panel:#18222a; --ink:#e3eaef; --muted:#93a3af; --line:#2b3944; --sunk:#131c23;
+  --steel:#9cb8cc; --accent:#f0a22e; --accent-ink:#1b1305;
+  --ok:#5fc48a; --warn:#f0a22e; --bad:#ef6f62;
+  --readout:#0a1015; --readout-ink:#e9f0f4; --readout-dim:#7f93a2;
+  --n-srv:#9cb8cc; --n-mpc:#f0a22e; --n-mpv:#5fc48a; --n-rpc:#b49ae0; --n-oth:#7f8d98; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --logo-l:none; --logo-d:block;
+  --bg:#10171d; --panel:#18222a; --ink:#e3eaef; --muted:#93a3af; --line:#2b3944; --sunk:#131c23;
+  --steel:#9cb8cc; --accent:#f0a22e; --accent-ink:#1b1305;
+  --ok:#5fc48a; --warn:#f0a22e; --bad:#ef6f62;
+  --readout:#0a1015; --readout-ink:#e9f0f4; --readout-dim:#7f93a2;
+  --n-srv:#9cb8cc; --n-mpc:#f0a22e; --n-mpv:#5fc48a; --n-rpc:#b49ae0; --n-oth:#7f8d98; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-direction:column;gap:4px;border-left:4px solid var(--accent);padding-left:12px}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;margin:0;letter-spacing:.01em}
+header p{margin:2px 0 0;color:var(--muted);font-size:14px}
+.headtop{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.co-logo{flex:0 0 auto;display:inline-flex}
+.co-logo img{height:26px;width:auto}
+.co-l{display:var(--logo-l,block)}
+.co-d{display:var(--logo-d,none)}
+.headrow{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.headrow p{margin:2px 0 0}
+.clr{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--muted);font-family:var(--f-body);font-weight:600;font-size:11.5px;padding:4px 9px;border-radius:5px;cursor:pointer;white-space:nowrap}
+.clr:hover{border-color:var(--bad);color:var(--bad)}
+.clr[data-step="1"]{border-color:var(--bad);color:var(--bad)}
+.clr[data-step="2"]{background:var(--bad);border-color:var(--bad);color:#fff}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel h2{font-family:var(--f-display);font-weight:600;font-size:21px;margin:0;letter-spacing:.02em;display:flex;align-items:baseline;gap:10px}
+.panel h2 .num{font-family:var(--f-mono);font-size:12px;color:var(--accent);font-weight:600;letter-spacing:.08em}
+.hint{font-size:13px;color:var(--muted);margin:0}
+ol.steps{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction:column;gap:4px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-family:var(--f-body);font-weight:600;font-size:13.5px;padding:8px 14px;border-radius:6px;cursor:pointer;text-decoration:none}
+.btn:hover{border-color:var(--steel)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.btn:focus-visible,.seg button:focus-visible,.clr:focus-visible,summary:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.small a{color:var(--steel);font-weight:600;font-size:12.5px;margin-right:12px}
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:16px;text-align:center;color:var(--muted);font-size:13.5px;background:var(--sunk)}
+.drop.over{border-color:var(--accent);color:var(--ink)}
+.files{display:flex;flex-direction:column;gap:4px;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.files div{display:flex;gap:8px;align-items:baseline}
+.files b{color:var(--ink);font-weight:500;overflow-wrap:anywhere}
+.tag{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:1px 6px;background:var(--sunk);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.tag.amb{color:var(--accent);border-color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#2c3a45;border-radius:8px;overflow:hidden}
+.stats div{background:var(--readout);color:var(--readout-ink);padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.stats b{font-family:var(--f-mono);font-weight:600;font-size:22px;line-height:1.1;font-variant-numeric:tabular-nums}
+.stats span{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--readout-dim)}
+@media (max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}
+.mapbox{background:var(--sunk);border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+.mapbox svg{display:block;width:100%;height:auto;min-width:320px;margin:0 auto}
+.mapbox svg + svg{border-top:1px solid var(--line)}
+.mapbox .node{cursor:pointer}
+.mapbox .node:focus{outline:none}
+.mapbox .node:focus-visible rect.box{stroke:var(--accent);stroke-width:2.5}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.warns{margin:0;padding-left:18px;font-size:13.5px;color:var(--warn);display:flex;flex-direction:column;gap:3px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--muted);font-family:var(--f-body);font-weight:600;font-size:13px;padding:6px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.sel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.sel-head h3{font-family:var(--f-display);font-weight:700;font-size:24px;margin:0;line-height:1.05}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 14px}
+.kv div{display:flex;flex-direction:column;min-width:0}
+.kv span{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.kv b{font-family:var(--f-mono);font-weight:500;font-size:13.5px;overflow-wrap:anywhere}
+.edit{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;border-top:1px solid var(--line);padding-top:12px}
+.edit label{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px}
+#swBody input{width:64px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-family:var(--f-mono);font-size:14px;padding:4px 6px}
+#swBox{margin:4px 0 12px}
+.edit input{width:70px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-family:var(--f-mono);font-size:15px;padding:6px 8px}
+.link{background:none;border:0;padding:0;color:var(--steel);font:inherit;font-size:12.5px;font-weight:600;text-decoration:underline;cursor:pointer}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);background:var(--sunk);white-space:nowrap;position:sticky;top:0}
+td{padding:6px 8px;border-bottom:1px solid var(--line);font-family:var(--f-mono);white-space:nowrap}
+td.nm{font-family:var(--f-body);font-weight:600}
+tr[data-k]{cursor:pointer}
+tr.on td{background:color-mix(in srgb,var(--accent) 16%,transparent)}
+tbody tr:last-child td{border-bottom:0}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--warn);margin-left:5px;vertical-align:1px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.card{border:1px dashed var(--line);border-radius:6px;padding:8px 10px;background:var(--sunk);cursor:pointer;text-align:left;font:inherit;color:var(--ink);display:flex;flex-direction:column;gap:1px;min-width:0}
+.card b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card span{font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+.card.on{border-style:solid;border-color:var(--accent)}
+details{border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-weight:600;font-size:14px}
+details>*:not(summary){margin-top:10px}
+.empty{color:var(--muted);font-size:14px;text-align:center;padding:28px 12px}
+.banner{background:color-mix(in srgb,var(--accent) 14%,var(--panel));border:1px solid var(--accent);border-radius:6px;padding:8px 12px;font-size:13px}
+footer{font-size:12px;color:var(--muted)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom, 0px));z-index:5;max-width:calc(100% - 32px);background:var(--readout);color:var(--readout-ink);font-size:13.5px;font-weight:500;padding:10px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.25);border-left:4px solid var(--accent)}
+.toast:empty{display:none}
+.toast.bad{border-left-color:var(--bad)}
+</style>
+<div class="wrap">
+  <header>
+    <div class="headtop"><span class="eyebrow">Controller network · Field tools</span><span class="co-logo" role="img" aria-label="Combustion Service &amp; Equipment Co."><img class="co-l" src="data:image/png;base64,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" alt="" width="300" height="80"><img class="co-d" src="data:image/png;base64,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" alt="" width="300" height="80"></span></div>
+    <h1>Network Map</h1>
+    <div class="headrow"><p>Run the scan on a laptop plugged into the controller network, then load its CSVs here to see every controller, its address, and the cable order.</p><button type="button" class="clr" id="clearBtn" title="Remove the loaded scan files and your placement edits">Clear</button></div>
+  </header>
+
+  <section class="panel" aria-labelledby="h1k" id="kitPanel">
+    <h2 id="h1k"><span class="num">01</span>Get the scan kit</h2>
+    <ol class="steps">
+      <li>Download the kit on a Windows laptop and unzip it.</li>
+      <li>Plug into the controller network, close EBO WorkStation, and double-click <b>Run EBO-NetScan.bat</b>. The map opens in the browser when it's done, no internet needed.</li>
+      <li>For the cable order, take a reading at a few spots along the chain. Click <b>Yes</b> when Windows asks for administrator (it uses Windows' own packet capture). The kit's README explains where to plug in.</li>
+    </ol>
+    <div class="btns">
+      <a class="btn pri" href="scan/EBO-NetScan.zip?v=c3f8f94" download><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download scan kit (.zip)</a>
+    </div>
+    <p class="small"><a href="scan/README.txt">README.txt</a><a href="scan/EBO-NetScan.ps1">EBO-NetScan.ps1</a><a href="scan/Run%20EBO-NetScan.bat">Run EBO-NetScan.bat</a></p>
+    <p class="hint">Read-only: the scan only asks controllers who they are. It never writes to one.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h2k">
+    <h2 id="h2k"><span class="num">02</span>Or load saved results</h2>
+    <div class="drop" id="drop">Drop the <b>Devices_…csv</b> and <b>RSTP readings.csv</b> files here (and the loop switch's <b>MAC address table</b> CSV, if you have one), or
+      <div class="btns" style="justify-content:center;margin-top:8px">
+        <button type="button" class="btn pri" id="pickBtn"><svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>Choose files</button>
+        <button type="button" class="btn" id="sampleBtn">Try sample data</button>
+      </div>
+    </div>
+    <input type="file" id="fileIn" accept=".csv,text/csv" multiple hidden>
+    <p class="hint">Add files any time: a later scan updates the list, and new RSTP readings place more controllers. A Device Scanner <b>Export for checkout</b> CSV adds serial numbers by MAC. A managed switch's MAC address table sorts the controllers into loops by the switch port they're heard on.</p>
+    <div class="files" id="files"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h3k" id="mapPanel">
+    <h2 id="h3k"><span class="num">03</span>Map</h2>
+    <div class="banner" id="sampleNote" hidden>Showing sample data. Load your own files to replace it.</div>
+    <div class="banner" id="kitNote" hidden></div>
+    <div class="stats" id="stats"></div>
+    <ul class="warns" id="warns" hidden></ul>
+    <details id="swBox" hidden><summary id="swSum"></summary>
+      <p class="hint" style="margin:8px 0">Each loop leaves the switch on one port and comes back on another. Give both ports the same loop number; the lower port is side A. A port with no loop number is drawn on its own.</p>
+      <div class="tablewrap"><table><thead><tr><th>Switch port</th><th>Controllers</th><th>Other MACs</th><th>Loop</th></tr></thead><tbody id="swBody"></tbody></table></div>
+    </details>
+    <div class="btns" id="mapTools" hidden>
+      <span class="hint" style="margin-right:4px">Ends of the chain:</span>
+      <div class="seg" role="group" aria-label="Chain ends"><button type="button" data-ring="0">Open chain</button><button type="button" data-ring="1">Ring</button></div>
+    </div>
+    <div class="mapbox" id="mapbox"><div class="empty">Load a scan to draw the map.</div></div>
+    <div class="legend" id="legend" hidden>
+      <span><i style="background:var(--n-srv)"></i>Server (AS-P/AS-B)</span>
+      <span><i style="background:var(--n-mpc)"></i>MP-C</span>
+      <span><i style="background:var(--n-mpv)"></i>MP-V</span>
+      <span><i style="background:var(--n-rpc)"></i>RP-C</span>
+      <span><i style="background:var(--n-oth)"></i>Other / unknown</span>
+    </div>
+    <p class="hint" id="mapHint" hidden>Each row is one cable hop from the RSTP root. Tap a controller to see its details or move it. Dashed boxes are hops nobody has taken a reading at yet.</p>
+    <p class="hint" id="swHint" hidden>Loops marked <b>cable order not read</b> come from the switch MAC table alone: side A and B are the loop's two switch ports, but the order down each side isn't known until RSTP readings are taken, so controllers are listed by device ID.</p>
+
+    <div id="unplacedBox" hidden>
+      <h2 style="font-size:18px;margin:4px 0 8px">Not placed yet <span class="tag" id="unplacedN"></span></h2>
+      <p class="hint" style="margin-bottom:8px">Found by the scan but no RSTP reading yet. Take one at these, or tap one and type its hop.</p>
+      <div class="cards" id="unplaced"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="selPanel" hidden aria-live="polite"></section>
+
+  <section class="panel" aria-labelledby="h4k" id="listPanel" hidden>
+    <h2 id="h4k"><span class="num">04</span>Device list</h2>
+    <p class="hint">In cable order, then the controllers not placed yet. <span class="dot" style="margin:0 2px 0 0"></span> marks firmware that differs from most of that model on this network.</p>
+    <div class="tablewrap"><table><thead><tr><th>#</th><th>Name</th><th>IP</th><th>Dev ID</th><th>Model</th><th>Firmware</th><th>MAC</th><th>Loop</th><th>Hop</th><th>Side</th></tr></thead><tbody id="tbody"></tbody></table></div>
+    <div class="btns">
+      <button type="button" class="btn pri" id="saveCsv"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Save device list (CSV)</button>
+      <button type="button" class="btn" id="savePng"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>Save map picture (PNG)</button>
+    </div>
+    <details id="routedBox" hidden><summary id="routedSum"></summary><div id="routed"></div></details>
+    <details id="readBox" hidden><summary id="readSum"></summary><div class="tablewrap"><table><thead><tr><th>Time</th><th>Plugged in at</th><th>Heard from</th><th>Hop</th><th>Port role</th><th>Bridge MAC</th></tr></thead><tbody id="rbody"></tbody></table></div></details>
+  </section>
+
+  <footer>Combustion Service &amp; Equipment Co. · DDC team · Your files stay on this device.</footer>
+  <div class="toast" id="toast" role="status"></div>
+</div>
+
+<script type="application/json" id="netscanData">null</script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const KEY = 'netmap-v1';
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // devs: {key, ip, id, net, rmac, mac, name, model, vendor, fw, app, loc, serial, scanName}
+  // reads: {time, label, nmac, bmac, bprio, rootmac, cost, port, role, hops}
+  // edits[nodeKey] = {hop, side, loop}
+  // sw: switch MAC table {macs: {mac: port}, ports: {port: loop}}
+  let S = blank();
+  let sel = null;
+  function blank(){ return {devs: [], reads: [], files: [], edits: {}, ring: null, sample: false, kit: '', sw: null}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+  try { const t = JSON.parse(localStorage.getItem(KEY) || 'null'); if (t && Array.isArray(t.devs)) S = Object.assign(blank(), t); } catch(e){}
+
+  function toast(msg, bad, sticky){ const t = $('toast'); t.textContent = msg; t.classList.toggle('bad', !!bad); clearTimeout(toast._t); if (!sticky) toast._t = setTimeout(() => t.textContent = '', bad ? 7000 : 3000); }
+
+  // ------------------------------------------------------------ CSV in
+  function parseCSV(t){
+    t = t.replace(/^﻿/, '');
+    const rows = []; let row = [], f = '', q = false;
+    for (let i = 0; i < t.length; i++){
+      const c = t[i];
+      if (q){ if (c === '"'){ if (t[i+1] === '"'){ f += '"'; i++; } else q = false; } else f += c; }
+      else if (c === '"') q = true;
+      else if (c === ',') { row.push(f); f = ''; }
+      else if (c === '\n' || c === '\r'){ if (c === '\r' && t[i+1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+      else f += c;
+    }
+    if (f !== '' || row.length){ row.push(f); rows.push(row); }
+    return rows.filter(r => r.some(x => x.trim() !== '') && !/^#TYPE/.test(r[0]));
+  }
+  function objs(rows){
+    const h = rows[0].map(x => x.trim().toLowerCase());
+    return rows.slice(1).map(r => { const o = {}; h.forEach((k, i) => o[k] = (r[i] || '').trim()); return o; });
+  }
+  function normMac(s){
+    const h = String(s || '').toLowerCase().replace(/[^0-9a-f]/g, '');
+    return h.length === 12 ? h.match(/../g).join(':') : '';
+  }
+  const ipNum = ip => (String(ip).split('.').map(Number).reduce((a, b) => a * 256 + (b || 0), 0));
+  const devKey = d => d.id !== '' && d.id != null ? 'id:' + d.id + (d.net ? '|' + d.net : '') : 'ip:' + d.ip;
+
+  function addDevices(list){
+    const by = new Map(S.devs.map(d => [d.key, d]));
+    let n = 0;
+    list.forEach(o => {
+      const d = {ip: o['ip'], id: o['deviceid'], net: o['routednet'], rmac: o['routedmac'], mac: normMac(o['mac']),
+        name: o['name'], model: o['model'], vendor: o['vendor'], fw: o['firmware'], app: o['appver'], loc: o['location']};
+      if (!d.ip) return;
+      d.key = devKey(d);
+      const old = by.get(d.key) || (d.mac && S.devs.find(x => x.mac === d.mac));
+      if (old){ Object.keys(d).forEach(k => { if (d[k]) old[k] = d[k]; }); if (old.key !== d.key){ by.delete(old.key); old.key = d.key; by.set(d.key, old); } }
+      else { by.set(d.key, d); n++; }
+    });
+    S.devs = [...by.values()];
+    return n;
+  }
+  function addReads(list){
+    const seen = new Set(S.reads.map(r => r.time + r.label + r.nmac));
+    let n = 0;
+    list.forEach(o => {
+      const r = {time: o['time'], label: o['label'], nmac: normMac(o['neighbormac']), bmac: normMac(o['stp.bridge.hw']),
+        bprio: o['stp.bridge.prio'], rootmac: normMac(o['stp.root.hw']), cost: o['stp.root.cost'], port: o['stp.port'],
+        role: o['portrole'] || '', hops: o['hopsfromroot'] || o['hopsfromroot(100mb)'] || ''};
+      if (!r.nmac && !r.bmac) return;
+      const k = r.time + r.label + r.nmac;
+      if (seen.has(k)) return;
+      seen.add(k); S.reads.push(r); n++;
+    });
+    return n;
+  }
+  function addScanList(list){
+    let n = 0;
+    list.forEach(o => {
+      const mac = normMac(o['network mac']), id = o['device id'];
+      const d = S.devs.find(x => (mac && x.mac === mac) || (id && x.id === id && !x.net));
+      if (d){ d.serial = o['serial'] || d.serial; if (o['name'] && o['name'] !== d.name) d.scanName = o['name']; n++; }
+    });
+    return n;
+  }
+
+  // Managed switch MAC address table (e.g. Phoenix Contact FL SWITCH: Index,VLAN,MAC,Portnumber). The newest table replaces the last.
+  function addSwitch(list){
+    const macs = {};
+    list.forEach(o => { const m = normMac(o['mac'] || o['mac address']), p = String(o['portnumber'] || o['port'] || '').trim(); if (m && p) macs[m] = p; });
+    S.sw = {macs, ports: (S.sw && S.sw.ports) || {}};
+    return Object.keys(macs).length;
+  }
+
+  async function loadFiles(files, quiet){
+    files = [...files].sort((a, b) => a.name.localeCompare(b.name));
+    if (S.sample){ S = blank(); sel = null; }
+    for (const f of files){
+      let rows;
+      try { rows = parseCSV(await f.text()); } catch(e){ toast(f.name + " couldn't be read.", true); continue; }
+      if (rows.length < 1){ toast(f.name + ' is empty.', true); continue; }
+      const h = rows[0].map(x => x.trim().toLowerCase()), list = objs(rows);
+      let kind, n;
+      if (h.includes('deviceid') && h.includes('ip')){ kind = 'Devices'; n = addDevices(list); }
+      else if (h.includes('neighbormac') || h.includes('stp.root.cost')){ kind = 'RSTP'; n = addReads(list); }
+      else if (h.includes('network mac')){ kind = 'Scan list'; n = addScanList(list); }
+      else if ((h.includes('mac') || h.includes('mac address')) && (h.includes('portnumber') || h.includes('port'))){ kind = 'Switch'; n = addSwitch(list); }
+      else { toast(f.name + " isn't a scan file this page knows.", true); continue; }
+      S.files = S.files.filter(x => x.name !== f.name).concat({name: f.name, kind, rows: list.length, n, at: new Date().toISOString()});
+    }
+    save(); render();
+    if (!quiet && (S.devs.length || S.reads.length)) $('mapPanel').scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
+
+  // ------------------------------------------------------------ model
+  function kindOf(model){
+    const m = String(model || '').toUpperCase();
+    if (/AS-?P|AS-?B|SMARTX SERVER|AUTOMATION SERVER/.test(m)) return 'srv';
+    if (/MP-?C/.test(m)) return 'mpc';
+    if (/MP-?V/.test(m)) return 'mpv';
+    if (/RP-?C/.test(m)) return 'rpc';
+    return 'oth';
+  }
+  const low24 = m => parseInt(m.replace(/:/g, '').slice(6), 16);
+  function findByMac(mac, ipDevs, near){
+    if (!mac) return null;
+    if (!near){ const d = ipDevs.find(x => x.mac === mac); return d ? {d, near: false} : null; }
+    // the bridge MAC is often one or two off the port/IP MAC; use that only when exactly one device is that close
+    const oui = mac.slice(0, 8), lo = low24(mac);
+    const c = ipDevs.filter(x => x.mac && x.mac.slice(0, 8) === oui && Math.abs(low24(x.mac) - lo) <= 2);
+    return c.length === 1 ? {d: c[0], near: true} : null;
+  }
+  const matchRead = (r, ipDevs) => findByMac(r.nmac, ipDevs) || findByMac(r.bmac, ipDevs) || findByMac(r.nmac, ipDevs, true) || findByMac(r.bmac, ipDevs, true);
+  function hopsOf(r){
+    const c = parseFloat(r.cost);
+    if (!isNaN(c)) return Math.round(c / (c > 0 && c < 1000 ? 19 : 200000));
+    const h = parseFloat(r.hops);
+    return isNaN(h) ? null : Math.round(h);
+  }
+
+  function build(){
+    const ipDevs = S.devs.filter(d => !d.net);
+    const nodes = new Map();
+    ipDevs.forEach(d => nodes.set(d.key, {key: d.key, d, reads: [], near: false}));
+    const warns = [];
+    const reads = [...S.reads].sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    let rootMac = '';
+    reads.forEach(r => {
+      if (r.rootmac) rootMac = r.rootmac;
+      const hit = matchRead(r, ipDevs);
+      let n;
+      if (hit){ n = nodes.get(hit.d.key); if (hit.near) n.near = true; }
+      else {
+        const mac = r.bmac || r.nmac, k = 'mac:' + mac;
+        if (!nodes.has(k)) nodes.set(k, {key: k, d: {ip: '', id: '', mac, name: 'Unknown controller', model: ''}, reads: [], ghostDev: true});
+        n = nodes.get(k);
+      }
+      n.reads.push(r); r._node = n.key;
+    });
+    // root
+    let root = null;
+    if (rootMac){
+      const hit = findByMac(rootMac, ipDevs) || findByMac(rootMac, ipDevs, true);
+      if (hit) root = nodes.get(hit.d.key);
+      else {
+        const viaRead = [...nodes.values()].find(n => n.d.mac === rootMac);
+        root = viaRead || {key: 'mac:' + rootMac, d: {ip: '', id: '', mac: rootMac, name: 'RSTP root', model: ''}, reads: [], ghostDev: true};
+        nodes.set(root.key, root);
+      }
+    }
+    // no RSTP root read yet: the loops' switch stands in as the root
+    if (!root && S.sw){ root = {key: 'switch', d: {ip: '', id: '', mac: '', name: 'Loop switch', model: ''}, reads: [], ghostDev: true, isSwitch: true}; nodes.set(root.key, root); }
+    // hops and sides
+    nodes.forEach(n => {
+      const e = S.edits[n.key] || {};
+      const last = n.reads[n.reads.length - 1];
+      n.readHop = last ? hopsOf(last) : null;
+      n.hop = e.hop != null && e.hop !== '' ? +e.hop : n.readHop;
+      if (n === root) n.hop = 0;
+      n.kind = kindOf(n.d.model);
+      n.port = S.sw && n.d.mac ? S.sw.macs[n.d.mac] || '' : '';
+      const swLoop = n.port && S.sw.ports[n.port];
+      // loop: hand-set, else the switch port's loop, else the switch port on its own ('p2')
+      n.loop = e.loop ? String(e.loop) : swLoop ? String(swLoop) : n.port ? 'p' + n.port : '';
+      n.hopGuess = false; n.portSide = '';
+    });
+    // switch ports per loop: the lower port is side A
+    const portsOf = {};
+    nodes.forEach(n => { if (n !== root && n.port && n.loop){ (portsOf[n.loop] = portsOf[n.loop] || new Set()).add(n.port); } });
+    Object.keys(portsOf).forEach(l => {
+      const ps = [...portsOf[l]].sort((a, b) => (+a) - (+b));
+      portsOf[l] = ps;
+      if (ps.length > 2) warns.push(`Loop ${l} has controllers on ${ps.length} switch ports (${ps.join(', ')}). A loop uses two ports; check the loop numbers under Switch ports.`);
+    });
+    nodes.forEach(n => { const ps = portsOf[n.loop]; if (n.port && ps && ps.length === 2) n.portSide = n.port === ps[0] ? 'A' : 'B'; });
+    // a loop known only from the switch table (no hops read): list each side by device ID, order unknown
+    const unordered = new Set();
+    Object.keys(portsOf).forEach(l => {
+      const mem = [...nodes.values()].filter(n => n !== root && n.loop === l && !n.ghostDev);
+      if (!mem.length || mem.some(n => n.hop != null)) return;
+      unordered.add(l);
+      ['A', 'B'].forEach(s => {
+        mem.filter(n => (((S.edits[n.key] || {}).side) || n.portSide || 'A') === s)
+          .sort((a, b) => (+a.d.id || 0) - (+b.d.id || 0) || ipNum(a.d.ip) - ipNum(b.d.ip))
+          .forEach((n, i) => { n.hop = i + 1; n.hopGuess = true; });
+      });
+    });
+    const placed = [...nodes.values()].filter(n => n !== root && n.hop != null && n.hop > 0);
+    placed.sort((a, b) => a.hop - b.hop || ipNum(a.d.ip) - ipNum(b.d.ip) || String(a.d.mac).localeCompare(String(b.d.mac)));
+    // Several loops can hang off one root (e.g. three loops on the root switch).
+    // Each loop is laid out on its own; controllers with no loop set share one group.
+    const rank = l => l === '' ? [2, 0] : l[0] === 'p' ? [1, +l.slice(1)] : [0, +l];
+    const loops = [...new Set(placed.map(n => n.loop))].sort((a, b) => { const x = rank(a), y = rank(b); return x[0] - y[0] || x[1] - y[1]; });
+    const groups = loops.map(loop => {
+      const g = {loop, placed: placed.filter(n => n.loop === loop), byHop: new Map(), ports: portsOf[loop] || [], unordered: unordered.has(loop)};
+      g.placed.forEach(n => { if (!g.byHop.has(n.hop)) g.byHop.set(n.hop, []); g.byHop.get(n.hop).push(n); });
+      if (g.unordered) g.placed.forEach(n => { n.side = (S.edits[n.key] || {}).side || n.portSide || 'A'; n.sideGuess = false; });
+      else sides(g, loop ? `in ${loopName(loop).toLowerCase()}` : (loops.length > 1 ? 'with no loop set' : ''));
+      return g;
+    });
+    function sides(g, where){
+    const byHop = g.byHop, placed = g.placed;
+    const sideOf = n => (S.edits[n.key] || {}).side || n.portSide;
+    const twoWay = [...byHop.values()].some(l => l.length > 1) || placed.some(n => sideOf(n) === 'B');
+    byHop.forEach((list, h) => {
+      // a hand-set side pushes the other controller at this hop to the opposite side
+      const set = list.map(sideOf).filter(Boolean);
+      const open = ['A', 'B'].filter(x => !set.includes(x));
+      let i = 0;
+      list.forEach(n => { const s = sideOf(n); n.side = s || open[i++] || (i % 2 ? 'A' : 'B'); n.sideGuess = !s && set.length === 0 && twoWay; });
+      const a = list.filter(n => n.side === 'A').length, b = list.length - a;
+      if (a > 1 || b > 1) warns.push(`${list.length} controllers ${where ? where + ' ' : ''}read ${h} hop${h > 1 ? 's' : ''} from the root. A chain or ring has at most two at each hop. If several loops hang off the root, set each controller's Loop; otherwise check the readings.`);
+    });
+    // a loop read from one direction only is drawn as one column
+    if (!placed.some(n => n.side === 'A')) placed.forEach(n => { n.side = 'A'; n.sideGuess = false; });
+    }
+    const unplaced = [...nodes.values()].filter(n => n !== root && (n.hop == null || n.hop <= 0) && !n.ghostDev)
+      .sort((a, b) => ipNum(a.d.ip) - ipNum(b.d.ip));
+    const zero = [...nodes.values()].filter(n => n !== root && n.hop === 0 && n.reads.length);
+    zero.forEach(n => warns.push(`${n.d.name || n.d.mac} reads 0 hops but isn't the root bridge. Its reading may be from a different RSTP network.`));
+    const roots = new Set(S.reads.map(r => r.rootmac).filter(Boolean));
+    if (roots.size > 1) warns.push(`Readings name ${roots.size} different root bridges. The root moved between readings, or they came from separate networks. Only the newest root is used.`);
+    nodes.forEach(n => { if (n.near) warns.push(`${n.d.name || n.d.ip} matched its RSTP reading by a MAC close to its own (${n.reads[0].bmac || n.reads[0].nmac}), not an exact match.`); });
+    if (S.sw){
+      const inScan = new Set(ipDevs.map(d => d.mac).filter(Boolean));
+      const missing = ipDevs.filter(d => d.mac && !S.sw.macs[d.mac]);
+      if (missing.length) warns.push(`${missing.length} controller${missing.length > 1 ? 's from the scan aren\'t' : ' from the scan isn\'t'} in the switch MAC table (${missing.slice(0, 4).map(d => d.name || d.ip).join(', ')}${missing.length > 4 ? ', …' : ''}). Download the table again right after a scan, or they hang off a different switch.`);
+      const other = {};
+      Object.entries(S.sw.macs).forEach(([m, p]) => { if (!inScan.has(m)) other[p] = (other[p] || 0) + 1; });
+      const o = Object.entries(other).sort((a, b) => (+a[0]) - (+b[0]));
+      if (o.length) warns.push(`The switch also sees MACs that aren't in the scan: ${o.map(([p, c]) => `${c} on port ${p}`).join(', ')}. They may be other devices, the laptop, or controllers on another subnet.`);
+    }
+    const unk = [...nodes.values()].filter(n => n.ghostDev && n !== root);
+    if (unk.length) warns.push(`${unk.length} RSTP neighbor${unk.length > 1 ? 's' : ''} didn't match any device in the scan (shown as Unknown controller). Load a newer Devices file, or the controller may have BACnet/IP off.`);
+    // open chain unless a reading saw the blocked (Alternate) port or the tech picks Ring
+    const ring = S.ring != null ? S.ring : S.reads.some(r => /alternate/i.test(r.role));
+    // firmware outliers per model
+    const fwBy = {};
+    ipDevs.forEach(d => { if (d.model && d.fw){ fwBy[d.model] = fwBy[d.model] || {}; fwBy[d.model][d.fw] = (fwBy[d.model][d.fw] || 0) + 1; } });
+    const fwMain = {};
+    Object.keys(fwBy).forEach(m => { const e = Object.entries(fwBy[m]).sort((a, b) => b[1] - a[1]); if (e.length > 1) fwMain[m] = e[0][0]; });
+    return {nodes, root, placed, groups, unplaced, warns, ring, fwMain, ipDevs, portsOf};
+  }
+
+  const loopName = l => !l ? '' : l[0] === 'p' ? 'Switch port ' + l.slice(1) : 'Loop ' + l;
+
+  // ------------------------------------------------------------ SVG
+  function palette(){
+    const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim();
+    return {bg: v('--sunk'), panel: v('--panel'), ink: v('--ink'), muted: v('--muted'), line: v('--line'), accent: v('--accent'), warn: v('--warn'),
+      k: {srv: v('--n-srv'), mpc: v('--n-mpc'), mpv: v('--n-mpv'), rpc: v('--n-rpc'), oth: v('--n-oth')}};
+  }
+  const trunc = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+  function drawSvg(M, G, forExport){
+    const P = palette();
+    const W = 152, H = 60, GX = 26, GAP = 24, RH = 86, TOP = 30;
+    const hasB = G.placed.some(n => n.side === 'B');
+    const maxHop = G.placed.reduce((m, n) => Math.max(m, n.hop), 0);
+    // rows: one per hop, taller if a side holds two at that hop
+    const rowsAt = [];
+    for (let h = 1; h <= maxHop; h++){
+      const l = G.byHop.get(h) || [];
+      rowsAt[h] = Math.max(1, l.filter(n => n.side === 'A').length, l.filter(n => n.side === 'B').length);
+    }
+    const colX = hasB ? [GX + 6, GX + 6 + W + GAP] : [GX + 6 + W / 2];
+    const width = hasB ? colX[1] + W + 10 : colX[0] + W + 40;
+    const rootX = hasB ? (colX[0] + colX[1]) / 2 : colX[0];
+    const yOf = []; let y = TOP + (M.root ? RH : 0);
+    for (let h = 1; h <= maxHop; h++){ yOf[h] = y; y += rowsAt[h] * RH; }
+    const height = y + (M.ring ? 36 : 6);
+    const out = [];
+    out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"${forExport ? '' : ` style="max-width:${Math.round(width * 1.1)}px"`} role="img" aria-label="Network map${G.loop ? ', ' + loopName(G.loop) : ''}, ${G.placed.length} controllers${G.unordered ? ', cable order not read' : ' in cable order'}" font-family="IBM Plex Sans, Segoe UI, system-ui, sans-serif">`);
+    out.push(`<rect width="${width}" height="${height}" fill="${P.bg}"/>`);
+    const links = [], boxes = [];
+    const box = (n, x, y, opts = {}) => {
+      const c = P.k[n.kind] || P.k.oth, d = n.d;
+      const l1 = trunc(d.name || d.mac || 'Unknown', opts.badge ? 11 : 17);
+      const l2 = opts.l2 != null ? opts.l2 : [d.ip, d.id ? '#' + d.id : ''].filter(Boolean).join(' ') || d.mac;
+      const l3 = opts.l3 != null ? opts.l3 : [d.model, d.fw].filter(Boolean).join(' ') || (n.ghostDev ? 'Not in the scan' : '');
+      const on = sel === n.key;
+      boxes.push(`<g class="node" data-k="${esc(n.key)}" tabindex="${forExport ? -1 : 0}" role="button" aria-label="${esc(l1)}">` +
+        `<rect class="box" x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="${P.panel}" stroke="${on ? P.accent : P.line}" stroke-width="${on ? 2.5 : 1}"${n.ghostDev ? ' stroke-dasharray="4 3"' : ''}/>` +
+        `<rect x="${x}" y="${y}" width="5" height="${H}" rx="2" fill="${c}"/>` +
+        `<text x="${x + 14}" y="${y + 19}" font-size="13.5" font-weight="600" fill="${P.ink}">${esc(l1)}</text>` +
+        `<text x="${x + 14}" y="${y + 36}" font-size="10.5" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">${esc(trunc(l2, 21))}</text>` +
+        `<text x="${x + 14}" y="${y + 51}" font-size="10.5" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">${esc(trunc(l3, 21))}</text>` +
+        (opts.badge ? `<text x="${x + W - 8}" y="${y + 18}" font-size="10" font-weight="600" text-anchor="end" fill="${opts.badgeC || P.accent}" letter-spacing=".06em">${esc(opts.badge)}</text>` : '') +
+        `</g>`);
+    };
+    const ghost = (x, y, h) => boxes.push(`<g><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="none" stroke="${P.muted}" stroke-dasharray="5 4"/>` +
+      `<text x="${x + W / 2}" y="${y + 28}" font-size="12.5" fill="${P.muted}" text-anchor="middle">Hop ${h}: not read yet</text>` +
+      `<text x="${x + W / 2}" y="${y + 45}" font-size="10.5" fill="${P.muted}" text-anchor="middle">at least one controller here</text></g>`);
+    const line = (x1, y1, x2, y2, dash, col) => links.push(`<path d="M${x1} ${y1} L${x1} ${(y1 + y2) / 2} L${x2} ${(y1 + y2) / 2} L${x2} ${y2}" fill="none" stroke="${col || P.muted}" stroke-width="2"${dash ? ' stroke-dasharray="5 4"' : ''}/>`);
+    // hop labels
+    if (G.unordered) out.push(`<text x="12" y="16" font-size="9.5" fill="${P.warn}" letter-spacing=".1em" font-family="IBM Plex Mono, Consolas, monospace">CABLE ORDER NOT READ</text>`);
+    else {
+      if (M.root) out.push(`<text x="12" y="${TOP + H / 2 + 4}" font-size="11" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">0</text>`);
+      for (let h = 1; h <= maxHop; h++) out.push(`<text x="12" y="${yOf[h] + H / 2 + 4}" font-size="11" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">${h}</text>`);
+      out.push(`<text x="12" y="16" font-size="9.5" fill="${P.muted}" letter-spacing=".1em" font-family="IBM Plex Mono, Consolas, monospace">HOP</text>`);
+    }
+    if (M.groups.length > 1) out.push(`<text x="${width - 10}" y="18" font-size="13" font-weight="700" text-anchor="end" fill="${P.accent}" letter-spacing=".06em">${G.loop ? esc(loopName(G.loop).toUpperCase()) : 'NO LOOP SET'}</text>`);
+    const lc = P.muted;
+    if (M.root && M.root.isSwitch) box(M.root, rootX, TOP, {badge: 'SWITCH', l2: G.ports.length ? 'Port ' + G.ports.join(' / ') : '', l3: 'Not in the scan'});
+    else if (M.root) box(M.root, rootX, TOP, {badge: 'RSTP ROOT'});
+    const ends = {};
+    ['A', 'B'].forEach((s, si) => {
+      if (si === 1 && !hasB) return;
+      const x = colX[si];
+      const list = G.placed.filter(n => n.side === s);
+      if (!list.length) return;
+      const top = list[list.length - 1].hop;
+      let prev = M.root ? {x: rootX + W / 2, y: TOP + H} : null;
+      const port = hasB ? G.ports[si] : G.ports.length === 1 ? G.ports[0] : '';
+      if (M.root && M.root.isSwitch && port) out.push(`<text x="${x + W / 2 + (si ? 6 : -6)}" y="${TOP + RH - 4}" font-size="10.5" text-anchor="${si ? 'start' : 'end'}" fill="${P.muted}" font-family="IBM Plex Mono, Consolas, monospace">port ${esc(port)}</text>`);
+      for (let h = 1; h <= top; h++){
+        const here = list.filter(n => n.hop === h);
+        if (!here.length){
+          const gy = yOf[h];
+          ghost(x, gy, h);
+          if (prev) line(prev.x, prev.y, x + W / 2, gy, true, lc);
+          prev = {x: x + W / 2, y: gy + H};
+          continue;
+        }
+        here.forEach((n, i) => {
+          const ny = yOf[h] + i * RH;
+          box(n, x, ny, {badge: n.sideGuess ? 'SIDE?' : (n.near ? '≈MAC' : ''), badgeC: P.warn});
+          if (prev) line(prev.x, prev.y, x + W / 2, ny, i > 0 || G.unordered, lc);
+          prev = {x: x + W / 2, y: ny + H};
+        });
+      }
+      ends[s] = prev;
+    });
+    if (M.ring && M.root && !G.unordered){
+      const yb = height - 18;
+      const close = (a, b) => links.push(`<path d="M${a.x} ${a.y} L${a.x} ${yb} L${b.x} ${yb} L${b.x} ${b.y}" fill="none" stroke="${P.accent}" stroke-width="2" stroke-dasharray="6 5"/>`);
+      if (ends.A && ends.B){
+        close(ends.A, ends.B);
+        out.push(`<text x="${(ends.A.x + ends.B.x) / 2}" y="${yb + 14}" font-size="11" text-anchor="middle" fill="${P.accent}" font-weight="600">Ring closes here (blocked link)</text>`);
+      } else if (ends.A){
+        const rx = colX[0] + W + 18;
+        links.push(`<path d="M${ends.A.x} ${ends.A.y} L${ends.A.x} ${yb} L${rx} ${yb} L${rx} ${TOP + H / 2} L${rootX + W} ${TOP + H / 2}" fill="none" stroke="${P.accent}" stroke-width="2" stroke-dasharray="6 5"/>`);
+        out.push(`<text x="${ends.A.x}" y="${yb + 14}" font-size="11" text-anchor="middle" fill="${P.accent}" font-weight="600">Ring back to root (blocked link)</text>`);
+      }
+    }
+    out.push(links.join(''), boxes.join(''), '</svg>');
+    return out.join('');
+  }
+
+  // ------------------------------------------------------------ render
+  let M = null;
+  function render(){
+    M = build();
+    $('sampleNote').hidden = !S.sample;
+    $('kitNote').hidden = !S.kit;
+    $('kitNote').textContent = S.kit ? 'Opened by the scan kit, ' + S.kit + '. Run the kit again at another controller and this page reopens with the new reading.' : '';
+    $('files').innerHTML = S.files.map(f => `<div><span class="tag${f.kind !== 'Devices' ? ' amb' : ''}">${esc(f.kind)}</span><b>${esc(f.name)}</b><span>${f.rows} row${f.rows === 1 ? '' : 's'}</span></div>`).join('');
+    const routed = S.devs.filter(d => d.net);
+    const total = M.ipDevs.length, placedN = M.placed.filter(n => !n.ghostDev).length + (M.root && !M.root.ghostDev ? 1 : 0);
+    $('stats').innerHTML = [[total, 'On IP'], [placedN, 'Placed'], [routed.length, 'MS/TP routed'], [S.reads.length, 'RSTP readings']]
+      .map(([n, l]) => `<div><b>${n}</b><span>${l}</span></div>`).join('');
+    const has = M.placed.length || M.root;
+    $('warns').hidden = !M.warns.length;
+    $('warns').innerHTML = M.warns.map(w => `<li>${esc(w)}</li>`).join('');
+    $('mapTools').hidden = !has;
+    document.querySelectorAll('[data-ring]').forEach(b => b.setAttribute('aria-pressed', String(M.ring === (b.dataset.ring === '1'))));
+    $('legend').hidden = $('mapHint').hidden = !has;
+    $('swHint').hidden = !M.groups.some(G => G.unordered);
+    renderSwitch();
+    if (has) $('mapbox').innerHTML = (M.groups.length ? M.groups : [{loop: '', placed: [], byHop: new Map()}]).map(G => drawSvg(M, G)).join('');
+    else if (total) $('mapbox').innerHTML = `<div class="empty">No RSTP readings yet, so the cable order isn't known. The controllers found are listed below.<br>Take a reading (click Yes when Windows asks for administrator), or load <b>RSTP readings.csv</b>.</div>`;
+    else $('mapbox').innerHTML = `<div class="empty">Load a scan to draw the map.</div>`;
+    $('unplacedBox').hidden = !M.unplaced.length;
+    $('unplacedN').textContent = M.unplaced.length;
+    $('unplaced').innerHTML = M.unplaced.map(n => `<button type="button" class="card${sel === n.key ? ' on' : ''}" data-k="${esc(n.key)}"><b>${esc(n.d.name || n.d.ip)}</b><span>${esc(n.d.ip)}${n.d.id ? ' · #' + esc(n.d.id) : ''}</span><span>${esc(n.d.model || '—')}</span></button>`).join('');
+    // table in cable order
+    const order = orderList();
+    $('listPanel').hidden = !order.length && !routed.length;
+    $('tbody').innerHTML = order.map((n, i) => {
+      const d = n.d, odd = d.model && M.fwMain[d.model] && d.fw !== M.fwMain[d.model];
+      return `<tr data-k="${esc(n.key)}"${sel === n.key ? ' class="on"' : ''}><td>${i + 1}</td><td class="nm">${esc(d.name || '—')}</td><td>${esc(d.ip)}</td><td>${esc(d.id)}</td><td>${esc(d.model)}</td><td>${esc(d.fw)}${odd ? `<span class="dot" title="Most ${esc(d.model)} here run ${esc(M.fwMain[d.model])}"></span>` : ''}</td><td>${esc(d.mac)}</td><td>${esc(loopName(n.loop))}</td><td>${n === M.root ? 'root' : (n.hop > 0 && !n.hopGuess ? n.hop : '—')}</td><td>${n.side && n !== M.root && n.hop > 0 ? n.side : ''}</td></tr>`;
+    }).join('');
+    // routed
+    $('routedBox').hidden = !routed.length;
+    if (routed.length){
+      const g = {};
+      routed.forEach(d => { const k = d.ip + '|' + d.net; (g[k] = g[k] || []).push(d); });
+      $('routedSum').textContent = `${routed.length} device${routed.length > 1 ? 's' : ''} behind BACnet routers (MS/TP)`;
+      $('routed').innerHTML = Object.entries(g).map(([k, l]) => {
+        const [ip, net] = k.split('|'), r = M.ipDevs.find(d => d.ip === ip);
+        l.sort((a, b) => parseInt(a.rmac, 16) - parseInt(b.rmac, 16));
+        return `<p class="hint"><b>Network ${esc(net)}</b> through ${esc(r ? r.name + ' (' + ip + ')' : ip)}</p><div class="tablewrap"><table><thead><tr><th>MS/TP</th><th>Name</th><th>Dev ID</th><th>Model</th><th>Firmware</th></tr></thead><tbody>` +
+          l.map(d => `<tr><td>${esc(d.rmac ? parseInt(d.rmac.replace(/:/g, ''), 16) : '')}</td><td class="nm">${esc(d.name)}</td><td>${esc(d.id)}</td><td>${esc(d.model)}</td><td>${esc(d.fw)}</td></tr>`).join('') + '</tbody></table></div>';
+      }).join('');
+    }
+    // readings
+    $('readBox').hidden = !S.reads.length;
+    $('readSum').textContent = `${S.reads.length} RSTP reading${S.reads.length === 1 ? '' : 's'}`;
+    $('rbody').innerHTML = [...S.reads].sort((a, b) => String(b.time).localeCompare(String(a.time))).map(r => {
+      const n = M.nodes.get(r._node);
+      return `<tr><td>${esc(r.time)}</td><td class="nm">${esc(r.label || '—')}</td><td>${esc(n ? (n.d.name || n.d.mac) : r.nmac)}</td><td>${hopsOf(r) ?? '—'}</td><td>${esc(r.role || '—')}</td><td>${esc(r.bmac || r.nmac)}</td></tr>`;
+    }).join('');
+    renderSel();
+  }
+  function renderSwitch(){
+    $('swBox').hidden = !S.sw;
+    if (!S.sw) return;
+    const macs = Object.entries(S.sw.macs), scan = new Map(M.ipDevs.filter(d => d.mac).map(d => [d.mac, d]));
+    const ports = [...new Set(macs.map(x => x[1]))].sort((a, b) => (+a) - (+b));
+    $('swSum').textContent = `Switch ports (${macs.length} MACs on ${ports.length} port${ports.length === 1 ? '' : 's'})`;
+    $('swBody').innerHTML = ports.map(p => {
+      const here = macs.filter(x => x[1] === p), mine = here.filter(x => scan.has(x[0])), loop = S.sw.ports[p];
+      const names = mine.length === 1 ? ' (' + (scan.get(mine[0][0]).name || scan.get(mine[0][0]).ip) + ')' : '';
+      return `<tr><td>${esc(p)}</td><td>${mine.length}${esc(names)}</td><td>${here.length - mine.length || ''}</td><td><input type="number" min="1" step="1" inputmode="numeric" data-swport="${esc(p)}" value="${loop ? esc(loop) : ''}" placeholder="—" aria-label="Loop for switch port ${esc(p)}"></td></tr>`;
+    }).join('');
+    $('swBody').querySelectorAll('[data-swport]').forEach(i => i.onchange = () => {
+      const v = i.value.trim();
+      if (v === '') delete S.sw.ports[i.dataset.swport]; else S.sw.ports[i.dataset.swport] = Math.max(1, Math.round(+v));
+      save(); render();
+    });
+  }
+  function orderList(){
+    const out = M.root ? [M.root] : [];
+    M.groups.forEach(G => out.push(...G.placed.filter(n => n.side === 'A'), ...G.placed.filter(n => n.side === 'B').reverse()));
+    return [...out, ...M.unplaced];
+  }
+
+  function renderSel(){
+    const p = $('selPanel');
+    const n = sel && M.nodes.get(sel);
+    if (!n){ p.hidden = true; return; }
+    p.hidden = false;
+    const d = n.d, e = S.edits[n.key] || {};
+    const last = n.reads[n.reads.length - 1];
+    const kv = [['Loop', loopName(n.loop)], ['Switch port', n.port], ['IP', d.ip], ['Device ID', d.id], ['Model', d.model], ['Vendor', d.vendor], ['Firmware', d.fw], ['App version', d.app], ['MAC', d.mac], ['Serial', d.serial], ['Scan list name', d.scanName], ['Location', d.loc],
+      ['Last reading', last ? `${last.label || 'no label'} · ${last.time}` : ''], ['Port role', last ? last.role : '']].filter(x => x[1]);
+    const isRoot = n === M.root;
+    p.innerHTML = `<div class="sel-head"><div><span class="eyebrow">${isRoot ? 'RSTP root' : n.hop > 0 ? (n.loop ? esc(loopName(n.loop)) + ' · ' : '') + (n.hopGuess ? 'order not read' : 'Hop ' + n.hop) + (n.side ? ' · side ' + n.side : '') : 'Not placed'}</span><h3>${esc(d.name || d.mac || d.ip)}</h3></div><button type="button" class="link" id="selClose">Close</button></div>` +
+      `<div class="kv">${kv.map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('')}</div>` +
+      (isRoot ? '' : `<div class="edit"><label>Hop <input type="number" min="1" step="1" inputmode="numeric" id="selHop" value="${e.hop != null && e.hop !== '' ? esc(e.hop) : ''}" placeholder="${n.readHop != null ? n.readHop : '—'}"></label>` +
+      `<label>Loop <input type="number" min="1" step="1" inputmode="numeric" id="selLoop" value="${e.loop ? esc(e.loop) : ''}" placeholder="${n.loop && n.loop[0] !== 'p' ? esc(n.loop) : '—'}"></label>` +
+      `<label>Side <span class="seg" role="group" aria-label="Side"><button type="button" data-side="A" aria-pressed="${n.side === 'A'}">A</button><button type="button" data-side="B" aria-pressed="${n.side === 'B'}">B</button></span></label>` +
+      ((e.hop != null && e.hop !== '') || e.side || e.loop ? `<button type="button" class="link" id="selReset">Back to the reading</button>` : '') + `</div>` +
+      `<p class="hint">Hop comes from the newest RSTP reading. Type one to place a controller by hand (for example from the cable you can see). Side A and B are the two directions out of the root. Loop groups controllers when several loops hang off the root, as with loops on a root switch; a loaded switch MAC table fills it in from the switch port.</p>`);
+    $('selClose').onclick = () => { sel = null; render(); };
+    if (!isRoot){
+      $('selHop').onchange = ev => { const v = ev.target.value.trim(); edit(n.key, {hop: v === '' ? null : Math.max(1, Math.round(+v))}); };
+      p.querySelectorAll('[data-side]').forEach(b => b.onclick = () => edit(n.key, {side: b.dataset.side}));
+      $('selLoop').onchange = ev => { const v = ev.target.value.trim(); edit(n.key, {loop: v === '' ? null : Math.max(1, Math.round(+v))}); };
+      if ($('selReset')) $('selReset').onclick = () => { delete S.edits[n.key]; save(); render(); };
+    }
+  }
+  function edit(k, ch){
+    const e = Object.assign({}, S.edits[k] || {}, ch);
+    Object.keys(e).forEach(x => { if (e[x] == null) delete e[x]; });
+    if (Object.keys(e).length) S.edits[k] = e; else delete S.edits[k];
+    save(); render();
+  }
+  function pick(k){
+    sel = sel === k ? null : k; render();
+    if (sel) $('selPanel').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }
+
+  // ------------------------------------------------------------ outputs
+  async function saveBlob(blob, name, mime, ext){
+    try {
+      if (window.showSaveFilePicker && window.top === window.self){
+        const h = await showSaveFilePicker({suggestedName: name, types: [{description: ext.toUpperCase(), accept: {[mime]: ['.' + ext]}}]});
+        const w = await h.createWritable(); await w.write(blob); await w.close(); toast('Saved ' + name); return;
+      }
+    } catch(e){ if (e && e.name === 'AbortError') return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast('Saved ' + name);
+  }
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  $('saveCsv').onclick = () => {
+    const q = v => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    const head = ['ORDER', 'NAME', 'IP', 'DEVICE ID', 'MODEL', 'VENDOR', 'FIRMWARE', 'MAC', 'LOOP', 'SWITCH PORT', 'HOP', 'SIDE', 'LAST READING', 'SERIAL'];
+    const rows = orderList().map((n, i) => { const d = n.d, last = n.reads[n.reads.length - 1];
+      return [i + 1, d.name, d.ip, d.id, d.model, d.vendor, d.fw, d.mac, n.loop && n.loop[0] !== 'p' ? n.loop : '', n.port || '', n === M.root ? 0 : (n.hop > 0 && !n.hopGuess ? n.hop : ''), n === M.root || !(n.hop > 0) ? '' : n.side, last ? last.label : '', d.serial]; });
+    S.devs.filter(d => d.net).forEach(d => rows.push(['', d.name, d.ip + ' net ' + d.net + ' mac ' + d.rmac, d.id, d.model, d.vendor, d.fw, '', '', '', '', '', '', d.serial]));
+    saveBlob(new Blob([[head, ...rows].map(r => r.map(q).join(',')).join('\r\n')], {type: 'text/csv'}), `Network map ${stamp()}.csv`, 'text/csv', 'csv');
+  };
+  $('savePng').onclick = () => {
+    if (!M || !(M.placed.length || M.root)){ toast('Nothing is placed on the map yet.', true); return; }
+    // one picture per loop, stacked
+    const svgs = (M.groups.length ? M.groups : [{loop: '', placed: [], byHop: new Map()}]).map(G => drawSvg(M, G, true));
+    const dims = svgs.map(s => { const m = s.match(/width="(\d+(?:\.\d+)?)" height="(\d+(?:\.\d+)?)"/); return [+m[1], +m[2]]; });
+    const w = Math.max(...dims.map(d => d[0])), h = dims.reduce((t, d) => t + d[1], 0), sc = 2;
+    Promise.all(svgs.map(s => new Promise((ok, bad) => { const img = new Image(); img.onload = () => ok(img); img.onerror = bad; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s); })))
+      .then(imgs => {
+        const c = document.createElement('canvas'); c.width = w * sc; c.height = h * sc;
+        const x = c.getContext('2d'); x.scale(sc, sc); x.fillStyle = palette().bg; x.fillRect(0, 0, w, h);
+        let y = 0; imgs.forEach((img, i) => { x.drawImage(img, 0, y); y += dims[i][1]; });
+        c.toBlob(b => saveBlob(b, `Network map ${stamp()}.png`, 'image/png', 'png'), 'image/png');
+      })
+      .catch(() => toast("The picture couldn't be made in this browser.", true));
+  };
+
+  // ------------------------------------------------------------ sample
+  function sample(){
+    const mac = n => '00:80:f4:0a:' + (0x10 + Math.floor(n / 256)).toString(16) + ':' + (n % 256).toString(16).padStart(2, '0');
+    const T = [['AS-P-1', 'AS-P', '3.2.1.2', 1], ['AHU-1', 'MP-C-24A', '3.20.2.21'], ['VAV-1-01', 'MP-V-9A', '3.20.2.21'], ['VAV-1-02', 'MP-V-9A', '3.20.2.21'],
+      ['VAV-1-03', 'MP-V-9A', '3.20.2.21'], ['VAV-1-04', 'MP-V-9A', '3.20.2.19'], ['UV-101', 'RP-C-12A', '3.20.2.21'], ['UV-102', 'RP-C-12A', '3.20.2.21'],
+      ['AHU-2', 'MP-C-36A', '3.20.2.21'], ['VAV-2-01', 'MP-V-7A', '3.20.2.21'], ['VAV-2-02', 'MP-V-7A', '3.20.2.21'], ['UV-201', 'RP-C-12A', '3.20.2.21']];
+    const ips = [1, 37, 52, 18, 44, 23, 61, 29, 15, 48, 33, 57];
+    const devs = T.map((t, i) => ({IP: '10.20.30.' + ips[i], DeviceID: String(t[3] ? 1000 : 10100 + i), RoutedNet: '', RoutedMac: '', MAC: mac(i), Name: t[0], Model: t[1], Vendor: 'Schneider Electric', Firmware: t[2], AppVer: '', Location: ''}));
+    ['FCU-1', 'FCU-2', 'FCU-3'].forEach((n, i) => devs.push({IP: '10.20.30.1', DeviceID: String(20001 + i), RoutedNet: '5', RoutedMac: (i + 1).toString(16).padStart(2, '0'), MAC: '', Name: n, Model: 'MP-C-15A', Vendor: 'Schneider Electric', Firmware: '3.20.2.21'}));
+    // ring: root AS-P; side A AHU-1, VAV-1-01, VAV-1-02, VAV-1-03, (VAV-1-04 unread), UV-101 ; side B AHU-2, VAV-2-01, UV-102; VAV-2-02 + UV-201 unread
+    const R = [[1, 1, 'AHU-1 spare port'], [2, 2, 'Inline switch AHU-1 to VAV-1-01'], [3, 3, 'VAV-1-02 port 2'], [4, 4, 'VAV-1-03 port 2'], [6, 6, 'UV-101 port 1'],
+      [8, 1, 'AHU-2 port 2'], [9, 2, 'VAV-2-01 port 1'], [7, 3, 'UV-102 port 2']];
+    const reads = R.map(([i, h, label], k) => ({Time: '2026-10-2' + (k < 5 ? '7' : '8') + ' 1' + k + ':0' + k + ':00', Label: label, NeighborMAC: mac(i), 'stp.bridge.hw': mac(i), 'stp.bridge.prio': '32768', 'stp.root.hw': mac(0), 'stp.root.prio': '32768', 'stp.root.cost': String(h * 200000), 'stp.port': '0x8002', 'stp.flags.port_role': '3', HopsFromRoot: String(h), PortRole: 'Designated'}));
+    const low = o => { const r = {}; Object.keys(o).forEach(k => r[k.toLowerCase()] = o[k]); return r; };
+    S = blank(); sel = null;
+    addDevices(devs.map(low)); addReads(reads.map(low));
+    S.ring = true; S.sample = true;
+    [8, 9, 7].forEach(i => S.edits[devKey({id: String(10100 + i)})] = {side: 'B'});
+    [1, 2, 3].forEach(i => S.edits[devKey({id: String(10100 + i)})] = {side: 'A'});
+    S.files = [{name: 'Devices_sample.csv', kind: 'Devices', rows: devs.length}, {name: 'RSTP readings (sample).csv', kind: 'RSTP', rows: reads.length}];
+    save(); render();
+  }
+
+  // ------------------------------------------------------------ wiring
+  $('pickBtn').onclick = () => $('fileIn').click();
+  $('fileIn').onchange = e => { if (e.target.files.length) loadFiles(e.target.files); e.target.value = ''; };
+  $('sampleBtn').onclick = sample;
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files); });
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-k]');
+    if (t && (t.closest('#mapbox') || t.closest('#unplaced') || t.closest('#tbody'))) pick(t.dataset.k);
+  });
+  $('mapbox').addEventListener('keydown', e => { const t = e.target.closest('.node'); if (t && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); pick(t.dataset.k); } });
+  document.querySelectorAll('[data-ring]').forEach(b => b.onclick = () => { S.ring = b.dataset.ring === '1'; save(); render(); });
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render); } catch(e){}
+
+  function armClear(btn, label, step1, step2, run){
+    let t = null;
+    const reset = () => { btn.dataset.step = ''; btn.textContent = label; clearTimeout(t); };
+    document.addEventListener('click', e => { if (btn.dataset.step && !btn.contains(e.target)) reset(); }, true);
+    btn.addEventListener('click', async () => {
+      const s = btn.dataset.step || '';
+      clearTimeout(t); t = setTimeout(reset, 6000);
+      if (!s) { btn.dataset.step = '1'; btn.textContent = step1(); toast('Tap again to confirm. Your scan files on the laptop are not touched.', true, true); return; }
+      if (s === '1') { btn.dataset.step = '2'; btn.textContent = step2(); toast('Last check: one more tap clears the map and your placement edits.', true, true); return; }
+      reset(); await run();
+    });
+  }
+  armClear($('clearBtn'), 'Clear', () => 'Clear map?', () => 'Tap to clear', async () => {
+    S = blank(); sel = null; try { localStorage.removeItem(KEY); } catch(e){}
+    render(); toast('Map cleared');
+  });
+
+  // The scan kit writes its results into a copy of this page (Results/Network map.html) and opens it.
+  // Placement edits, the ring choice and a loaded switch MAC table carry over from the last time it was opened.
+  const kit = (() => { try { return JSON.parse($('netscanData').textContent); } catch(e){ return null; } })();
+  if (kit && Array.isArray(kit.files)){
+    const keep = {edits: S.edits, ring: S.ring, sw: S.sw};
+    S = blank();
+    $('kitPanel').hidden = true;
+    $('h2k').innerHTML = '<span class="num">01</span>Add more files'; $('h3k').innerHTML = '<span class="num">02</span>Map'; $('h4k').innerHTML = '<span class="num">03</span>Device list';
+    loadFiles(kit.files.map(f => ({name: f.name, text: async () => f.text})), true).then(() => {
+      // a switch table among the kit's files wins; its port loop numbers come from last time
+      const sw = S.sw ? {macs: S.sw.macs, ports: (keep.sw && keep.sw.ports) || {}} : keep.sw;
+      Object.assign(S, keep, {sw, kit: kit.made || 'just now'}); save(); render();
+    });
+  } else render();
+})();
+</script>
+
+</body>
+</html>
