@@ -65,6 +65,12 @@ h1{font-family:var(--f-display);font-weight:700;font-size:44px;line-height:.95;m
 .flow b{color:var(--ink);font-weight:600}
 .flow i{font-style:normal;color:var(--accent)}
 
+.devgrp{border:1px dashed var(--line);border-radius:10px;padding:12px 14px}
+.devgrp[open]{padding-bottom:14px}
+.devgrp summary{cursor:pointer;font-family:var(--f-display);font-weight:700;font-size:21px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.devgrp summary span{font-family:var(--f-mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.devgrp summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.devgrp .tools{margin-top:12px}
 .tips{background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
 .tips h2{font-family:var(--f-display);font-size:19px;margin:0}
 .tips ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px}
@@ -143,15 +149,7 @@ footer{font-size:12px;color:var(--muted)}
       <span class="tname">Point List Generator<span class="go">Open</span></span>
       <span class="tdesc">Snap a controller wiring diagram and Claude reads what lands on each terminal. Check the table, then print a clean I/O diagram and point list.</span>
     </a>
-    <div class="links"><a href="https://github.com/therisenbrady-glitch/bas-tools/blob/main/point-list/README.md">How to use</a><a href="point-list/index.html" download="pointlist.html">Download file</a></div>
-
-    <a class="tool" href="network-map/">
-      <span class="tic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="4" rx="1"/><rect x="3" y="17" width="6" height="4" rx="1"/><rect x="15" y="17" width="6" height="4" rx="1"/><path d="M12 7v5M6 17v-2.5h12V17M12 12v2.5"/></svg></span>
-      <span class="stage">Commissioning</span>
-      <span class="tname">Network Map<span class="go">Open</span></span>
-      <span class="tdesc">Run the scan kit on a laptop on the controller network and it opens a map of every controller, its IP, device ID and firmware, and the cable order from RSTP.</span>
-    </a>
-    <div class="links"><a href="https://github.com/therisenbrady-glitch/bas-tools/blob/main/network-map/README.md">How to use</a><a href="network-map/scan/EBO-NetScan.zip?v=c3f8f94" download>Scan kit (.zip)</a></div>
+    <div class="links"><a href="https://github.com/therisenbrady-glitch/bas-tools/blob/main/point-list/README.md">How to use</a><a href="https://claude.ai/artifact/RqaDBh3ApWjiPFf8dUZQNp" target="_blank" rel="noopener">Claude version (no API key)</a><a href="point-list/index.html" download="pointlist.html">Download file</a></div>
 
     <a class="tool" href="point-checkout/checkouttool.html">
       <span class="tic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v2H9zM8.5 11l2 2 4-4M8.5 17h7"/></svg></span>
@@ -161,6 +159,19 @@ footer{font-size:12px;color:var(--muted)}
     </a>
     <div class="links"><a href="https://github.com/therisenbrady-glitch/bas-tools/blob/main/point-checkout/README.md">How to use</a><a href="point-checkout/checkouttool.html" download>Download file</a></div>
 
+  </nav>
+
+  <details class="devgrp" id="devGrp">
+    <summary>In Development <span>2 tools · still being tested in the field</span></summary>
+    <nav class="tools" aria-label="Tools in development">
+    <a class="tool" href="network-map/">
+      <span class="tic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="4" rx="1"/><rect x="3" y="17" width="6" height="4" rx="1"/><rect x="15" y="17" width="6" height="4" rx="1"/><path d="M12 7v5M6 17v-2.5h12V17M12 12v2.5"/></svg></span>
+      <span class="stage">Commissioning</span>
+      <span class="tname">Network Map<span class="go">Open</span></span>
+      <span class="tdesc">Run the scan kit on a laptop on the controller network and it opens a map of every controller, its IP, device ID and firmware, and the cable order from RSTP.</span>
+    </a>
+    <div class="links"><a href="https://github.com/therisenbrady-glitch/bas-tools/blob/main/network-map/README.md">How to use</a><a href="network-map/scan/EBO-NetScan.zip?v=c3f8f94" download>Scan kit (.zip)</a></div>
+
     <a class="tool" href="vav-calculator/">
       <span class="tic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 6.5h8v3H8zM8.5 13h.01M12 13h.01M15.5 13h.01M8.5 16.5h.01M12 16.5h.01M15.5 16.5h.01"/></svg></span>
       <span class="stage">Anytime</span>
@@ -168,7 +179,8 @@ footer{font-size:12px;color:var(--muted)}
       <span class="tdesc">CFM from velocity pressure, K-factor correction, reheat load, and round inlet sizing.</span>
     </a>
     <div class="links"><a href="https://github.com/therisenbrady-glitch/bas-tools/blob/main/vav-calculator/README.md">How to use</a><a href="vav-calculator/index.html" download="vavcalculator.html">Download file</a></div>
-  </nav>
+    </nav>
+  </details>
 
   <section class="tips" aria-labelledby="tipsH">
     <h2 id="tipsH">Tips</h2>

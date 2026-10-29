@@ -9,11 +9,11 @@ Open it at **Field tools → Point List Generator**, or `point-list/` on the sit
 - Best results: a screenshot from the submittal PDF, or a photo taken straight on with the controller and all its wire labels in the frame and no glare.
 
 ## 2. Read it with Claude
-- Tap **Read diagram with Claude**. It takes about a minute.
-- This needs your own **Claude API key** (from console.anthropic.com → API keys). Open **Claude API key**, paste it, and tap **Save key**. The key is stored only in that browser on that device. **Forget key** removes it.
-- Each read costs roughly 10 to 20 cents on the key's account.
-- Only the picture is sent, straight from your browser to Anthropic's API. Nothing goes to the tools site.
-- No key? Skip this step and type the points into the table.
+- Tap **Read diagram with Claude**. It takes a minute or two.
+- **Claude version (no key):** open the tool from the link on the page (*Claude version of this tool*). It reads with your own Claude account and counts toward your plan's usage, like sending Claude a message with a picture. The first time, Claude asks you to allow it. It can't print; use **Save picture** or the CSV.
+- **On the tools site:** reading needs your own **Claude API key** (from console.anthropic.com → API keys, billed separately from a Claude subscription, roughly 10 to 20 cents a read). Open **Claude API key**, paste it, and tap **Save key**. It's stored only in that browser on that device; **Forget key** removes it.
+- Either way only the picture goes to Claude. Nothing goes to the tools site.
+- No Claude at all? Skip this step and type the points into the table.
 
 ## 3. Check the table
 - One row per terminal: **Terminal** (as printed on the controller: Ub 1, UI 3, DO 1, COM A), **Wire #** (the screw terminal numbers, signal/return like 19/20), **Type** (AI, AO, DI, DO, Sensor bus, Network, Power), **Device** (field tag like TS1, VA1), **Point name**, **Description**, **Signal / notes**.
@@ -30,7 +30,7 @@ Open it at **Field tools → Point List Generator**, or `point-list/` on the sit
 - On a phone the diagram switches to one column.
 
 ## 5. Save
-- **Print or save PDF**: the diagram plus the point list table on one sheet (choose "Save as PDF" in the print dialog).
+- **Print or save PDF** (tools site only): the diagram plus the point list table on one sheet (choose "Save as PDF" in the print dialog).
 - **Save picture**: a PNG of the diagram.
 - **Save point list (CSV)**: `UNIT, CONTROLLER, TERMINAL, WIRE #, TYPE, DEVICE, NAME, DESCR, SIGNAL / NOTES`.
 - **Save job file** / **Open job file**: a JSON with the picture and the table, to finish on another device.

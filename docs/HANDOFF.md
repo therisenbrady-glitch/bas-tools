@@ -17,7 +17,7 @@ Context for picking this project up in a new chat. Paste this file, or point Cla
 
 ## Repo layout
 ```
-index.html                      Landing page: Tools tab + Manuals tab (renders the .md files below with marked 12.0.2)
+index.html                      Landing page: Tools tab + Manuals tab (renders the .md files below with marked 12.0.2); Network Map and VAV Calculator sit in a collapsed "In Development" group (Buddy 2026-10-29)
 manifest.webmanifest, assets/   Home-screen icons (BAS stripes), favicon
 .nojekyll                       Pages serves .md files raw (needed for the Manuals tab)
 point-checkout/checkouttool.html + README.md
@@ -93,6 +93,7 @@ Wiring diagram picture -> editable point table -> drawn I/O diagram and point li
 - **Table:** rows `{term, pins, io, dev, name, descr, sig, chk}`; no name = spare; `chk` = Claude unsure (amber, Check button). Name -> io/description guess from the team's abbreviations.
 - **Diagram:** SVG built from the table, terminals grouped into blocks by label prefix (Ub/UI/DO/AO...), power and comm blocks; two sides balanced, one column under 620 px. Print/PNG use a fixed light palette.
 - **Outputs:** print (diagram + table), PNG, CSV, job JSON (`format:'point-list'`, includes the picture). Storage `plg-local-v1`.
+- **Claude version:** the same page published as a claude.ai artifact (https://claude.ai/artifact/RqaDBh3ApWjiPFf8dUZQNp, capabilities `sample` with images + `downloads`): when `window.claude` exists it reads with the viewer's own Claude account (`sample.json`, modelTier complex, full picture plus four overlapping quarters because the platform downsizes each image to about 1.2 MP), hides the key box and Print. Buddy prefers this (no API keys); the site page and home tile link to it. Worked on Buddy's phone 2026-10-29.
 - Sample used to build it: an RP-C-12A unit vent detail (kept in the project's shared folder, not the repo).
 
 ### Network Map (`network-map/index.html` + `network-map/scan/`)

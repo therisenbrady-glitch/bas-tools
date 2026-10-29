@@ -151,6 +151,7 @@ footer{font-size:12px;color:var(--muted)}
       <button type="button" class="link" id="undoRead" hidden>Undo, put my old table back</button>
     </div>
     <div class="banner bad" id="readErr" hidden></div>
+    <p class="banner" id="claudeLink">No API key? Open the <a href="https://claude.ai/artifact/RqaDBh3ApWjiPFf8dUZQNp" target="_blank" rel="noopener">Claude version of this tool</a>. It reads the picture with your own Claude account instead, and works the same way.</p>
     <p class="hint" id="acctNote" hidden>Reading uses your own Claude account and counts toward your plan's usage, like sending Claude a message with a picture. The first time, Claude asks you to allow it.</p>
     <details id="keyBox">
       <summary>Claude API key <span class="hint" id="keyState" style="font-weight:400"></span></summary>
@@ -329,6 +330,7 @@ List entries in terminal order.`;
     }).catch(() => {});
     claude.use('downloads').then(d => { dls = d; }).catch(() => {});
     $('printBtn').hidden = true;
+    $('claudeLink').hidden = true;
   }
   const blobOf = c => new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
   async function pieces(n){
