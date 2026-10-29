@@ -137,6 +137,14 @@ footer{font-size:12px;color:var(--muted)}
     </a>
     <div class="links"><a href="https://github.com/therisenbrady-glitch/bas-tools/blob/main/program-generator/README.md">How to use</a><a href="program-generator/index.html" download="programgenerator.html">Download file</a></div>
 
+    <a class="tool" href="point-list/">
+      <span class="tic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="8" y="4" width="8" height="16" rx="1.5"/><path d="M8 8H4M8 12H4M8 16H4M16 8h4M16 12h4M16 16h4"/></svg></span>
+      <span class="stage">Programming</span>
+      <span class="tname">Point List Generator<span class="go">Open</span></span>
+      <span class="tdesc">Snap a controller wiring diagram and Claude reads what lands on each terminal. Check the table, then print a clean I/O diagram and point list.</span>
+    </a>
+    <div class="links"><a href="https://github.com/therisenbrady-glitch/bas-tools/blob/main/point-list/README.md">How to use</a><a href="point-list/index.html" download="pointlist.html">Download file</a></div>
+
     <a class="tool" href="network-map/">
       <span class="tic" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="4" rx="1"/><rect x="3" y="17" width="6" height="4" rx="1"/><rect x="15" y="17" width="6" height="4" rx="1"/><path d="M12 7v5M6 17v-2.5h12V17M12 12v2.5"/></svg></span>
       <span class="stage">Commissioning</span>
@@ -180,6 +188,7 @@ footer{font-size:12px;color:var(--muted)}
       <button type="button" data-m="scanner" aria-pressed="false">Device Scanner</button>
       <button type="button" data-m="gen" aria-pressed="false">Program Generator</button>
       <button type="button" data-m="checkout" aria-pressed="false">Checkout Tracker</button>
+      <button type="button" data-m="plist" aria-pressed="false">Point List</button>
       <button type="button" data-m="netmap" aria-pressed="false">Network Map</button>
       <button type="button" data-m="vav" aria-pressed="false">VAV Calculator</button>
       <button type="button" data-m="phones" aria-pressed="false">Phone setup</button>
@@ -201,6 +210,7 @@ footer{font-size:12px;color:var(--muted)}
     gen:      {file: 'program-generator/README.md', open: 'program-generator/', name: 'EBO Program Generator'},
     checkout: {file: 'point-checkout/README.md', open: 'point-checkout/checkouttool.html', name: 'Point Checkout Tracker'},
     vav:      {file: 'vav-calculator/README.md', open: 'vav-calculator/', name: 'VAV Field Calculator'},
+    plist:    {file: 'point-list/README.md', open: 'point-list/', name: 'Point List Generator'},
     netmap:   {file: 'network-map/README.md', open: 'network-map/', name: 'Network Map'},
     phones:   {file: 'docs/phones.md'}
   };

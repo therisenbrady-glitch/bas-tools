@@ -24,6 +24,7 @@ point-checkout/checkouttool.html + README.md
 device-scanner/devicescanner.html + README.md
 vav-calculator/index.html + README.md
 program-generator/index.html + README.md
+point-list/index.html + README.md
 network-map/index.html + README.md, network-map/scan/ (EBO-NetScan.ps1, Run EBO-NetScan.bat, README.txt, EBO-NetScan.zip of those three)
 docs/workflow.md                Job workflow manual (install → programming → commissioning → closeout)
 docs/phones.md                  Phone setup manual (Android/Chrome, Samsung Internet, iPhone/Safari, laptop)
@@ -85,6 +86,14 @@ Canned EBO 7.1 program set for one controller. Unit types: CV AHU (MP-C, from Bo
 - **Storage:** localStorage `ebo-gen-v1`, options/terminals/signals/setpoint edits and hand-added points kept per type (`optsBy`, `ioBy`, `sigBy`, `editsBy`, `customBy`), plus the global `pointsOnly` export choice; version 1 storage migrates into CV AHU. Saves the same way as the checkout tracker.
 - Not yet import-tested in EBO: any type. The VAV box merge-by-name behavior and the Boiler two-file import especially need a first test. Low limit switch: On = tripped (confirmed by Buddy 2026-10-14).
 - The page source (engine, AHU template, UI) was built in a session scratchpad; the repo file is the built output and is the master now.
+
+### Point List Generator (`point-list/index.html`)
+Wiring diagram picture -> editable point table -> drawn I/O diagram and point list (Buddy 2026-10-29).
+- **Reader:** the browser calls the Claude API directly with the user's own API key (localStorage `plg-key-v1`, header `anthropic-dangerous-direct-browser-access`). Model `claude-opus-5-5`, effort high, structured output (`output_config.format` json_schema: controller + points with terminal, pins, io, device, name, description, signal, confident), `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`; resent without it on a 400 that names it). Picture is downscaled to 2000 px JPEG first. Buddy chose this over in-browser OCR or reading in the project thread.
+- **Table:** rows `{term, pins, io, dev, name, descr, sig, chk}`; no name = spare; `chk` = Claude unsure (amber, Check button). Name -> io/description guess from the team's abbreviations.
+- **Diagram:** SVG built from the table, terminals grouped into blocks by label prefix (Ub/UI/DO/AO...), power and comm blocks; two sides balanced, one column under 620 px. Print/PNG use a fixed light palette.
+- **Outputs:** print (diagram + table), PNG, CSV, job JSON (`format:'point-list'`, includes the picture). Storage `plg-local-v1`.
+- Sample used to build it: an RP-C-12A unit vent detail (kept in the project's shared folder, not the repo).
 
 ### Network Map (`network-map/index.html` + `network-map/scan/`)
 Maps a controller network: which controllers exist, their addresses, and the cable order. Built 2026-10-28 from Buddy's EBO-NetScan draft. Neither part has been run on a job yet.
