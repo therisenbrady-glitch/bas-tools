@@ -103,6 +103,9 @@ tbody tr:last-child td{border-bottom:0}
 .ib.armed{background:var(--bad);border-color:var(--bad);color:#fff}
 .ib.ok{border-color:var(--warn);color:var(--warn)}
 .ib.ok:hover{border-color:var(--ok);color:var(--ok)}
+.xmlbox{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:10px}
+.xmlhead{display:flex;flex-direction:column;gap:2px}
+.xmlhead b{font-size:14px}
 .empty{color:var(--muted);font-size:14px;text-align:center;padding:28px 12px}
 .banner{background:color-mix(in srgb,var(--accent) 14%,var(--panel));border:1px solid var(--accent);border-radius:6px;padding:8px 12px;font-size:13px}
 .banner.bad{background:color-mix(in srgb,var(--bad) 12%,var(--panel));border-color:var(--bad)}
@@ -136,7 +139,7 @@ footer{font-size:12px;color:var(--muted)}
   </header>
 
   <section class="panel noprint" aria-labelledby="h01">
-    <h2 id="h01"><span class="num">01</span>Wiring diagram picture</h2>
+    <h2 id="h01"><span class="num">01</span>Picture or EBO export</h2>
     <div class="drop" id="drop">Drop a picture here, or
       <div class="btns" style="justify-content:center;margin-top:8px">
         <label class="btn"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Take photo<input type="file" accept="image/*" capture="environment" id="camIn" hidden></label>
@@ -162,6 +165,17 @@ footer{font-size:12px;color:var(--muted)}
         <button type="button" class="btn" id="keyDel">Forget key</button>
       </div>
     </details>
+    <div class="xmlbox">
+      <div class="xmlhead"><b>Or start from an EBO export</b><span class="hint">Right-click the controller (or a whole server) in WorkStation, Export, and open the .xml here. It lists every hardware point on its terminal, plus the spares.</span></div>
+      <div class="btns">
+        <label class="btn"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/></svg>Open EBO XML<input type="file" accept=".xml,text/xml,application/xml" id="xmlIn" hidden></label>
+        <span class="reading" id="xmlBusy" hidden><span class="spin"></span>Reading the export…</span>
+      </div>
+      <div class="keyrow" id="xmlPick" hidden>
+        <label class="field"><span>Controller in this file</span><select id="xmlSel"></select></label>
+        <button type="button" class="btn" id="xmlAll">Save every controller (CSV)</button>
+      </div>
+    </div>
   </section>
 
   <section class="panel noprint" aria-labelledby="h02">
@@ -422,6 +436,99 @@ List entries in terminal order.`;
   }
   $('undoRead').onclick = () => { if (!undo) return; Object.assign(S, JSON.parse(undo)); undo = null; $('undoRead').hidden = true; $('chkNote').hidden = true; save(); renderAll(); toast('Old table restored.'); };
 
+  // ------------------------------------------------------------ EBO export
+  // Same reading as the Program Generator: a tag tree of OI elements; MP/RP controllers are bacnet.mpx.udt.* with IO Resources.
+  function parseEbo(text){
+    const start = text.indexOf('<ExportedObjects');
+    if (start < 0) throw new Error("That file isn't an EBO export.");
+    const dec = v => v.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    const attrs = t => { const a = {}; t.replace(/(\w+)\s*=\s*"([^"]*)"/g, (_, k, v) => { a[k] = dec(v); }); return a; };
+    const root = {children: []}, stack = [root]; let pi = null, m;
+    const re = /<OI\b([^>]*?)(\/?)>|<\/OI>|<PI\b([^>]*?)(\/?)>|<\/PI>|<Reference\b([^>]*?)\/>/g;
+    re.lastIndex = start;
+    while ((m = re.exec(text))) {
+      const top = stack[stack.length - 1];
+      if (m[0] === '</OI>') { stack.pop(); continue; }
+      if (m[0] === '</PI>') { pi = null; continue; }
+      if (m[1] !== undefined) { const n = attrs(m[1]); n.children = []; top.children.push(n); if (!m[2]) stack.push(n); continue; }
+      if (m[3] !== undefined) {
+        const a = attrs(m[3]); if (!top.TYPE || !/^bacnet\.mpx\.(point|ru)\./.test(top.TYPE)) { if (!m[4]) pi = null; continue; }
+        (top.pi = top.pi || {})[a.Name] = a.Value; if (!m[4]) pi = a.Name; continue;
+      }
+      if (m[5] !== undefined && pi) { const top2 = stack[stack.length - 1]; (top2.ref = top2.ref || {})[pi] = attrs(m[5]).Object || ''; }
+    }
+    const find = (n, name) => n && n.children.find(c => c.NAME === name);
+    const devs = [];
+    const walk = (n, path) => n.children.forEach(c => {
+      if (/^bacnet\.mpx\.udt\.(MP|RP)/.test(c.TYPE || '') && find(c, 'IO Resources')) devs.push({node: c, path});
+      else walk(c, path ? path + '/' + c.NAME : c.NAME || '');
+    });
+    walk(root, '');
+    if (!devs.length) throw new Error(root.children.some(function a(c){ return /^io\./.test(c.TYPE || '') || c.children.some(a); })
+      ? 'That export has SmartX IO modules on an AS-P. This version lists MP and RP controllers; export those.' : 'No MP or RP controllers found in that export.');
+    return devs.map(({node, path}) => controllerRows(node, path));
+  }
+  const KIND = {TemperatureInput: ['ai', 'Temperature input'], VoltageInput: ['ai', 'Voltage input'], CurrentInput: ['ai', 'Current input'], RTD2WireInput: ['ai', 'RTD input'],
+    RTDInput: ['ai', 'RTD input'], ResistiveInput: ['ai', 'Resistive input'], AirflowInput: ['ai', 'Airflow sensor'], DigitalInput: ['di', 'Digital input'], CounterInput: ['di', 'Counter input'],
+    SupervisedInput: ['di', 'Supervised input'], DigitalOutput: ['do', 'Digital output'], DigitalPulsedOutput: ['do', 'Pulsed output'], VoltageOutput: ['ao', 'Voltage output'], CurrentOutput: ['ao', 'Current output']};
+  function prettyModel(t){ const m = /^(MP|RP)([A-Z])(\d+)([A-Z]*)$/.exec(t); return m ? `${m[1]}-${m[2]}-${m[3]}${m[4]}` : t; }
+  function controllerRows(dev, path){
+    const find = (n, name) => n && n.children.find(c => c.NAME === name);
+    const ior = find(dev, 'IO Resources'), io = find(ior, 'Onboard IO');
+    const terms = (io ? io.children : []).map(c => c.NAME).filter(Boolean);
+    const pts = [], used = {}, noTerm = [];
+    const walk = n => n.children.forEach(c => {
+      if (c === ior) return;
+      const k = /^bacnet\.mpx\.point\.(\w+)$/.exec(c.TYPE || '');
+      if (k){
+        const ref = c.ref && c.ref.Terminal || '', t = (/Onboard IO\/(.+)$/.exec(ref) || [])[1] || '';
+        const [io2, kind] = KIND[k[1]] || [/Output$/.test(k[1]) ? 'ao' : 'ai', k[1].replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()];
+        // the badge already says DI/DO/AO, so the note carries only what it adds: sensor kind, output range
+        const p = c.pi || {}; let sig = /^Digital (in|out)put$/.test(kind) ? '' : kind;
+        if (io2 === 'ao' && p.ElecBottomOfScale != null && p.ElecTopOfScale != null) sig = `${+p.ElecBottomOfScale}-${+p.ElecTopOfScale} ${k[1] === 'CurrentOutput' ? 'mA' : 'V'}` + (+p.EngBottomOfScale > +p.EngTopOfScale ? ', reverse acting' : '');
+        if (t){ used[t] = 1; pts.push({...blank(), term: t, io: io2, name: c.NAME || '', descr: c.DESCR || expand(c.NAME || ''), sig}); }
+        else noTerm.push(c.NAME);
+      }
+      walk(c);
+    });
+    walk(dev);
+    // room sensors on the sensor bus
+    (ior ? ior.children : []).forEach(b => { if (!/SensorBus/.test(b.TYPE || '')) return;
+      b.children.filter(d => /RoomUnitDevice/.test(d.TYPE || '')).forEach(d => {
+        const port = (b.ref && b.ref.PortReference || '').replace(/^.*RS485-?/, '').replace(/^COM\s*([A-Z])$/i, 'COM $1') || 'Sensor bus';
+        const has = d.children.map(c => (/RoomUnit(\w+?)Sensor$/.exec(c.TYPE || '') || [])[1]).filter(Boolean).map(x => ({CO2: 'CO2', Temperature: 'temp', Humidity: 'humidity', Occupancy: 'occupancy'}[x] || x.toLowerCase()));
+        pts.push({...blank(), term: port, io: 'bus', dev: d.pi && d.pi.Address ? 'Addr ' + d.pi.Address : '', name: d.NAME || '', descr: 'Room sensor' + (has.length ? ': ' + has.join(', ') : ''), sig: ''});
+      }); });
+    terms.filter(t => !used[t] && /^[A-Za-z]+\s*\d+$/.test(t)).forEach(t => pts.push({...blank(), term: t}));
+    const model = prettyModel((dev.TYPE || '').replace('bacnet.mpx.udt.', ''));
+    return {name: dev.NAME || '', model, path, noTerm, pts: pts.sort((a, b) => grp(a).ord - grp(b).ord || natKey(a.term).localeCompare(natKey(b.term)))};
+  }
+  let XML = [];
+  function loadCtl(i){
+    const c = XML[i]; if (!c) return;
+    if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts}); $('undoRead').hidden = false; }
+    S.unit = c.name; S.model = c.model; S.maker = 'Schneider Electric'; S.pts = c.pts.map(p => ({...p}));
+    $('chkNote').hidden = true; save(); renderAll();
+    toast(`${c.name}: ${c.pts.filter(p => p.name).length} points, ${c.pts.filter(p => !p.name).length} spare` + (c.noTerm.length ? `. Left out ${c.noTerm.length} with no terminal: ${c.noTerm.slice(0, 3).join(', ')}${c.noTerm.length > 3 ? '…' : ''}` : '.'));
+  }
+  $('xmlIn').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    $('xmlBusy').hidden = false; await new Promise(r => setTimeout(r, 30));
+    try { XML = parseEbo(await f.text()); }
+    catch(err){ XML = []; toast(err.message || "That export couldn't be read.", true); $('xmlBusy').hidden = true; $('xmlPick').hidden = true; return; }
+    $('xmlBusy').hidden = true;
+    $('xmlSel').innerHTML = XML.map((c, i) => `<option value="${i}">${esc(c.name)} · ${esc(c.model)} · ${c.pts.filter(p => p.name).length} pts</option>`).join('');
+    $('xmlPick').hidden = XML.length < 2;
+    loadCtl(0);
+  };
+  $('xmlSel').onchange = e => loadCtl(+e.target.value);
+  $('xmlAll').onclick = () => {
+    const q = v => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    const head = ['UNIT', 'CONTROLLER', 'TERMINAL', 'WIRE #', 'TYPE', 'DEVICE', 'NAME', 'DESCR', 'SIGNAL / NOTES'];
+    const rows = XML.flatMap(c => c.pts.map(p => [c.name, c.model, p.term, p.pins, p.name ? (IO[p.io] || '') : 'Spare', p.dev, p.name, p.descr, p.sig]));
+    saveBlob(new Blob(['\ufeff' + [head, ...rows].map(r => r.map(q).join(',')).join('\r\n')], {type: 'text/csv'}), `Point list ${XML.length} controllers.csv`, 'text/csv', 'csv');
+  };
+
   // ------------------------------------------------------------ table editor
   const COLS = [['term', 'c-term'], ['pins', 'c-pins'], ['io', 'c-io'], ['dev', 'c-dev'], ['name', 'c-name'], ['descr', 'c-descr'], ['sig', 'c-sig']];
   function renderTable(){
@@ -466,13 +573,13 @@ List entries in terminal order.`;
 
   // ------------------------------------------------------------ diagram
   // Terminals are grouped into blocks by their label prefix (Ub, UI, DO...). Power and comm get their own blocks.
-  const BLOCK = {UB: 'Universal I/O', UI: 'Universal inputs', U: 'Universal I/O', IN: 'Inputs', AI: 'Analog inputs', DI: 'Digital inputs', BI: 'Binary inputs',
+  const BLOCK = {UB: 'Universal I/O', UC: 'Universal I/O (Uc)', UI: 'Universal inputs', U: 'Universal I/O', IN: 'Inputs', AI: 'Analog inputs', DI: 'Digital inputs', BI: 'Binary inputs',
     DO: 'Digital outputs', RO: 'Relay outputs', BO: 'Binary outputs', AO: 'Analog outputs', UO: 'Universal outputs', OUT: 'Outputs'};
   function grp(p){
     if (p.io === 'pwr') return {key: 'pwr', title: 'Power', ord: 90};
     if (p.io === 'bus' || p.io === 'comm') return {key: 'com', title: 'Communication', ord: 80};
     const m = String(p.term).trim().toUpperCase().match(/^([A-Z]+)/), pre = m ? m[1] : '';
-    const ord = {UB: 10, U: 10, UI: 11, IN: 12, AI: 13, DI: 14, BI: 14, AO: 20, UO: 21, DO: 30, RO: 31, BO: 31, OUT: 32}[pre] || 50;
+    const ord = {UB: 10, U: 10, UC: 15, UI: 11, IN: 12, AI: 13, DI: 14, BI: 14, AO: 20, UO: 21, DO: 30, RO: 31, BO: 31, OUT: 32}[pre] || 50;
     return {key: pre || '?', title: BLOCK[pre] || (pre ? pre + ' terminals' : 'Other'), ord};
   }
   function blocks(){

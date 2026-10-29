@@ -1,10 +1,10 @@
 # Point List Generator
 
-Turns a picture of a controller wiring diagram into a clean I/O diagram and point list: what lands on each terminal, its type, the field device, and the point name.
+Turns a picture of a controller wiring diagram, or an EBO controller export, into a clean I/O diagram and point list: what lands on each terminal, its type, the field device, and the point name.
 
 Open it at **Field tools → Point List Generator**, or `point-list/` on the site.
 
-## 1. Load the picture
+## 1. Load the picture (or skip to the EBO export below)
 - **Take photo** (phone camera), **Choose picture**, drag a picture onto the box, or paste one.
 - Best results: a screenshot from the submittal PDF, or a photo taken straight on with the controller and all its wire labels in the frame and no glare.
 
@@ -14,6 +14,13 @@ Open it at **Field tools → Point List Generator**, or `point-list/` on the sit
 - **On the tools site:** reading needs your own **Claude API key** (from console.anthropic.com → API keys, billed separately from a Claude subscription, roughly 10 to 20 cents a read). Open **Claude API key**, paste it, and tap **Save key**. It's stored only in that browser on that device; **Forget key** removes it.
 - Either way only the picture goes to Claude. Nothing goes to the tools site.
 - No Claude at all? Skip this step and type the points into the table.
+
+## Or start from an EBO export
+- In WorkStation, right-click an MP or RP controller (or a whole AS-P / server) and **Export**. Open the .xml with **Open EBO XML**.
+- The table fills with every hardware point on its terminal (name, description, AI/AO/DI/DO from the point type, sensor kind, output range like 2-10 V and reverse acting), the SmartX room sensor on its COM port with what it senses, and every unused terminal as a spare.
+- A file with several controllers shows **Controller in this file** to switch between them, and **Save every controller (CSV)** saves one point list for all of them.
+- Points with no terminal set are left out (the message names them). SmartX IO modules on an AS-P aren't read yet.
+- Exports don't carry device tags or wire numbers; type those in if you want them on the diagram.
 
 ## 3. Check the table
 - One row per terminal: **Terminal** (as printed on the controller: Ub 1, UI 3, DO 1, COM A), **Wire #** (the screw terminal numbers, signal/return like 19/20), **Type** (AI, AO, DI, DO, Sensor bus, Network, Power), **Device** (field tag like TS1, VA1), **Point name**, **Description**, **Signal / notes**.
