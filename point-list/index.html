@@ -39,8 +39,9 @@
   --readout:#0a1015; --readout-ink:#e9f0f4; --readout-dim:#7f93a2;
   --t-ai:#6fb0e6; --t-di:#b49ae0; --t-ao:#5fc48a; --t-do:#f0a22e; --t-bus:#9cb8cc; --t-pwr:#ef6f62; --t-spare:#5d6b76; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
-.wrap{max-width:900px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:flex;flex-direction:column;gap:16px}
+.wrap{max-width:900px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:20px 48px;display:flex;flex-direction:column;gap:16px}
 header{display:flex;flex-direction:column;gap:4px;border-left:4px solid var(--accent);padding-left:12px}
 .eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;margin:0;letter-spacing:.01em}
@@ -150,6 +151,7 @@ footer{font-size:12px;color:var(--muted)}
       <button type="button" class="link" id="undoRead" hidden>Undo, put my old table back</button>
     </div>
     <div class="banner bad" id="readErr" hidden></div>
+    <p class="hint" id="acctNote" hidden>Reading uses your own Claude account and counts toward your plan's usage, like sending Claude a message with a picture. The first time, Claude asks you to allow it.</p>
     <details id="keyBox">
       <summary>Claude API key <span class="hint" id="keyState" style="font-weight:400"></span></summary>
       <p class="hint">Reading a diagram sends the picture to Anthropic's Claude API using your own API key, which you get at console.anthropic.com under API keys. The key is saved only in this browser on this device. Each diagram costs about 10 to 20 cents. Without a key you can still type the points in below.</p>
@@ -202,7 +204,7 @@ footer{font-size:12px;color:var(--muted)}
     </div>
     <p class="hint">The job file keeps the picture and the table so you can pick it up on another device. Point names and terminal names follow the Program Generator's conventions.</p>
   </section>
-  <footer>Everything stays in this browser except the picture you send to Claude when you tap Read.</footer>
+  <footer>Everything stays on this device except the picture you send to Claude when you tap Read.</footer>
   <div class="toast" id="toast" role="status"></div>
 </div>
 <script>
@@ -315,8 +317,54 @@ Rules:
 - "notes": one or two short sentences about anything a technician should double-check, or "".
 List entries in terminal order.`;
 
+  // On claude.ai the page reads with the viewer's own Claude account (sample); on the tools site it uses an API key.
+  let sample = null, dls = null;
+  if (window.claude && claude.use){
+    claude.use('sample').then(async sm => {
+      if (!sm) return;
+      const lim = await sm.limits().catch(() => null);
+      if (!lim || !lim.images) return;
+      sample = sm; sample.maxImgs = lim.images.maxCount || 1;
+      $('keyBox').hidden = true; $('acctNote').hidden = false;
+    }).catch(() => {});
+    claude.use('downloads').then(d => { dls = d; }).catch(() => {});
+    $('printBtn').hidden = true;
+  }
+  const blobOf = c => new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+  async function pieces(n){
+    // the whole page, then overlapping quarters so small wire labels stay readable after the platform downsizes each image
+    const im = new Image(); im.src = S.img; await im.decode();
+    const W = im.naturalWidth, H = im.naturalHeight, out = [];
+    const cut = (x, y, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(im, x, y, w, h, 0, 0, w, h); return blobOf(c); };
+    out.push(await cut(0, 0, W, H));
+    if (n >= 5){ const w = Math.round(W * 0.58), h = Math.round(H * 0.58); for (const [x, y] of [[0, 0], [W - w, 0], [0, H - h], [W - w, H - h]]) out.push(await cut(x, y, w, h)); }
+    return out;
+  }
+  const SHAPE = `Reply with only one JSON object, no other text, in this shape:
+{"controller":{"maker":"","model":"","unit":""},"points":[{"terminal":"Ub 1","pins":"19/20","io":"ai","device":"TS1","name":"SaTmp","description":"Supply Air Temp","signal":"","confident":true}],"notes":""}
+"io" is one of ai, ao, di, do, bus, pwr, comm, spare. "confident" is true or false.`;
+  async function readWithAccount(){
+    const imgs = await pieces(sample.maxImgs);
+    const intro = imgs.length > 1 ? 'The first image is the whole page. The other four are overlapping zoomed quarters of it (top left, top right, bottom left, bottom right) for reading small labels; they show the same diagram, so list each terminal once.\n\n' : '';
+    return sample.json(intro + PROMPT + '\n\n' + SHAPE, {images: imgs, modelTier: 'complex', effort: 'high'});
+  }
+  const SAMPLE_ERR = {not_granted: "Claude wasn't allowed to read for this page. Allow it from the page's permissions to try again.",
+    sampling_disabled: "Claude isn't available on this account.", rate_limited: "You've hit your Claude usage limit for now, or tapped too fast. Try again in a little while.",
+    session_expired: 'Sign in to Claude again, then try again.', image_rejected: "Claude couldn't take this picture. Try a JPEG or PNG.",
+    refused: 'Claude declined to read this picture.', invalid_json: "Claude's answer couldn't be read. Tap Read again.",
+    empty_completion: "Claude didn't answer. Try a tighter picture of just the controller.", images_unavailable: "This view can't send pictures to Claude."};
+
   function readErr(msg){ $('readErr').textContent = msg; $('readErr').hidden = !msg; }
   $('readBtn').onclick = async () => {
+    if (sample){
+      if (!S.img) return;
+      readErr(''); $('readBtn').disabled = true; $('reading').hidden = false; $('undoRead').hidden = true;
+      const t0 = Date.now(), tick = setInterval(() => { $('readMsg').textContent = 'Reading the diagram. This takes a minute or two. ' + Math.round((Date.now() - t0) / 1000) + ' s'; }, 1000);
+      try { const out = await readWithAccount(); if (!out || !Array.isArray(out.points)) throw {code: 'invalid_json'}; apply(out); }
+      catch(e){ if (e && e.code !== 'cancelled') readErr(SAMPLE_ERR[e.code] || 'Claude had a problem reading it. Try again in a minute.'); }
+      finally { clearInterval(tick); $('reading').hidden = true; $('readBtn').disabled = !S.img; $('readMsg').textContent = 'Reading the diagram. This takes about a minute.'; }
+      return;
+    }
     const key = lsGet(LSK);
     if (!key){ $('keyBox').open = true; $('keyIn').focus(); toast('Add your Claude API key first, or type the points in below.', true); return; }
     if (!S.img) return;
@@ -357,7 +405,8 @@ List entries in terminal order.`;
     }
   };
   function apply(out){
-    const pts = (out.points || []).map(p => ({term: p.terminal || '', pins: p.pins || '', io: p.io === 'spare' ? '' : (p.io || ''), dev: p.device || '',
+    const OK = {ai: 1, ao: 1, di: 1, do: 1, bus: 1, pwr: 1, comm: 1};
+    const pts = (out.points || []).filter(p => p && typeof p === 'object').map(p => ({term: String(p.terminal || ''), pins: String(p.pins || ''), io: p.io === 'spare' ? '' : (OK[p.io] ? p.io : guessIo(p.name || '', p.terminal || '')), dev: p.device || '',
       name: p.io === 'spare' ? '' : (p.name || ''), descr: p.io === 'spare' ? '' : (p.description || ''), sig: p.signal || '', chk: p.confident === false}));
     if (!pts.length){ readErr("Claude didn't find any terminals in this picture. Try a closer, straighter shot."); return; }
     if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts}); $('undoRead').hidden = false; }
@@ -522,6 +571,11 @@ List entries in terminal order.`;
 
   // ------------------------------------------------------------ outputs
   async function saveBlob(blob, name, mime, ext){
+    if (dls){
+      try { await dls.save({filename: name, data: blob}); toast('Saved ' + name); }
+      catch(e){ if (e && e.code !== 'declined') toast("That file couldn't be saved here.", true); }
+      return;
+    }
     try {
       if (window.showSaveFilePicker && window.top === window.self){
         const h = await showSaveFilePicker({suggestedName: name, types: [{description: ext.toUpperCase(), accept: {[mime]: ['.' + ext]}}]});
