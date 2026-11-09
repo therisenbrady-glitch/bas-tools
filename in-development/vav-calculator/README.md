@@ -1,8 +1,8 @@
 # VAV Field Calculator
 
-Quick airflow, balancing, and reheat math for VAV boxes in the field. It's one HTML file (`index.html`) that works offline once opened. Your last inputs are remembered on that device. **Reset** (top right) puts every input back to its starting value after three taps: **Reset → Reset inputs? → Tap to reset all**.
+Quick airflow, balancing, and reheat math for VAV boxes in the field. It's one HTML file (`index.html`) that works offline once opened. Your last inputs (including the Export tab's VAV list) are remembered on that device. **Reset** (top right) puts every input back to its starting value after three taps: **Reset → Reset inputs? → Tap to reset all**.
 
-The page has four tabs:
+The page has five tabs:
 
 ## Airflow
 Calculates CFM from the flow sensor's velocity pressure and the box K-factor.
@@ -70,6 +70,27 @@ Calculates the coil load needed to heat the airflow from entering to leaving air
 
 ## Inlets
 A reference table for round inlets 4″–24″ at a design velocity you enter (default 2,000 FPM): area, ideal K, CFM at that velocity, and the true velocity pressure (`(FPM ÷ 4005)²`). The inlet picked on the Airflow tab is highlighted.
+
+## Export
+Makes EBO import files that set each VAV's airflow setpoints on an MP-V, without touching anything else in the controller.
+
+| Box | EBO object (in `Components/AirFlSpt99/Parameters`) |
+|---|---|
+| Max | AirFlSptMax |
+| Min | AirFlSptMin |
+| Heat Min | AirFlSptRhtMin |
+| Heat Max | AirFlSptRhtMax |
+
+Each value is written as both the relinquish default and the present value, in cfm. A blank box leaves that setpoint as it is. Absolute Min is never changed.
+
+- **+ Add VAV** adds a row. **Remove** takes two taps.
+- **Paste from a spreadsheet**: one VAV per line, columns Name, Max, Min, Heat Min, Heat Max (tabs from Excel or commas). A header row is skipped.
+- **Save file** on a row saves `<VAV> Airflow - import.xml`. **Save all** saves one zip with a file per VAV.
+- Checks: Min above Max or Heat Min above Heat Max blocks that VAV (red). Heat Max above Max saves but is flagged orange.
+
+**To import:** in WorkStation, right-click the VAV's **Application** folder, Import, pick that VAV's file. The objects merge by name into the existing stock folders.
+
+Not yet import-tested in EBO. Check the first VAV's values after importing before doing the rest.
 
 ## Assumptions
 - Standard air (0.075 lb/ft³) at sea level.

@@ -45,8 +45,8 @@ header{display:flex;flex-direction:column;gap:4px;border-left:4px solid var(--ac
 h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;margin:0;letter-spacing:.01em;text-wrap:balance}
 header p{margin:2px 0 0;color:var(--muted);font-size:14px}
 
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px;gap:4px;position:sticky;top:env(safe-area-inset-top,0px);z-index:2}
-.tabs button{font-family:var(--f-display);font-weight:600;font-size:16px;letter-spacing:.03em;text-transform:uppercase;border:0;background:transparent;color:var(--muted);padding:9px 4px;border-radius:5px;cursor:pointer}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px;gap:4px;position:sticky;top:env(safe-area-inset-top,0px);z-index:2}
+.tabs button{font-family:var(--f-display);font-weight:600;font-size:16px;letter-spacing:.03em;text-transform:uppercase;border:0;min-width:0;overflow:hidden;text-overflow:ellipsis;background:transparent;color:var(--muted);padding:9px 4px;border-radius:5px;cursor:pointer}
 .tabs button[aria-selected="true"]{background:var(--steel);color:var(--panel)}
 .tabs button:focus-visible,.field input:focus-visible,.field select:focus-visible,.seg button:focus-visible,.link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
@@ -105,6 +105,31 @@ footer{font-size:12px;color:var(--muted)}
 .headrow p{margin:2px 0 0}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom, 0px));z-index:5;max-width:calc(100% - 32px);background:var(--readout);color:var(--readout-ink);font-size:13.5px;font-weight:500;padding:10px 14px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.25);border-left:4px solid var(--ok)}
 .toast:empty{display:none}
+@media (max-width:420px){.tabs button{font-size:14px;letter-spacing:.01em;padding:9px 2px}}
+.btn{border:1px solid var(--steel);background:var(--steel);color:var(--panel);font-family:var(--f-body);font-weight:600;font-size:13.5px;padding:9px 14px;border-radius:6px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--steel)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.xdel:focus-visible,.xsave:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px}
+.xrow{border:1px solid var(--line);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
+.xrow .field .row{background:var(--panel)}
+.xhead{display:flex;gap:8px;align-items:flex-end}
+.xhead .field{flex:1}
+.xgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media (max-width:480px){.xgrid{grid-template-columns:1fr 1fr}}
+.xgrid .field input{font-size:16px;padding:9px 8px}
+.xdel,.xsave{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:var(--muted);font-family:var(--f-body);font-weight:600;font-size:12px;padding:10px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.xsave{color:var(--steel);border-color:var(--steel)}
+.xdel[data-step="1"]{border-color:var(--bad);color:var(--bad)}
+.xmsg{font-size:12.5px;margin:0;font-weight:600}
+.xmsg.bad{color:var(--bad)} .xmsg.warn{color:var(--warn)} .xmsg.ok{color:var(--ok)}
+.xmsg:empty{display:none}
+textarea.paste{width:100%;box-sizing:border-box;min-height:84px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-family:var(--f-mono);font-size:13px;padding:8px 10px;resize:vertical}
+textarea.paste:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+details.pastebox summary{cursor:pointer;font-weight:600;font-size:13.5px;color:var(--steel)}
+details.pastebox[open] summary{margin-bottom:8px}
+code.k{font-family:var(--f-mono);font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+
 .toast.bad{border-left-color:var(--bad)}
 </style>
 
@@ -120,6 +145,7 @@ footer{font-size:12px;color:var(--muted)}
     <button role="tab" id="t-k" aria-selected="false" data-tab="k">K-Factor</button>
     <button role="tab" id="t-heat" aria-selected="false" data-tab="heat">Reheat</button>
     <button role="tab" id="t-ref" aria-selected="false" data-tab="ref">Inlets</button>
+    <button role="tab" id="t-exp" aria-selected="false" data-tab="exp">Export</button>
   </nav>
 
   <!-- AIRFLOW -->
@@ -227,6 +253,30 @@ footer{font-size:12px;color:var(--muted)}
         <tbody id="r-body"></tbody>
       </table></div>
       <p class="hint">VP column is the true velocity pressure at that speed. Below about 0.03″ most VAV transducers lose accuracy, which is why minimums on large inlets drift.</p>
+    </div>
+  </section>
+
+
+  <!-- AIRFLOW SETPOINT EXPORT -->
+  <section data-pane="exp" hidden>
+    <div class="panel">
+      <h2>Airflow setpoint import</h2>
+      <p class="hint">Makes an EBO import that sets each MP-V's Max, Min, Heat Min and Heat Max airflow (relinquish default and present value, cfm). Nothing else in the controller is touched. Import it on that VAV's <b>Application</b> folder; it lands in <code class="k">Components/AirFlSpt99/Parameters</code>.</p>
+      <div id="x-rows" style="display:flex;flex-direction:column;gap:10px"></div>
+      <div class="btnrow"><button type="button" class="btn ghost" id="x-add">+ Add VAV</button></div>
+      <details class="pastebox"><summary>Paste from a spreadsheet</summary>
+        <p class="hint" style="margin-bottom:6px">One VAV per line, columns in this order: <b>Name, Max, Min, Heat Min, Heat Max</b>. Tabs (copied from Excel) or commas both work. A header row is skipped.</p>
+        <textarea class="paste" id="x-paste" placeholder="VAV-101&#9;1400&#9;525&#9;525&#9;1000&#10;VAV-102&#9;900&#9;300&#9;300&#9;600" spellcheck="false"></textarea>
+        <div class="btnrow" style="margin-top:8px"><button type="button" class="btn ghost" id="x-pastego">Add these rows</button></div>
+      </details>
+      <p class="hint">Leave a box blank to leave that setpoint as it is in the controller. Absolute Min is never changed.</p>
+    </div>
+    <div class="readout" style="margin-top:12px">
+      <span class="lbl">Ready to save</span>
+      <div class="main"><span class="big" id="x-count">0</span><span class="bigunit" id="x-countu">VAVs</span></div>
+      <span class="pill" id="x-pill"></span>
+      <div class="btnrow"><button type="button" class="btn" id="x-all" style="background:var(--accent);border-color:var(--accent);color:var(--accent-ink)">Save all (.zip)</button></div>
+      <span class="lbl" style="text-transform:none;letter-spacing:.02em;font-family:var(--f-body);font-size:12.5px">One file per VAV, named "&lt;VAV&gt; Airflow - import.xml". Not yet import-tested in EBO: check the first box before doing the rest.</span>
     </div>
   </section>
 
@@ -355,17 +405,132 @@ footer{font-size:12px;color:var(--muted)}
   }
   armClear($('clearBtn'), 'Reset', () => 'Reset inputs?', () => 'Tap to reset all', async () => {
     ids.forEach(id => { const el = $(id); if (el.tagName === 'SELECT') { [...el.options].forEach(o => o.selected = o.defaultSelected); if (id === 'a-inlet') el.value = '8'; } else el.value = el.defaultValue; });
-    try { localStorage.removeItem(KEY); } catch(e) {}
+    try { localStorage.removeItem(KEY); localStorage.removeItem(XKEY); } catch(e) {}
+    xrows = [{name:'',max:'',min:'',hmin:'',hmax:''}]; xrender();
     setMode('hw'); setTab('air'); all(); toast('All inputs reset');
   });
 
-  document.querySelectorAll('input,select').forEach(el => el.addEventListener('input', all));
+
+  // ---------- airflow setpoint export ----------
+  const XKEY = 'vav-calc-export-v1';
+  const XF = [['max','Max','AirFlSptMax','Air Flow Setpoint Max'],['min','Min','AirFlSptMin','Air Flow Setpoint Min'],['hmin','Heat Min','AirFlSptRhtMin','Air Flow Setpoint Reheat Min'],['hmax','Heat Max','AirFlSptRhtMax','Air Flow Setpoint Reheat Max']];
+  let xrows = [];
+  try { xrows = JSON.parse(localStorage.getItem(XKEY) || '[]'); if (!Array.isArray(xrows)) xrows = []; } catch(e) { xrows = []; }
+  if (!xrows.length) xrows = [{name:'',max:'',min:'',hmin:'',hmax:''}];
+  const xsave = () => { try { localStorage.setItem(XKEY, JSON.stringify(xrows)); } catch(e) {} };
+  const esc = v => String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const xnum = v => { const t = String(v).trim().replace(/,/g,''); if (t === '') return null; const n = Number(t); return isFinite(n) ? n : NaN; };
+  const fileName = r => (r.name.trim() || 'VAV').replace(/[\\/:*?"<>|]+/g,'-') + ' Airflow - import.xml';
+
+  function xcheck(r){
+    const v = {}; XF.forEach(([k]) => v[k] = xnum(r[k]));
+    const any = XF.some(([k]) => v[k] !== null);
+    if (!r.name.trim() && !any) return {lvl:'', msg:'', ok:false, blank:true};
+    if (!r.name.trim()) return {lvl:'bad', msg:'Give this VAV a name.', ok:false};
+    for (const [k,l] of XF) { if (Number.isNaN(v[k])) return {lvl:'bad', msg:l+' is not a number.', ok:false}; if (v[k] !== null && v[k] < 0) return {lvl:'bad', msg:l+' is below 0.', ok:false}; }
+    if (!any) return {lvl:'bad', msg:'Enter at least one setpoint.', ok:false};
+    if (v.min !== null && v.max !== null && v.min > v.max) return {lvl:'bad', msg:'Min is above Max.', ok:false};
+    if (v.hmin !== null && v.hmax !== null && v.hmin > v.hmax) return {lvl:'bad', msg:'Heat Min is above Heat Max.', ok:false};
+    if (v.hmax !== null && v.max !== null && v.hmax > v.max) return {lvl:'warn', msg:'Heat Max is above Max. Saved, but check it.', ok:true};
+    const skip = XF.filter(([k]) => v[k] === null).map(([,l]) => l);
+    return {lvl:'ok', msg: skip.length ? 'Leaves '+skip.join(', ')+' unchanged.' : 'All four setpoints set.', ok:true};
+  }
+
+  function xxml(r){
+    const objs = XF.filter(([k]) => xnum(r[k]) !== null).map(([k,,n,d]) => { const val = xnum(r[k]);
+      return `        <OI DESCR="${d}" NAME="${n}" TYPE="bacnet.mpx.value.AnalogValue">\n          <PI Name="RelinquishDefault" Unit="0xF0004" Value="${val}"/>\n          <PI Name="Value" RetainLevel="ColdStart" Unit="0xF0004" Value="${val}"/>\n        </OI>`; }).join('\n');
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<ObjectSet ExportMode="Standard" Note="TypesFirst" SemanticsFilter="Standard" Version="7.1.2.171">\n  <MetaInformation>\n    <ExportMode Value="Standard"/>\n    <SemanticsFilter Value="None"/>\n    <RuntimeVersion Value="7.1.2.171"/>\n    <SourceVersion Value="7.1.2.171"/>\n    <ServerFullPath Value="/"/>\n  </MetaInformation>\n  <Types>\n  </Types>\n<ExportedObjects>\n  <OI DESCR="Application Components" NAME="Components" TYPE="system.base.Folder">\n    <OI DESCR="Air Flow Setpoint.  Includes MinFl, MaxFl, RhtMin, RhtMax and trends.  Links to VAV Data." NAME="AirFlSpt99" TYPE="system.base.Folder">\n      <OI DESCR="User adjustable input values used by programs" NAME="Parameters" TYPE="system.base.Folder">\n${objs}\n      </OI>\n    </OI>\n  </OI>\n</ExportedObjects>\n\n</ObjectSet>\n`;
+  }
+
+  function download(name, blob){
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+
+  // store-only zip, no library
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  function zip(files){
+    const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+    const d = new Date(), dt = ((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1)) & 0xFFFF, dd = (((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate()) & 0xFFFF;
+    files.forEach(f => {
+      const nm = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x0800,true); h.setUint16(8,0,true); h.setUint16(10,dt,true); h.setUint16(12,dd,true);
+      h.setUint32(14,crc,true); h.setUint32(18,data.length,true); h.setUint32(22,data.length,true); h.setUint16(26,nm.length,true); h.setUint16(28,0,true);
+      parts.push(new Uint8Array(h.buffer), nm, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0,0x02014b50,true); c.setUint16(4,20,true); c.setUint16(6,20,true); c.setUint16(8,0x0800,true); c.setUint16(10,0,true); c.setUint16(12,dt,true); c.setUint16(14,dd,true);
+      c.setUint32(16,crc,true); c.setUint32(20,data.length,true); c.setUint32(24,data.length,true); c.setUint16(28,nm.length,true); c.setUint32(42,off,true);
+      cen.push(new Uint8Array(c.buffer), nm);
+      off += 30 + nm.length + data.length;
+    });
+    const csize = cen.reduce((a,b) => a + b.length, 0), e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true); e.setUint32(12,csize,true); e.setUint32(16,off,true);
+    return new Blob([...parts, ...cen, new Uint8Array(e.buffer)], {type:'application/zip'});
+  }
+
+  function xrender(){
+    $('x-rows').innerHTML = xrows.map((r,i) => `<div class="xrow" data-i="${i}">
+      <div class="xhead"><div class="field"><label for="x-n${i}">VAV name</label><div class="row"><input id="x-n${i}" data-k="name" type="text" autocomplete="off" spellcheck="false" placeholder="e.g. VAV-101" value="${esc(r.name)}"></div></div>
+        <button type="button" class="xsave" data-save="${i}">Save file</button><button type="button" class="xdel" data-del="${i}" aria-label="Remove this VAV">Remove</button></div>
+      <div class="xgrid">${XF.map(([k,l]) => `<div class="field"><label for="x-${k}${i}">${l}</label><div class="row"><input id="x-${k}${i}" data-k="${k}" type="text" inputmode="decimal" autocomplete="off" placeholder="cfm" value="${esc(r[k])}"></div></div>`).join('')}</div>
+      <p class="xmsg" id="x-m${i}"></p></div>`).join('');
+    xstatus();
+  }
+  function xstatus(){
+    let ok = 0, bad = 0, warn = 0;
+    xrows.forEach((r,i) => { const c = xcheck(r), m = $('x-m'+i);
+      if (m) { m.className = 'xmsg ' + c.lvl; m.textContent = c.msg; }
+      const sb = document.querySelector(`[data-save="${i}"]`); if (sb) sb.disabled = !c.ok;
+      if (c.ok) ok++; if (c.lvl === 'bad') bad++; if (c.lvl === 'warn') warn++; });
+    $('x-count').textContent = ok; $('x-countu').textContent = ok === 1 ? 'VAV' : 'VAVs';
+    const names = xrows.filter(r => xcheck(r).ok).map(r => fileName(r).toLowerCase());
+    const dup = names.length !== new Set(names).size;
+    if (bad) pill($('x-pill'),'bad', bad + (bad === 1 ? ' VAV needs' : ' VAVs need') + ' fixing (skipped)');
+    else if (dup) pill($('x-pill'),'warn','Two VAVs share a name');
+    else if (warn) pill($('x-pill'),'warn', warn + ' to double-check');
+    else if (!ok) pill($('x-pill'),'warn','Enter a VAV name and airflows');
+    else pill($('x-pill'),'ok','Ready');
+    $('x-all').disabled = !ok;
+    xsave();
+  }
+  $('x-rows').addEventListener('input', e => { const el = e.target, row = el.closest('.xrow'); if (!row || !el.dataset.k) return; xrows[+row.dataset.i][el.dataset.k] = el.value; xstatus(); });
+  $('x-rows').addEventListener('click', e => {
+    const s = e.target.closest('[data-save]'), d = e.target.closest('[data-del]');
+    if (s) { const r = xrows[+s.dataset.save]; if (!xcheck(r).ok) return; download(fileName(r), new Blob([xxml(r)], {type:'application/xml'})); toast('Saved ' + fileName(r)); }
+    if (d) {
+      if (d.dataset.step !== '1') { document.querySelectorAll('.xdel[data-step="1"]').forEach(b => { b.dataset.step = ''; b.textContent = 'Remove'; }); d.dataset.step = '1'; d.textContent = 'Tap again'; clearTimeout(d._t); d._t = setTimeout(() => { d.dataset.step = ''; d.textContent = 'Remove'; }, 4000); return; }
+      xrows.splice(+d.dataset.del, 1); if (!xrows.length) xrows.push({name:'',max:'',min:'',hmin:'',hmax:''}); xrender();
+    }
+  });
+  $('x-add').addEventListener('click', () => { xrows.push({name:'',max:'',min:'',hmin:'',hmax:''}); xrender(); $('x-n' + (xrows.length-1)).focus(); });
+  $('x-pastego').addEventListener('click', () => {
+    const lines = $('x-paste').value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    let added = 0;
+    lines.forEach(l => { const c = (l.includes('\t') ? l.split('\t') : l.split(/[,;]/)).map(x => x.trim());
+      if (c.slice(1).every(x => x === '' || isNaN(Number(x.replace(/,/g,'')))) && c.slice(1).some(x => x !== '')) return; // header row
+      xrows.push({name:c[0]||'', max:c[1]||'', min:c[2]||'', hmin:c[3]||'', hmax:c[4]||''}); added++; });
+    xrows = xrows.filter(r => r.name.trim() || XF.some(([k]) => String(r[k]).trim()));
+    if (!xrows.length) xrows.push({name:'',max:'',min:'',hmin:'',hmax:''});
+    xrender(); $('x-paste').value = ''; toast(added ? 'Added ' + added + (added === 1 ? ' VAV' : ' VAVs') : 'No rows found to add', !added);
+  });
+  $('x-all').addEventListener('click', () => {
+    const good = xrows.filter(r => xcheck(r).ok); if (!good.length) return;
+    const seen = {}, files = good.map(r => { let n = fileName(r); const k = n.toLowerCase(); seen[k] = (seen[k]||0) + 1; if (seen[k] > 1) n = n.replace(' - import.xml', ' (' + seen[k] + ') - import.xml'); return {name:n, text:xxml(r)}; });
+    if (files.length === 1) download(files[0].name, new Blob([files[0].text], {type:'application/xml'}));
+    else download('VAV Airflow Setpoints.zip', zip(files));
+    toast('Saved ' + files.length + (files.length === 1 ? ' file' : ' files in one zip'));
+  });
+  xrender();
+
+  document.querySelectorAll('.panel input:not([data-k]),.panel select').forEach(el => el.addEventListener('input', all));
   document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $('a-ideal').addEventListener('click', () => { $('a-k').value = Math.round(4005*area(num('a-inlet'))); all(); });
   $('h-hw').addEventListener('click', () => setMode('hw'));
   $('h-el').addEventListener('click', () => setMode('el'));
 
-  setMode(mode); setTab(['air','k','heat','ref'].includes(tab)?tab:'air'); all();
+  setMode(mode); setTab(['air','k','heat','ref','exp'].includes(tab)?tab:'air'); all();
 })();
 </script>
 
