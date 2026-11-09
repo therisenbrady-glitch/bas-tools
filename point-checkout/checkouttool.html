@@ -179,6 +179,17 @@ h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;mar
 .edbar{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;border-top:1px solid var(--line);align-items:center}
 .edbar label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px;flex:1;min-width:120px}
 .edbar input,.edbar select{border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:14px;padding:7px 9px;font-family:inherit}
+.cpl{padding:10px 14px;border-top:1px solid var(--line);background:var(--sunk);display:flex;flex-direction:column;gap:8px}
+.cpl p{margin:0;font-size:13px;color:var(--muted)}
+.cpl .cphead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.cpl .cphead b{font-size:13.5px;color:var(--ink)}
+.cplist{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:4px 12px;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:6px;background:var(--panel);padding:8px 10px}
+.cplist label{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:var(--ink);padding:3px 0;cursor:pointer}
+.cplist label input{margin-top:3px;flex:none;width:16px;height:16px;accent-color:var(--accent)}
+.cplist label small{display:block;color:var(--muted);font-size:12px}
+.cplist label small.loss{color:var(--bad)}
+.cpbtns{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.btn.linkish{border-color:transparent;background:transparent;color:var(--steel);padding:4px 6px}
 .ufoot{display:flex;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--sunk);border-top:1px solid var(--line);align-items:center}
 .ufoot input{flex:1;min-width:140px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font-size:14px;padding:7px 9px}
 
@@ -493,7 +504,8 @@ footer{font-size:12px;color:var(--muted)}
         const del = canWrite ? `<button type="button" class="pdel" data-delpt="${u.id}" data-i="${i}" ${armed ? 'data-armed="1"' : ''} aria-label="${armed ? 'Tap again to delete' : 'Delete'} ${esc(p.n)}" title="Delete point">${armed ? 'Delete?' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>'}</button>` : '';
         return `<div class="pt" data-s="${s}" ${s === 'fail' && p.info ? 'data-sev="note"' : ''}><span class="stripe"></span><div class="pname">${esc(p.n)}${meta}</div><div class="sbtns" role="group" aria-label="${esc(p.n)}">${b('pass')}${b('fail')}${b('na')}</div>${del}${note}</div>`;
       }).join('') || '<div class="pt"><span class="stripe"></span><div class="pname" style="color:var(--muted)">No points yet. Add one below.</div></div>'}</div>
-      ${canWrite ? `<div class="ufoot"><input class="newpt" data-u="${u.id}" placeholder="Add a point, e.g. CO2 sensor" maxlength="80" aria-label="New point for ${esc(u.tag)}"><button class="btn" type="button" data-addpt="${u.id}">Add point</button><button class="btn danger" type="button" data-del="${u.id}">${delArm===u.id?'Tap again to delete':'Delete unit'}</button></div>` : ''}` : '';
+      ${isOpen && canWrite && cpFrom === u.id ? copyPanel(u) : ''}
+      ${canWrite ? `<div class="ufoot"><input class="newpt" data-u="${u.id}" placeholder="Add a point, e.g. CO2 sensor" maxlength="80" aria-label="New point for ${esc(u.tag)}"><button class="btn" type="button" data-addpt="${u.id}">Add point</button><button class="btn" type="button" data-cpopen="${u.id}" aria-expanded="${cpFrom===u.id}" title="Give other units this unit's point list">Update points on other units</button><button class="btn danger" type="button" data-del="${u.id}">${delArm===u.id?'Tap again to delete':'Delete unit'}</button></div>` : ''}` : '';
       return `<article class="unit${u.example?' example':''}">
         <button class="uhead" type="button" data-toggle="${u.id}" aria-expanded="${isOpen}">
           <span class="type">${TYPE_LABEL[u.type]||esc(u.type)}</span>
@@ -503,6 +515,43 @@ footer{font-size:12px;color:var(--muted)}
     }).join('');
   }
   let pendingRender = false, delArm = null, delPt = null;
+
+  // ---------- update points on other units ----------
+  // Gives the checked units the same point list as the source unit. Points are matched by
+  // name without the terminal ("SaTmp — AI-11" matches "SaTmp — AI-3"), so a matched point keeps
+  // its own terminal and result. Points the source doesn't have are removed.
+  let cpFrom = null, cpSel = new Set(), cpArm = false;
+  const ptKey = n => String(n).replace(/^\s*◦\s*/, '').replace(/\s+—\s+.*$/, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  function planCopy(src, u){
+    const pool = u.points.slice(), next = [];
+    src.points.forEach(sp => {
+      const k = ptKey(sp.n), i = pool.findIndex(p => ptKey(p.n) === k);
+      next.push(i >= 0 ? pool.splice(i, 1)[0] : {n: sp.n, s: ''});
+    });
+    return {next, added: next.filter(p => !u.points.includes(p)).length, removed: pool, lost: pool.filter(p => p.s || p.note).length};
+  }
+  function cpTargets(src){ return units.filter(x => x !== src && !x.example && tabOf(x) === tabOf(src)).sort((a,b) => a.tag.localeCompare(b.tag, undefined, {numeric:true})); }
+  function copyPanel(src){
+    const ts = cpTargets(src);
+    if (!ts.length) return `<div class="cpl"><div class="cphead"><b>No other ${esc(tabOf(src))} units</b><button type="button" class="btn linkish" data-cpclose="1">Close</button></div></div>`;
+    const sel = ts.filter(x => cpSel.has(x.id)); let lost = 0;
+    const rows = ts.map(x => {
+      const pl = planCopy(src, x); if (cpSel.has(x.id)) lost += pl.lost;
+      const bits = [pl.added ? `+${pl.added}` : '', pl.removed.length ? `−${pl.removed.length}` : ''].filter(Boolean).join(' ') || 'no change';
+      return `<label><input type="checkbox" data-cpu="${x.id}" ${cpSel.has(x.id)?'checked':''}><span>${esc(x.tag)}<small class="${pl.lost?'loss':''}">${bits} point${pl.added + pl.removed.length === 1 ? '' : 's'}${pl.lost ? ` · ${pl.lost} result${pl.lost===1?'':'s'} lost` : ''}</small></span></label>`;
+    }).join('');
+    const go = !sel.length ? 'Pick units to update' : cpArm ? `Tap again: ${lost} result${lost===1?'':'s'} will be lost` : `Update ${sel.length} unit${sel.length===1?'':'s'}`;
+    return `<div class="cpl"><div class="cphead"><b>Give these ${esc(tabOf(src))} units the ${src.points.length} points on ${esc(src.tag)}</b><span><button type="button" class="btn linkish" data-cpall="1">All</button><button type="button" class="btn linkish" data-cpall="0">None</button></span></div>
+      <p>Points with the same name keep their result and terminal. Points ${esc(src.tag)} doesn't have are removed from the checked units, and new ones start open.</p>
+      <div class="cplist">${rows}</div>
+      <div class="cpbtns"><button type="button" class="btn" data-cpclose="1">Cancel</button><button type="button" class="btn ${cpArm?'danger':'primary'}" data-cpgo="${src.id}" ${sel.length?'':'disabled'}>${go}</button></div></div>`;
+  }
+  function applyCopy(src){
+    const ts = cpTargets(src).filter(x => cpSel.has(x.id)); let lost = 0;
+    ts.forEach(x => { const pl = planCopy(src, x); lost += pl.lost; x.points = pl.next; writeUnit(x); });
+    cpFrom = null; cpArm = false; cpSel.clear(); render();
+    toast(`Updated points on ${ts.length} unit${ts.length===1?'':'s'} to match ${src.tag}${lost ? ` (${lost} result${lost===1?'':'s'} removed)` : ''}`);
+  }
 
   function toast(msg, bad, sticky){ const t = $('toast'); t.textContent = msg; t.classList.toggle('bad', !!bad); clearTimeout(toast._t); if (!sticky) toast._t = setTimeout(()=> t.textContent = '', bad ? 7000 : 3500); }
 
@@ -613,6 +662,20 @@ footer{font-size:12px;color:var(--muted)}
       return;
     }
     if (t.dataset.fz && canWrite) { scanCheck(t.dataset.fz, t.dataset.ok === '1'); return; }
+    if (t.dataset.cpopen && canWrite) {
+      const src = units.find(x => x.id === t.dataset.cpopen); if (!src) return;
+      if (cpFrom === src.id) { cpFrom = null; } else { cpFrom = src.id; cpArm = false; cpSel = new Set(cpTargets(src).map(x => x.id)); }
+      render(); return;
+    }
+    if (t.dataset.cpclose) { cpFrom = null; cpArm = false; render(); return; }
+    if (t.dataset.cpall) { const src = units.find(x => x.id === cpFrom); if (!src) return; cpSel = new Set(t.dataset.cpall === '1' ? cpTargets(src).map(x => x.id) : []); cpArm = false; render(); return; }
+    if (t.dataset.cpgo && canWrite) {
+      const src = units.find(x => x.id === t.dataset.cpgo); if (!src) return;
+      const lost = cpTargets(src).filter(x => cpSel.has(x.id)).reduce((n, x) => n + planCopy(src, x).lost, 0);
+      if (lost && !cpArm) { cpArm = true; render(); return; }
+      applyCopy(src); return;
+    }
+    if (cpArm) { cpArm = false; render(); }
     if (t.dataset.addpt) { addPoint(t.dataset.addpt); return; }
     if (t.dataset.del) {
       if (delArm === t.dataset.del) { const u = units.find(x => x.id === t.dataset.del); delArm = null; deleteUnit(t.dataset.del); toast(`Deleted ${u ? u.tag : 'unit'}`); }
@@ -626,6 +689,7 @@ footer{font-size:12px;color:var(--muted)}
   }
   $('units').addEventListener('keydown', e => { if (e.target.classList.contains('newpt') && e.key === 'Enter') { e.preventDefault(); addPoint(e.target.dataset.u); } });
   $('units').addEventListener('change', e => {
+    if (e.target.dataset.cpu) { e.target.checked ? cpSel.add(e.target.dataset.cpu) : cpSel.delete(e.target.dataset.cpu); cpArm = false; render(); return; }
     if (!e.target.classList.contains('note')) return;
     const u = units.find(x => x.id === e.target.dataset.u); if (!u) return;
     const p = u.points[+e.target.dataset.i]; const v = e.target.value.trim();

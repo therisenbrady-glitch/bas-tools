@@ -125,6 +125,10 @@ Then tap **Add N units**. A counter at the bottom of the screen shows progress.
   - Any point you change by hand after a pass all is yours, and Undo won't touch it.
 - **Name, Type and Location** at the top of an open unit can be changed at any time. Changing the type moves the unit to that tab and keeps its points and results; it doesn't load a new point list. Two units can't share a name.
 - The trash button at the end of a point deletes it. It asks for a second tap first, and the point's result goes with it.
+- **Update points on other units** (bottom of an open unit) copies that unit's point list to other units of the same type. Set up one unit with just the points you want, tap it, and pick which units to update from the checklist (all of that type are checked to start; **All** / **None** toggle them).
+  - Points are matched by name without the terminal, so `SaTmp — AI-11` matches `SaTmp — AI-3`. A matched point keeps its own terminal, result and note.
+  - Points the source unit has but a checked unit doesn't are added as open. Points the source unit doesn't have are removed.
+  - Each unit in the list shows how many points it gains and loses. If any results or notes would be removed, the count shows in red and **Update** asks for a second tap first.
 - **Add point** at the bottom of a unit adds a custom point. **Delete unit** asks for a second tap to confirm.
 - **Add unit** adds a single unit by hand using a standard template.
 - **Clear job** (next to the project name) erases every unit and point to start a new job. It takes three taps: **Clear job → Clear job? → Erase N units**. Tapping anywhere else, or waiting a few seconds, cancels it. Use **Export job** first if you might need the old job.
