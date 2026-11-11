@@ -595,16 +595,19 @@ List entries in terminal order.`;
     const at = cc => pts.filter(p => p.cc === cc), isOut = it => /^(AO|DO|DC)$/.test(it);
     const card = board !== '7716' ? 'none' : at('31').length ? 'uiao' : at('01').some(p => isOut(p.it)) ? 'uido8' : at('01').length ? 'uidoi' : 'none';
     const rows = /^77(16|56)$/.test(board) ? inetRows(board, card) : [];
-    const other = {key: 'ox', title: board === '7798' ? 'Sub-LAN points' : 'Other Ext points', ord: 60};
+    // a 7798 has no I/O of its own: it hosts a sub-LAN, and CC is the MR controller under it (Joe 2026-11-11),
+    // so its points are grouped by MR with no board terminals until the MR terminal maps are added
+    const sub = board === '7798', hasMap = rows.length > 0, other = {key: 'ox', title: 'Other Ext points', ord: 60};
+    const mrBlk = cc => ({key: 'mr' + cc, title: `MR at sub-LAN address ${cc}`, ord: 100 + +cc});
     pts.forEach(p => {
-      const pt = p.cc + p.pp, hoa = /^(08|09)$/.test(p.pp) && +p.cc < 16;
+      const pt = p.cc + p.pp, hoa = !sub && /^(08|09)$/.test(p.pp) && +p.cc < 16;
       const side = p.it === 'DM' ? '' : isOut(p.it) ? 'out' : 'in';
       const r = !hoa && rows.find(r => r.pt === pt && !r.name && (!side || r.side === side));
       if (r){ r.name = p.name; setInetType(r, p.it); if (p.it === 'DM') r.chk = true; }
-      else rows.push({...blank(), pt, it: p.it, io: inetIo(side, p.it), side, name: p.name, blk: other,
-        sig: hoa ? 'HOA switch feedback, no wire' : rows.length ? 'no terminal for this address' : '', chk: !hoa && !!rows.length});
+      else rows.push({...blank(), pt, it: p.it, io: inetIo(side, p.it), side, name: p.name, blk: sub ? mrBlk(p.cc) : other,
+        sig: hoa ? 'HOA switch feedback, no wire' : hasMap ? 'no terminal for this address' : '', chk: !hoa && hasMap});
     });
-    const model = (board ? board + (board === '7798' ? '' : ' PCU') : (dev.TYPE || '').replace(/^inet\.dcu\./i, '')) + (card !== 'none' ? ' + ' + CARDS[card].replace(/,.*$/, '') : '');
+    const model = (board ? board + (sub ? ' sub-LAN controller' : ' PCU') : (dev.TYPE || '').replace(/^inet\.dcu\./i, '')) + (card !== 'none' ? ' + ' + CARDS[card].replace(/,.*$/, '') : '');
     return {name: dev.NAME || '', model, path, noTerm: [], skipped, inet: {board: board || 'other', card, ll: num('LinkNumber'), ss: num('StationNumber')},
       pts: rows.sort((a, b) => grp(a).ord - grp(b).ord)};
   }
@@ -713,7 +716,7 @@ List entries in terminal order.`;
     best.forEach(o => { const b1 = d[o + 1], b2 = d[o + 2];
       dev.children.push({TYPE: 'inet.point', NAME: '', children: [], pi: {PointNumber: String(b1 & 0x1f), BitOffset: String(b2 >> 4), PointType: String(b2 & 0x0f), PointClass: String(b1 >> 6), PointAddr: txt(o + 9, o + ((b1 >> 6) === 2 ? 21 : 25))}}); });
     const c = inetDcuRows(dev, '');
-    c.savNote = (board ? `Board ${board} read from the file` : 'Board type not in the file, so the points are listed without terminals; pick the board below') + (dev.pi.LinkNumber ? '' : '; type the link number (SAV files don\'t store it)');
+    c.savNote = (board ? `Board ${board} read from the file` : 'Controller type not recognized in the file (a 7798 sub-LAN controller has no board I/O), so the points are listed by address without terminals') + (dev.pi.LinkNumber ? '' : '; type the link number (SAV files don\'t store it)');
     return c;
   }
   let XML = [];
@@ -874,7 +877,7 @@ List entries in terminal order.`;
           const cy = y + RH / 2, spare = !p.name, col = spare ? P.spare : (P[p.io] || P.spare);
           const px = right ? edge - PW + 6 : edge - 6;
           o.push(`<rect x="${px}" y="${cy - 13}" width="${PW}" height="26" rx="5" fill="${P.pill}" stroke="${col}" stroke-width="1.5"/>`);
-          o.push(`<text x="${px + PW / 2}" y="${cy + 1}" text-anchor="middle" dominant-baseline="middle" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" fill="#e9f0f4">${esc(fit(p.term || '?', PW - 8, 12))}</text>`);
+          o.push(`<text x="${px + PW / 2}" y="${cy + 1}" text-anchor="middle" dominant-baseline="middle" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" fill="#e9f0f4">${esc(fit(p.term || p.pt || '?', PW - 8, 12))}</text>`);
           if (p.pins) o.push(`<text x="${right ? px - 6 : px + PW + 6}" y="${cy + 4}" text-anchor="${right ? 'end' : 'start'}" font-family="IBM Plex Mono, monospace" font-size="10" fill="${P.bodyDim}">${esc(p.pins)}</text>`);
           const x1 = right ? px + PW : px, x2 = right ? x1 + LN : x1 - LN;
           const inward = IN_IO[p.io] || p.io === 'bus' || p.io === 'pwr';
