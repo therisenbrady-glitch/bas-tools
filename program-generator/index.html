@@ -3873,7 +3873,6 @@ const BLR = {
       {folder: 'Numerics', name: 'HwP1Fof', descr: 'HW Pump 1 Fail Alarm', kind: 'alm'},
       {folder: 'Numerics', name: 'HwP2Fof', descr: 'HW Pump 2 Fail Alarm', kind: 'alm', cond: 'P2'},
       {folder: 'Numerics', name: 'HwPLd', descr: 'Lead HW Pump (1 or 2)', kind: 'av', cond: 'P2'},
-      {folder: 'Numerics', name: 'HwPRotTm', descr: 'Last HW Pump Rotation (s)', kind: 'av', cond: 'P2&!ROTHRS'},
       {folder: 'Numerics', name: 'HwPLdHrs', descr: 'Lead Pump Hours Since Swap', kind: 'av', unit: 'h', cond: 'PHRS'},
       {folder: 'Numerics', name: 'HwP1RunHrs', descr: 'HW Pump 1 Run Hours', kind: 'av', unit: 'h', cond: 'ROTHRS'},
       {folder: 'Numerics', name: 'HwP2RunHrs', descr: 'HW Pump 2 Run Hours', kind: 'av', unit: 'h', cond: 'PHRS'},
@@ -3881,7 +3880,6 @@ const BLR = {
       {folder: 'Numerics', name: 'HwSTmpSpt', descr: 'Building HW Supply Temp Setpoint', kind: 'av', unit: 'F', cond: 'DIV'},
       {folder: 'Numerics', name: 'BlrLoad', descr: 'Boiler Firing Signal', kind: 'av', unit: '%', cond: 'MOD'},
       {folder: 'Numerics', name: 'BlrLd', descr: 'Lead Boiler (1 or 2)', kind: 'av', cond: 'N2'},
-      {folder: 'Numerics', name: 'BlrRotTm', descr: 'Last Boiler Rotation (s)', kind: 'av', cond: 'N2&!ROTHRS'},
       {folder: 'Numerics', name: 'BlrLdHrs', descr: 'Lead Boiler Hours Since Swap', kind: 'av', unit: 'h', cond: 'BHRS'},
       {folder: 'Numerics', name: 'BlrRtLmt', descr: 'Low Return Water Firing Limit', kind: 'av', unit: '%', cond: 'LOWRT'},
       {folder: 'Numerics', name: 'HwSysSts', descr: 'Plant Mode (see README)', kind: 'av'},
@@ -4135,7 +4133,6 @@ Numeric Output HwPLd          ' selected lead pump, 1 or 2
 #if ROTHRS
 Numeric Output HwPLdHrs       ' lead pump run hours since the last swap, h
 #else
-Numeric Output HwPRotTm       ' time of last auto rotation (Date, seconds)
 #endif
 #endif
 #if ROTHRS
@@ -4151,12 +4148,15 @@ Function Func_Runtime         ' team run time accumulator
 
 #if P2
 Numeric ActLd                 ' lead actually running (standby if lead failed)
+#if !ROTHRS
+DateTime RotTm                ' last auto rotation; restarts when the program does
 #endif
-Numeric P1OkTm                ' last time pump 1 was OK (Date)
+#endif
+DateTime P1OkTm               ' last time pump 1 was OK
 #if P2
-Numeric P2OkTm                ' last time pump 2 was OK (Date)
+DateTime P2OkTm               ' last time pump 2 was OK
 #endif
-Numeric FlOkTm                ' last time a pump had status (Date)
+DateTime FlOkTm               ' last time a pump had status
 Numeric FlOffDly              ' flow proof drop-out delay, s
 #if ROTHRS
 Numeric P1Cnt                 ' Func_Runtime counter, pump 1
@@ -4189,9 +4189,7 @@ Init:
     HwPLd = 1
   Endif
 #if !ROTHRS
-  If HwPRotTm = 0 Then
-    HwPRotTm = Date
-  Endif
+  RotTm = Date
 #endif
 #endif
   Goto Main
@@ -4218,9 +4216,9 @@ Main:
     LdCnt = 1
   Endif
 #else
-  If HwPRotSel = 0 And Date - HwPRotTm >= HwPRotDays * 86400 Then
+  If HwPRotSel = 0 And Date >= (RotTm + HwPRotDays * 86400) Then
     HwPLd = 3 - HwPLd
-    HwPRotTm = Date
+    RotTm = Date
   Endif
 #endif
 
@@ -4251,7 +4249,7 @@ Main:
 
   ' ---- Fail alarms: commanded with no status for HwPFofDly -----------------
   If HwP1Cmd = On And HwP1Sts = Off Then
-    If Date - P1OkTm >= HwPFofDly Then
+    If Date >= (P1OkTm + HwPFofDly) Then
       HwP1Fof = On
     Endif
   Else
@@ -4259,7 +4257,7 @@ Main:
   Endif
 #if P2
   If HwP2Cmd = On And HwP2Sts = Off Then
-    If Date - P2OkTm >= HwPFofDly Then
+    If Date >= (P2OkTm + HwPFofDly) Then
       HwP2Fof = On
     Endif
   Else
@@ -4284,7 +4282,7 @@ Main:
     HwFlSts = On
     FlOkTm = Date
   Else
-    If Date - FlOkTm >= FlOffDly Then
+    If Date >= (FlOkTm + FlOffDly) Then
       HwFlSts = Off
     Endif
   Endif
@@ -4490,7 +4488,8 @@ Numeric VlvLErr               ' valve loop last error
 Numeric VlvIntg               ' valve loop integral
 #if VLVPRT
 Numeric RtOk                  ' On once the return has reached HwRTmpMin
-Numeric EnaTm                 ' last time the system was enabled (Date)
+DateTime EnaTm                ' last time the system was enabled
+Numeric EnaSeen               ' On once the system has been enabled since start
 #endif
 #endif
 
@@ -4515,6 +4514,7 @@ Main:
 #if VLVPRT
   If HwSysEna = On Then
     EnaTm = Date
+    EnaSeen = On
     If HwRTmp >= HwRTmpMin Then
       RtOk = On
     Endif
@@ -4529,7 +4529,7 @@ Main:
   Else
     VlvLErr = 0
     VlvIntg = 0
-    If HwSysEna = Off And EnaTm > 0 And Date - EnaTm < HwVlvCoolDly Then
+    If HwSysEna = Off And EnaSeen = On And Date < (EnaTm + HwVlvCoolDly) Then
       HwBypVlvPos = 100
     Else
       HwBypVlvPos = 0
@@ -4659,7 +4659,6 @@ Numeric Output BlrLd          ' selected lead boiler, 1 or 2
 #if ROTHRS
 Numeric Output BlrLdHrs       ' lead boiler run hours since the last swap, h
 #else
-Numeric Output BlrRotTm       ' time of last auto rotation (Date, seconds)
 #endif
 #if SPLIT
 Numeric Output Blr1Load       ' to Prog_Boiler1, firing signal 0-100 %
@@ -4683,9 +4682,12 @@ Function Func_Ratio           ' team linear reset
 
 #if N2
 Numeric ActLd                 ' boiler acting as lead
+#if !ROTHRS
+DateTime RotTm                ' last auto rotation; restarts when the program does
+#endif
 Numeric LdMd                  ' acting lead's Md
-Numeric UpOkTm                ' last time stage up was not called (Date)
-Numeric DnOkTm                ' last time stage down was not called (Date)
+DateTime UpOkTm               ' last time stage up was not called
+DateTime DnOkTm               ' last time stage down was not called
 #endif
 #if ROTHRS
 Numeric B1Cnt                 ' Func_Runtime counter, boiler 1
@@ -4713,9 +4715,7 @@ Init:
     BlrLd = 1
   Endif
 #if !ROTHRS
-  If BlrRotTm = 0 Then
-    BlrRotTm = Date
-  Endif
+  RotTm = Date
 #endif
 #endif
 #if ROTHRS
@@ -4754,13 +4754,13 @@ Main:
   Endif
 #else
   If BlrRotSel = 0 Then
-    If HwSysSts = 1 And Date - BlrRotTm >= BlrRotDays * 86400 Then
+    If HwSysSts = 1 And Date >= (RotTm + BlrRotDays * 86400) Then
       BlrLd = 3 - BlrLd
-      BlrRotTm = Date
+      RotTm = Date
     Endif
-    If HwSysSts = 2 And Date - BlrRotTm >= (BlrRotDays + 1) * 86400 Then
+    If HwSysSts = 2 And Date >= (RotTm + BlrRotDays * 86400 + 86400) Then
       BlrLd = 3 - BlrLd
-      BlrRotTm = Date
+      RotTm = Date
     Endif
   Endif
 #endif
@@ -4838,7 +4838,7 @@ Main:
 #else
       If LdMd = 6 And BlrHwSTmp < BlrHwSTmpSpt - BlrStgUpDif Then
 #endif
-        If Date - UpOkTm >= BlrStgUpDly Then
+        If Date >= (UpOkTm + BlrStgUpDly) Then
           HwSysSts = 3
         Endif
       Else
@@ -4855,7 +4855,7 @@ Main:
 #else
       If BlrHwSTmp > BlrHwSTmpSpt + BlrStgUpDif Then
 #endif
-        If Date - DnOkTm >= BlrStgDnDly Then
+        If Date >= (DnOkTm + BlrStgDnDly) Then
           HwSysSts = 2
         Endif
       Else
@@ -4941,7 +4941,7 @@ Numeric Input  BlrFireRateMin   ' low fire signal, %
 Numeric Output BlrRtLmt         ' firing limit, %
 
 Numeric LowRt                   ' On = low return limit active
-Numeric StepTm                  ' time of the last step (Date)
+DateTime StepTm                 ' time of the last step
 
 Init:
   BlrRtLmt = 100
@@ -4969,7 +4969,7 @@ Main:
         LowRt = Off
         BlrRtLmt = 100
       Else
-        If Date - StepTm >= BlrLowRtDly Then
+        If Date >= (StepTm + BlrLowRtDly) Then
           BlrRtLmt = Minimum(100, BlrRtLmt + BlrLowRtStep)
           StepTm = Date
         Endif
@@ -5601,6 +5601,7 @@ function plan(tpl, opts, ctrl, io, sig, edits){
   (tpl.modes || []).forEach(([k, text]) => { if (used.has(k)) modeMap[k] = {n: ++n, text}; });
   progs.forEach(p => {
     p.code = reindent(expandModes(p.lines, modeMap, tpl.modeVar, tpl.modeText)).join('\n').replace(/\{UNIT\}/g, unit) + '\n';
+    p.code = addErrLine(p.code);
     p.decl = parseDecls(p.code.split('\n'));
   });
   const states = Object.assign({modes: Object.keys(modeMap).sort((a, b) => modeMap[a].n - modeMap[b].n).map(k => modeMap[k].text), dx: F.DX2 ? ['Off', 'Stage 1', 'Stage 2'] : ['Off', 'Stage 1']}, tpl.states ? tpl.states(F, opts) : {});
@@ -5868,6 +5869,17 @@ async function buildXml(T, P){
 
 // Objects of the stock application this file changes: only the properties set here,
 // so the stock programs' own bindings stay as they are when the import merges by name.
+// EBO Script jumps to E: on a runtime error; without it the program halts for
+// good (Buddy 2026-11). Outputs hold their last value and the program restarts
+// at Init (or its first line label) after 5 s.
+function addErrLine(code){
+  if (/^E:\s*$/m.test(code)) return code;
+  const labs = [...code.matchAll(/^([A-Za-z]\w*):\s*$/gm)].map(m => m[1]);
+  const to = labs.includes('Init') ? 'Init' : labs[0];
+  if (!to) return code;
+  return code.replace(/\n*$/, '\n') + `\n' ---- Runtime error: EBO jumps here. Outputs hold; restart after 5 s ------\nE:\n  If TS >= 5 Then Goto ${to}\n`;
+}
+
 function stockXml(P){
   const tree = {}, enums = new Set();
   const put = (path, xml) => { let t = tree; path.split('/').slice(1).forEach(k => { t = t[k] = t[k] || {}; }); (t['@'] = t['@'] || []).push(xml); };
