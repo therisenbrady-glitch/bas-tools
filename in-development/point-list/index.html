@@ -166,9 +166,9 @@ footer{font-size:12px;color:var(--muted)}
       </div>
     </details>
     <div class="xmlbox">
-      <div class="xmlhead"><b>Or start from an EBO export</b><span class="hint">Right-click the controller (or a whole server) in WorkStation, Export, and open the .xml here. It lists every hardware point on its terminal, plus the spares.</span></div>
+      <div class="xmlhead"><b>Or start from an EBO export</b><span class="hint">Right-click the controller (or a whole server) in WorkStation, Export, and open the .xml here. It lists every hardware point on its terminal, plus the spares. For an I/NET site you can also open the server's backup (.xbk).</span></div>
       <div class="btns">
-        <label class="btn"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/></svg>Open EBO XML<input type="file" accept=".xml,text/xml,application/xml" id="xmlIn" hidden></label>
+        <label class="btn"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/></svg>Open EBO XML or backup<input type="file" accept=".xml,.xbk,text/xml,application/xml" id="xmlIn" hidden></label>
         <span class="reading" id="xmlBusy" hidden><span class="spin"></span>Reading the export…</span>
       </div>
       <div class="keyrow" id="xmlPick" hidden>
@@ -586,7 +586,7 @@ List entries in terminal order.`;
       if (p.PointNumber != null && p.BitOffset != null){
         const cls = classOf(p.PointClass);
         if (cls === 'Int' || cls === 'Ind') skipped[cls]++;
-        else pts.push({cc: two(+p.PointNumber || 0), pp: two(+p.BitOffset || 0), it: itOf(p.PointType), name: p.PointAddr || c.NAME || '', descr: ''});
+        else pts.push({cc: two(+p.PointNumber || 0), pp: two(+p.BitOffset || 0), it: itOf(p.PointType) || itOf((c.TYPE || '').replace(/^inet\.point\./i, '')), name: p.PointAddr || c.NAME || '', descr: ''});
       }
       walk(c);
     });
@@ -608,6 +608,92 @@ List entries in terminal order.`;
     return {name: dev.NAME || '', model, path, noTerm: [], skipped, inet: {board: board || 'other', card, ll: num('LinkNumber'), ss: num('StationNumber')},
       pts: rows.sort((a, b) => grp(a).ord - grp(b).ord)};
   }
+
+  // ------------------------------------------------------------ EBO backup (.xbk)
+  // An .xbk is a zip; Configuration/configuration.db inside is SQLite (primer section 8). Read it here with no library:
+  // unzip that one entry, walk the ObjectInstance and PropertyInstance tables, and hand the I/NET DCUs to inetDcuRows.
+  async function unzipEntry(buf, want){
+    const dv = new DataView(buf), u8 = new Uint8Array(buf);
+    let e = -1; for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 70000); i--) if (dv.getUint32(i, true) === 0x06054b50){ e = i; break; }
+    if (e < 0) throw new Error("That backup isn't a zip file. Is it an EBO .xbk?");
+    let p = dv.getUint32(e + 16, true); const n = dv.getUint16(e + 10, true), dec = new TextDecoder();
+    for (let k = 0; k < n; k++){
+      const nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true);
+      const name = dec.decode(u8.subarray(p + 46, p + 46 + nl));
+      if (name === want){
+        const method = dv.getUint16(p + 10, true), size = dv.getUint32(p + 20, true), lo = dv.getUint32(p + 42, true);
+        const start = lo + 30 + dv.getUint16(lo + 26, true) + dv.getUint16(lo + 28, true), raw = u8.subarray(start, start + size);
+        if (method === 0) return raw;
+        if (method !== 8 || typeof DecompressionStream === 'undefined') throw new Error("This browser can't unpack the backup. Try Chrome, Edge or a current Safari.");
+        return new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+      }
+      p += 46 + nl + xl + cl;
+    }
+    throw new Error('No Configuration/configuration.db in that backup.');
+  }
+  function sqliteReader(db){
+    const dv = new DataView(db.buffer, db.byteOffset, db.byteLength), td = new TextDecoder();
+    if (td.decode(db.subarray(0, 15)) !== 'SQLite format 3') throw new Error("The backup's database couldn't be read.");
+    const ps = dv.getUint16(16) === 1 ? 65536 : dv.getUint16(16), U = ps - db[20];
+    const varint = o => { let v = 0; for (let i = 0; i < 8; i++){ const b = db[o + i]; v = v * 128 + (b & 0x7f); if (b < 0x80) return [v, i + 1]; } return [v * 256 + db[o + 8], 9]; };
+    const payload = (o, len) => {
+      const X = U - 35; if (len <= X) return db.subarray(o, o + len);
+      const M = Math.floor((U - 12) * 32 / 255) - 23, K = M + (len - M) % (U - 4), loc = K <= X ? K : M;
+      const out = new Uint8Array(len); out.set(db.subarray(o, o + loc)); let got = loc, pg = dv.getUint32(o + loc);
+      while (pg && got < len){ const b = (pg - 1) * ps, take = Math.min(U - 4, len - got); out.set(db.subarray(b + 4, b + 4 + take), got); got += take; pg = dv.getUint32(b); }
+      return out;
+    };
+    const record = rec => {
+      const rv = new DataView(rec.buffer, rec.byteOffset, rec.byteLength);
+      let [hl, n] = (() => { let v = 0, i = 0; for (; i < 9; i++){ const b = rec[i]; v = v * 128 + (b & 0x7f); if (b < 0x80) break; } return [v, i + 1]; })();
+      const types = []; let o = n;
+      while (o < hl){ let v = 0; do { v = v * 128 + (rec[o] & 0x7f); } while (rec[o++] >= 0x80); types.push(v); }
+      let d = hl; const out = [];
+      for (const t of types){
+        if (t === 0){ out.push(null); continue; }
+        if (t === 8 || t === 9){ out.push(t - 8); continue; }
+        if (t >= 1 && t <= 6){ const L = [0, 1, 2, 3, 4, 6, 8][t]; let v = 0; for (let i = 0; i < L; i++) v = v * 256 + rec[d + i]; if (rec[d] & 0x80) v -= Math.pow(2, 8 * L); out.push(v); d += L; continue; }
+        if (t === 7){ out.push(rv.getFloat64(d)); d += 8; continue; }
+        const L = (t - (t % 2 ? 13 : 12)) / 2; out.push(t % 2 ? td.decode(rec.subarray(d, d + L)) : null); d += L;
+      }
+      return out;
+    };
+    function scan(root, cb){
+      const stack = [root];
+      while (stack.length){
+        const pg = stack.pop(), b = (pg - 1) * ps, h = pg === 1 ? 100 : 0, type = db[b + h], nc = dv.getUint16(b + h + 3);
+        if (type === 0x05){
+          const kids = []; for (let i = 0; i < nc; i++) kids.push(dv.getUint32(b + dv.getUint16(b + h + 12 + 2 * i)));
+          kids.push(dv.getUint32(b + h + 8)); for (let i = kids.length - 1; i >= 0; i--) stack.push(kids[i]);
+        } else if (type === 0x0d){
+          for (let i = 0; i < nc; i++){
+            let o = b + dv.getUint16(b + h + 8 + 2 * i); const [len, a] = varint(o); o += a; const [rowid, c] = varint(o); o += c;
+            cb(rowid, () => record(payload(o, len)));
+          }
+        } else throw new Error("The backup's database has a page this reader doesn't know.");
+      }
+    }
+    const tables = {};
+    scan(1, (id, get) => { const r = get(); if (r[0] === 'table') tables[r[1]] = {root: r[3], cols: String(r[4] || '').replace(/^[^(]*\(/, '').split(',').map(s => s.trim().split(/\s+/)[0])}; });
+    return {tables, scan};
+  }
+  async function parseXbk(buf){
+    const sq = sqliteReader(await unzipEntry(buf, 'Configuration/configuration.db'));
+    const OI = sq.tables.ObjectInstance, PI = sq.tables.PropertyInstance;
+    if (!OI || !PI) throw new Error("The backup's database doesn't have the tables this reader expects.");
+    const oc = n => OI.cols.indexOf(n), pc = n => PI.cols.indexOf(n);
+    const nodes = new Map(), parentOf = new Map();
+    sq.scan(OI.root, (id, get) => { const r = get(), t = String(r[oc('TypeName')] || ''); parentOf.set(id, r[oc('ParentId')]);
+      if (/^inet\.(dcu\.Dcu|point\.)/.test(t)) nodes.set(id, {id, parent: r[oc('ParentId')], TYPE: t, NAME: r[oc('NAME')] || '', DESCR: r[oc('DESCR')] || '', pi: {}, children: []}); });
+    const want = /^(LinkNumber|StationNumber|PointNumber|BitOffset|PointType|PointClass|PointAddr)$/;
+    sq.scan(PI.root, (id, get) => { const r = get(), nd = nodes.get(r[pc('ObjectInstanceId')]); if (!nd || !want.test(r[pc('Name')])) return;
+      const v = r[pc('IntValue')] != null ? r[pc('IntValue')] : r[pc('StringValue')] != null ? r[pc('StringValue')] : r[pc('RealValue')]; if (v != null) nd.pi[r[pc('Name')]] = String(v); });
+    const dcus = [...nodes.values()].filter(n => /^inet\.dcu\.Dcu/.test(n.TYPE));
+    // points sit under their DCU (or deeper, under an MR on a 7798): hang each on its nearest DCU ancestor that this file holds
+    nodes.forEach(n => { if (!/^inet\.point\./.test(n.TYPE)) return; let p = n.parent, g = 0; while (p != null && p > 0 && g++ < 30){ const d = nodes.get(p); if (d && /^inet\.dcu\./.test(d.TYPE)){ d.children.push(n); return; } p = parentOf.get(p); } });
+    if (!dcus.length) throw new Error('No I/NET DCUs in that backup. Backups are read for I/NET sites only; for MP/RP controllers use a WorkStation export.');
+    return dcus.sort((a, b) => a.NAME.localeCompare(b.NAME)).map(d => inetDcuRows(d, ''));
+  }
   let XML = [];
   function loadCtl(i){
     const c = XML[i]; if (!c) return;
@@ -620,7 +706,7 @@ List entries in terminal order.`;
   $('xmlIn').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     $('xmlBusy').hidden = false; await new Promise(r => setTimeout(r, 30));
-    try { XML = parseEbo(await f.text()); }
+    try { XML = /\.xbk$/i.test(f.name) ? await parseXbk(await f.arrayBuffer()) : parseEbo(await f.text()); }
     catch(err){ XML = []; toast(err.message || "That export couldn't be read.", true); $('xmlBusy').hidden = true; $('xmlPick').hidden = true; return; }
     $('xmlBusy').hidden = true;
     $('xmlSel').innerHTML = XML.map((c, i) => `<option value="${i}">${esc(c.name)} · ${esc(c.model)} · ${c.pts.filter(p => p.name).length} pts</option>`).join('');
