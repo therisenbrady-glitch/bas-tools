@@ -18,7 +18,7 @@ Open it at **Field tools → Point List Generator**, or `point-list/` on the sit
 ## Or start from an EBO export
 - In WorkStation, right-click an MP or RP controller (or a whole AS-P / server) and **Export**. Open the .xml with **Open EBO, Niagara or I/NET file**.
 - The table fills with every hardware point on its terminal (name, description, AI/AO/DI/DO from the point type, sensor kind, output range like 2-10 V and reverse acting), the SmartX room sensor on its COM port with what it senses, and every unused terminal as a spare.
-- A file with several controllers shows **Controller in this file** to switch between them, and **Save every controller (CSV)** saves one point list for all of them.
+- A file with several controllers shows **Controller in this file** to switch between them, and **Save every controller (CSV)** saves one point list for all of them. **Save every diagram (zip)** saves one I/O diagram picture (PNG) per controller, each named after its controller, in an *IO diagrams* folder inside the zip. That works for any file with several controllers: a server or network export, a Niagara .bog, an I/NET backup or several SAV files.
 - Points with no terminal set are left out (the message names them). SmartX IO modules on an AS-P aren't read yet.
 - Exports don't carry device tags or wire numbers; type those in if you want them on the diagram.
 
