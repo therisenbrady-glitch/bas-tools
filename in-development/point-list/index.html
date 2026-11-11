@@ -166,9 +166,9 @@ footer{font-size:12px;color:var(--muted)}
       </div>
     </details>
     <div class="xmlbox">
-      <div class="xmlhead"><b>Or start from an EBO export</b><span class="hint">Right-click the controller (or a whole server) in WorkStation, Export, and open the .xml here. It lists every hardware point on its terminal, plus the spares. For an I/NET site you can also open the server's backup (.xbk) or I/NET controller saves (DCUnnnn.SAV, several at once).</span></div>
+      <div class="xmlhead"><b>Or start from an EBO or Niagara export</b><span class="hint">Right-click the controller (or a whole server) in WorkStation, Export, and open the .xml here. It lists every hardware point on its terminal, plus the spares. A Niagara .bog with MP or RP controllers under the Schneider MPX driver works too. For an I/NET site you can also open the server's backup (.xbk) or I/NET controller saves (DCUnnnn.SAV, several at once).</span></div>
       <div class="btns">
-        <label class="btn"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/></svg>Open EBO XML, backup or SAV<input type="file" accept=".xml,.xbk,.sav,text/xml,application/xml" id="xmlIn" multiple hidden></label>
+        <label class="btn"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/></svg>Open EBO, Niagara or I/NET file<input type="file" accept=".xml,.xbk,.sav,.bog,text/xml,application/xml" id="xmlIn" multiple hidden></label>
         <span class="reading" id="xmlBusy" hidden><span class="spin"></span>Reading the export…</span>
       </div>
       <div class="keyrow" id="xmlPick" hidden>
@@ -726,12 +726,64 @@ List entries in terminal order.`;
       + (flagged ? `; ${flagged} point${flagged > 1 ? 's' : ''} saved in Manual or Test, or 2-bit (see Notes)` : '');
     return c;
   }
+  // ------------------------------------------------------------ Niagara .bog (Schneider MP/RP controllers under the MPX driver)
+  // A .bog is a zip holding file.xml (a bajaObjectGraph), or that XML on its own. Each MP/RP controller keeps its offline
+  // copy of the EBO application under config: the IO objects there carry terminalReference ("Ub 1", "DO 2"), so they land on terminals.
+  const MODEL_IO = {RPC12A: ['Ub', 8, 'DO', 4], RPC16B: ['Ub', 8, 'DO', 8], MPC15A: ['Ub', 8, 'DO', 7], MPC18A: ['Ub', 10, 'DO', 8], MPC18B: ['Ub', 10, 'DO', 8],
+    MPC36A: ['Ub', 20, 'Uc', 8, 'DO', 8], MPV7A: ['UI', 3, 'AO', 1, 'DO', 3], MPV9A: ['UI', 4, 'AO', 2, 'DO', 3]};
+  async function parseBog(buf){
+    const u8 = new Uint8Array(buf), txt = u8[0] === 0x50 && u8[1] === 0x4b ? new TextDecoder().decode(await unzipEntry(buf, 'file.xml')) : new TextDecoder().decode(u8);
+    const doc = new DOMParser().parseFromString(txt, 'text/xml');
+    if (!doc.querySelector('bajaObjectGraph')) throw new Error("That .bog couldn't be read. Export it again from Workbench.");
+    const nm = e => (e.getAttribute('n') || '').replace(/\$([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
+    const kids = e => [...e.children].filter(c => c.tagName === 'p'), kid = (e, n) => kids(e).find(c => c.getAttribute('n') === n);
+    const val = (e, n) => { const c = kid(e, n); return c ? c.getAttribute('v') || '' : ''; };
+    const out = [];
+    const walk = (e, path) => kids(e).forEach(c => {
+      const cfg = kid(c, 'config');
+      if (/^mpx:(MP|RP)/.test(c.getAttribute('t') || '') && cfg) out.push(bogController(c, cfg, path));
+      else walk(c, path.concat(nm(c)).filter(Boolean));
+    });
+    walk(doc.documentElement, []);
+    if (!out.length) throw new Error(/schneiderMPX/.test(txt) ? 'No MP or RP controllers with their application in that .bog.' : 'No Schneider MP or RP controllers in that .bog. This reads controllers under the Schneider MPX driver; other BACnet devices in Niagara don\'t say which terminal a point is on.');
+    return out;
+
+    function bogController(dev, cfg, path){
+      const pts = [], used = {}, noTerm = [], rec = e => kids(e).forEach(c => {
+        const t = (c.getAttribute('t') || '').replace(/^mpx:/, ''), term = val(c, 'terminalReference');
+        if (term){
+          const out2 = /Output$/.test(t), dig = /^(Binary|Digital|Counter|Supervised)/.test(t);
+          const io2 = out2 ? (dig ? 'do' : 'ao') : (dig ? 'di' : 'ai');
+          const [, kind] = KIND[t] || [io2, t.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()];
+          let sig = /^(Binary|Digital) (in|out)put$/i.test(kind) ? '' : kind;
+          const sc = kid(c, 'autoConversion');
+          // Niagara leaves out slots at their default of 0, so a missing scale end is 0 (a face/bypass at 10 V bottom, 0 V top is reverse acting)
+          if (io2 === 'ao' && sc){ const [eb, et, gb, gt] = ['electricalScaleBottom', 'electricalScaleTop', 'engineeringScaleBottom', 'engineeringScaleTop'].map(k => +val(sc, k) || 0);
+            sig = `${Math.min(eb, et)}-${Math.max(eb, et)} ${t === 'CurrentOutput' ? 'mA' : 'V'}` + ((et - eb) * (gt - gb) < 0 ? ', reverse acting' : ''); }
+          if (val(c, 'polarity') === 'reverse') sig = sig ? sig + ', reverse polarity' : 'reverse polarity';
+          const name = val(c, 'objectName') || nm(c);
+          if (!used[term]){ used[term] = 1; pts.push({...blank(), term, io: io2, name, descr: val(c, 'description') || expand(name), sig}); }
+          else noTerm.push(name + ' (also on ' + term + ')');
+        } else if (t === 'RoomUnitDevice'){
+          const subs = kid(c, 'listOfSubObjects'), has = subs ? kids(subs).map(s => (/^(CO2|Humidity|Occupancy|Temperature)/.exec(nm(s)) || [])[1]).filter(Boolean).map(x => ({CO2: 'CO2', Temperature: 'temp'}[x] || x.toLowerCase())) : [];
+          pts.push({...blank(), term: 'Sensor bus', io: 'bus', dev: val(c, 'address') ? 'Addr ' + val(c, 'address') : '', name: val(c, 'objectName') || nm(c),
+            descr: 'Room sensor' + (has.length ? ': ' + has.join(', ') : ''), sig: val(c, 'systemStatus') === 'nonOperational' ? 'not operational when saved' : ''});
+        } else rec(c);
+      });
+      rec(cfg);
+      const type = (dev.getAttribute('t') || '').replace(/^mpx:/, ''), io = MODEL_IO[type] || [];
+      for (let i = 0; i < io.length; i += 2) for (let n = 1; n <= io[i + 1]; n++){ const t = `${io[i]} ${n}`; if (!used[t]) pts.push({...blank(), term: t}); }
+      return {name: nm(dev), model: prettyModel(type), path: path.join('/'), noTerm, bogNote: io.length ? '' : `spare terminals aren't listed for a ${prettyModel(type)} yet, only the ones in use`,
+        pts: pts.sort((a, b) => grp(a).ord - grp(b).ord || natKey(a.term).localeCompare(natKey(b.term)))};
+    }
+  }
   let XML = [];
   function loadCtl(i){
     const c = XML[i]; if (!c) return;
     if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts, inet: S.inet}); $('undoRead').hidden = false; }
     S.unit = c.name; S.model = c.model; S.maker = c.inet ? 'TAC I/NET' : 'Schneider Electric'; S.pts = c.pts.map(p => ({...p})); S.inet = c.inet ? {...c.inet} : null;
     $('chkNote').hidden = true; save(); renderAll();
+    if (c.bogNote){ $('chkNote').hidden = false; $('chkNote').textContent = 'From a Niagara .bog: ' + c.bogNote + '.'; }
     if (c.inet){ const k = c.pts.filter(p => p.chk).length, t = (k ? `${k} row${k > 1 ? 's' : ''} marked Check: a DM point (input or output not known yet) or an address with no terminal on this board. ` : '') + (c.savNote ? 'From a SAV file: ' + c.savNote + '.' : '');
       $('chkNote').hidden = !t; $('chkNote').textContent = t; }
     toast(`${c.name}: ${c.pts.filter(p => p.name).length} ${c.inet ? 'Ext ' : ''}points, ${c.pts.filter(p => !p.name).length} spare` + (c.skipped && c.skipped.Int + c.skipped.Ind ? `. Left out ${c.skipped.Int} Int and ${c.skipped.Ind} Ind points` : '') + (c.noTerm.length ? `. Left out ${c.noTerm.length} with no terminal: ${c.noTerm.slice(0, 3).join(', ')}${c.noTerm.length > 3 ? '…' : ''}` : '.'));
@@ -748,7 +800,7 @@ List entries in terminal order.`;
         if (!XML.length) throw new Error(savs.length > 1 ? "None of those files look like I/NET controller saves." : `${f.name} doesn't look like an I/NET controller save. Some .SAV files on the share are other files.`);
         if (bad.length) setTimeout(() => toast(`Skipped ${bad.length} file${bad.length > 1 ? 's' : ''} that aren't controller saves: ${bad.slice(0, 3).join(', ')}`, true), 3200);
       }
-      else XML = /\.xbk$/i.test(f.name) ? await parseXbk(await f.arrayBuffer()) : parseEbo(await f.text());
+      else XML = /\.xbk$/i.test(f.name) ? await parseXbk(await f.arrayBuffer()) : /\.bog$/i.test(f.name) ? await parseBog(await f.arrayBuffer()) : parseEbo(await f.text());
     }
     catch(err){ XML = []; toast(err.message || "That export couldn't be read.", true); $('xmlBusy').hidden = true; $('xmlPick').hidden = true; return; }
     $('xmlBusy').hidden = true;
