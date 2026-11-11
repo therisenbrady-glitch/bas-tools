@@ -22,6 +22,19 @@ Open it at **Field tools → Point List Generator**, or `point-list/` on the sit
 - Points with no terminal set are left out (the message names them). SmartX IO modules on an AS-P aren't read yet.
 - Exports don't carry device tags or wire numbers; type those in if you want them on the diagram.
 
+## Or start from a TAC I/NET board
+For I/NET sites (7716 and 7756 PCUs). The layout follows Joe's I/NET primer and the TCON096 (7716) and TCON127 (7756) pinouts.
+- Under **Or start from a TAC I/NET board**, pick the **Board** and, on a 7716, the **Expansion card** on port P3 (none, UI/DO 8+8, 4+4, 8 UI or 8 DO, UI/AO, or RTD). Tap **Fill the terminals**.
+- Every terminal gets a row with its point address and screw terminals: base inputs UI-1 to 8 (0000-0007, TB1/TB2), relays 1 to 8 (0000-0007, TB6/TB7), card inputs 0100-0107, card relays 0100-0107 (TBX2/TBX3), UI/AO card AOs 3100-3103 (TBX3). On a 7756: upper inputs and relays as on the 7716, lower inputs UI-1 to 24 (0100-0307 on TB1A to TB3B), triacs 1 to 8 (0100-0107, TB6), AOs 1 to 8 (3100-3107, TB7).
+- Type the **I/NET link** and **Station** in step 02. The table shows the full address LL SS CC PP; type CC PP for any point you add by hand.
+- The table has **I/NET type** (AI, DI, DA, PI, AO, DO, DC, DM) and **I/NET name** columns. An AO on a relay or triac is noted as **PWM** (on a 7716, an AO at 01xx is a UI/DO relay running PWM, not an analog card).
+- Changing the board or card later keeps the names you typed on the same addresses.
+- **Not I/NET** (step 02) turns the addresses off again.
+- **EBO export of an I/NET site:** **Open EBO XML** also reads I/NET DCUs (`inet.dcu.Dcu7716`, `Dcu7756`, `Dcu7798`). It lists **Ext points only** (Int and Ind are counted and left out), places each on its terminal from PointNumber (= controller CC) and BitOffset (= point PP), uses PointAddr as the I/NET name, and reads link and station from the DCU. The 7716 card is guessed from the addresses (31xx = UI/AO card, outputs at 01xx = UI/DO card). HOA switch feedback (bit offsets 08/09) and points with no terminal go in **Other Ext points**. A DM point is marked **Check**, since it isn't settled yet whether DM sits on an input or an output. *This reader was built before a real I/NET export was seen; check its first results against WorkStation.*
+- **Wiring picture of an I/NET board:** Claude also reads printed I/NET point addresses and types. When the controller is a 7716 or 7756 (or an I/NET board is already picked), what it reads is placed onto the board's terminal map, so every address and spare is listed.
+- I/NET saves: the **point list CSV** is in Joe's order: ADDRESS, I/NET NAME, TYPE, then unit, board, IN/OUT, terminal, wire #, device, description and notes, sorted by board, then inputs, then outputs. Addresses are written so Excel keeps the leading zeros. Print shows the same columns.
+- EBO backups (.xbk) aren't read yet.
+
 ## 3. Check the table
 - One row per terminal: **Terminal** (as printed on the controller: Ub 1, UI 3, DO 1, COM A), **Wire #** (the screw terminal numbers, signal/return like 19/20), **Type** (AI, AO, DI, DO, Sensor bus, Network, Power), **Device** (field tag like TS1, VA1), **Point name**, **Description**, **Signal / notes**.
 - Rows Claude wasn't sure about are amber with a **Check** button. Look at the picture (tap it to enlarge), fix the row, then tap **Check** to clear it.

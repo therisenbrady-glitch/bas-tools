@@ -92,7 +92,7 @@ tbody tr:last-child td{border-bottom:0}
 #pts input,#pts select{width:100%;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--ink);font-family:var(--f-mono);font-size:12.5px;padding:5px 5px}
 #pts input:hover,#pts select:hover{border-color:var(--line)}
 #pts input:focus,#pts select:focus{border-color:var(--accent);background:var(--bg);outline:none}
-#pts td.c-term{min-width:100px} #pts td.c-pins{min-width:76px} #pts td.c-io{min-width:118px} #pts td.c-dev{width:70px}
+#pts td.c-addr{min-width:112px;white-space:nowrap} #pts td.c-addr input{width:4.6em} #pts .pre{font-family:var(--f-mono);font-size:12.5px;color:var(--muted);padding-left:5px} #pts td.c-term{min-width:100px} #pts td.c-pins{min-width:108px} #pts td.c-io{min-width:118px} #pts td.c-dev{width:70px}
 #pts td.c-name{min-width:120px} #pts td.c-descr{min-width:210px} #pts td.c-sig{min-width:130px} #pts td.c-x{min-width:92px;white-space:nowrap;text-align:right}
 #pts input.nm{font-weight:600;font-family:var(--f-body)}
 #pts tr.chk td{background:color-mix(in srgb,var(--warn) 14%,transparent)}
@@ -176,6 +176,14 @@ footer{font-size:12px;color:var(--muted)}
         <button type="button" class="btn" id="xmlAll">Save every controller (CSV)</button>
       </div>
     </div>
+    <div class="xmlbox">
+      <div class="xmlhead"><b>Or start from a TAC I/NET board</b><span class="hint">Pick the board and its expansion card. Every terminal is filled with its I/NET point address and screw terminals from the TCON pinouts; then type the I/NET names, or read a wiring picture.</span></div>
+      <div class="keyrow">
+        <label class="field"><span>Board</span><select id="inBoard"><option value="7716">7716 PCU</option><option value="7756">7756 PCU (upper and lower boards)</option></select></label>
+        <label class="field" id="inCardF"><span>Expansion card (port P3)</span><select id="inCard"></select></label>
+        <button type="button" class="btn" id="inFill">Fill the terminals</button>
+      </div>
+    </div>
   </section>
 
   <section class="panel noprint" aria-labelledby="h02">
@@ -184,6 +192,11 @@ footer{font-size:12px;color:var(--muted)}
       <label class="field"><span>Unit name</span><input id="uName" placeholder="UV-113" spellcheck="false"></label>
       <label class="field"><span>Controller</span><input id="uModel" placeholder="RP-C-12A" spellcheck="false"></label>
       <label class="field"><span>Maker</span><input id="uMaker" placeholder="Schneider Electric" spellcheck="false"></label>
+    </div>
+    <div class="unitrow" id="inetRow" hidden>
+      <label class="field"><span>I/NET link (LL)</span><input id="inLL" maxlength="2" inputmode="numeric" placeholder="00" spellcheck="false"></label>
+      <label class="field"><span>Station (SS)</span><input id="inSS" maxlength="2" inputmode="numeric" placeholder="00" spellcheck="false"></label>
+      <div class="field"><span>Addresses</span><p class="hint" style="margin:0">LL SS CC PP. Type CC PP in the table; link and station come from here. <button type="button" class="link" id="inOff">Not I/NET</button></p></div>
     </div>
     <div class="banner" id="chkNote" hidden></div>
     <div class="tablewrap">
@@ -228,7 +241,7 @@ footer{font-size:12px;color:var(--muted)}
   const LS = 'plg-local-v1', LSK = 'plg-key-v1';
   const IO = {ai: 'AI', ao: 'AO', di: 'DI', do: 'DO', bus: 'Sensor bus', pwr: 'Power', comm: 'Network', spare: 'Spare'};
   const IN_IO = {ai: 1, di: 1};
-  let S = {unit: '', model: '', maker: '', pts: [], img: ''};
+  let S = {unit: '', model: '', maker: '', pts: [], img: '', inet: null};
   let undo = null;
 
   function toast(msg, bad){ const t = $('toast'); t.textContent = msg; t.classList.toggle('bad', !!bad); clearTimeout(toast._t); toast._t = setTimeout(() => t.textContent = '', bad ? 7000 : 3000); }
@@ -241,7 +254,7 @@ footer{font-size:12px;color:var(--muted)}
   function load(){
     try { const j = JSON.parse(lsGet(LS) || 'null'); if (j && Array.isArray(j.pts)) S = {...S, ...j}; } catch(e){}
   }
-  const blank = () => ({term: '', pins: '', io: '', dev: '', name: '', descr: '', sig: '', chk: false});
+  const blank = () => ({term: '', pins: '', io: '', dev: '', name: '', descr: '', sig: '', chk: false, pt: '', it: ''});
 
   // ------------------------------------------------------------ name helpers
   // Team point names are run-together abbreviations (SaTmp, HwVlvPos). Split on capitals and expand each piece.
@@ -265,6 +278,47 @@ footer{font-size:12px;color:var(--muted)}
     if (/(Sts|Sw|Lmt|Llmt|Alm|Stat|Det|Ovrd|Occ)$/i.test(n)) return 'di';
     if (/(Tmp|Temp|Hum|Rh|Co2|Prs|Press|Flow|Lvl|Fdbk|Amp|Kw|Sp)$/i.test(n)) return 'ai';
     return '';
+  }
+
+  // ------------------------------------------------------------ I/NET boards
+  // Terminal maps from TCON096 (7716) and TCON127 (7756). A row keeps its point address CCPP in "pt"; LLSS comes from S.inet.
+  // Inputs and outputs share point numbers (input 0000 and relay 0000 both exist), so each row also carries its side.
+  const IT_ALL = ['AI', 'DI', 'DA', 'PI', 'AO', 'DO', 'DC', 'DM'];
+  const CARDS = {none: 'No expansion card', uido8: 'UI/DO card, 8 UI + 8 DO', uido4: 'UI/DO card, 4 UI + 4 DO', uidoi: 'UI/DO card, 8 UI only', uidoo: 'UI/DO card, 8 DO only', uiao: 'UI/AO card, 8 UI + 4 AO', rtd: 'RTD card, 8 RTD'};
+  const two = n => String(n).padStart(2, '0');
+  const tri = (tb, k) => `${tb}-${1 + 3 * k}/${2 + 3 * k}/${3 + 3 * k}`;
+  function inetRows(board, card){
+    const rows = [], B = (key, title, ord) => ({key, title, ord});
+    const add = (blk, side, term, pins, pt, sig) => rows.push({...blank(), term, pins, pt, side, blk, sig: sig || ''});
+    const up = board === '7756';
+    const bi = B('bi', up ? 'Upper inputs' : 'Base inputs', 11), bo = B('bo', up ? 'Upper relays' : 'Base relays', 12);
+    for (let i = 0; i < 8; i++) add(bi, 'in', `UI-${i + 1}`, tri(i < 4 ? 'TB1' : 'TB2', i % 4), '00' + two(i));
+    for (let i = 0; i < 8; i++) add(bo, 'out', `Relay ${i + 1}`, tri(i < 4 ? 'TB6' : 'TB7', i % 4), '00' + two(i));
+    if (up){
+      const li = B('li', 'Lower inputs', 21), lt = B('lt', 'Lower triacs', 22), la = B('la', 'Lower AOs', 23);
+      ['TB1A', 'TB1B', 'TB2A', 'TB2B', 'TB3A', 'TB3B'].forEach((tb, g) => { for (let k = 0; k < 4; k++){ const n = g * 4 + k; add(li, 'in', `UI-${n + 1}`, tri(tb, k), two(Math.floor(n / 8) + 1) + two(n % 8)); } });
+      for (let i = 0; i < 8; i++) add(lt, 'out', `Triac ${i + 1}`, `TB6-${i + 1}`, '01' + two(i), '24 VAC triac');
+      for (let i = 0; i < 8; i++) add(la, 'out', `AO-${i + 1}`, `TB7-${i + 1}`, '31' + two(i), '0-10 V');
+      return rows;
+    }
+    const ci = B('ci', 'Card inputs', 21), co = B('co', 'Card outputs', 22);
+    const ins = {uido8: 8, uido4: 4, uidoi: 8, uiao: 8, rtd: 8}[card] || 0, outs = {uido8: 8, uido4: 4, uidoo: 8}[card] || 0;
+    for (let i = 0; i < ins; i++){
+      const tb = card === 'uiao' || card === 'rtd' ? (i < 4 ? 'TBX1' : 'TBX2') : (i < 4 ? 'TBX1' : 'TBX4');
+      add(ci, 'in', card === 'uiao' ? `XI-${i + 1}` : card === 'rtd' ? `RTD ${i + 1}` : `UI-${i + 1}`, card === 'rtd' ? tb : tri(tb, i % 4), '01' + two(i), card === 'rtd' ? 'RTD' : '');
+    }
+    for (let i = 0; i < outs; i++) add(co, 'out', `Relay ${i + 1}`, tri(i < 4 ? 'TBX2' : 'TBX3', i % 4), '01' + two(i));
+    if (card === 'uiao') for (let i = 0; i < 4; i++) add(co, 'out', `AO-${i + 1}`, 'TBX3', '31' + two(i));
+    return rows;
+  }
+  // io (the colour and arrow) follows the side of the board; the I/NET type only picks analog or digital
+  const inetIo = (side, it) => side === 'out' || (!side && /^(AO|DO|DC)$/.test(it)) ? (it === 'AO' ? 'ao' : 'do') : (it === 'AI' ? 'ai' : 'di');
+  const addrOf = p => S.inet && p.pt ? two(S.inet.ll || 0).slice(-2) + two(S.inet.ss || 0).slice(-2) + p.pt : '';
+  const relayAo = p => p.it === 'AO' && /^(Relay|Triac)/.test(p.term);
+  function setInetType(p, it){
+    p.it = it; p.io = it ? inetIo(p.side, it) : '';
+    // an AO on a relay or triac is PWM (primer section 3); say so in the notes once
+    if (relayAo(p) && !/PWM/i.test(p.sig)) p.sig = p.sig ? 'PWM, ' + p.sig : 'PWM';
   }
 
   // ------------------------------------------------------------ picture
@@ -311,7 +365,8 @@ footer{font-size:12px;color:var(--muted)}
     controller: {type: 'object', additionalProperties: false, required: ['maker', 'model', 'unit'], properties: {
       maker: {type: 'string'}, model: {type: 'string'}, unit: {type: 'string'}}},
     points: {type: 'array', items: {type: 'object', additionalProperties: false,
-      required: ['terminal', 'pins', 'io', 'device', 'name', 'description', 'signal', 'confident'], properties: {
+      required: ['terminal', 'pins', 'io', 'device', 'name', 'description', 'signal', 'confident', 'address', 'inet_type'], properties: {
+      address: {type: 'string'}, inet_type: {type: 'string', enum: ['', 'AI', 'DI', 'DA', 'PI', 'AO', 'DO', 'DC', 'DM']},
       terminal: {type: 'string'}, pins: {type: 'string'}, io: {type: 'string', enum: ['ai', 'ao', 'di', 'do', 'bus', 'pwr', 'comm', 'spare']},
       device: {type: 'string'}, name: {type: 'string'}, description: {type: 'string'}, signal: {type: 'string'}, confident: {type: 'boolean'}}}},
     notes: {type: 'string'}}};
@@ -330,6 +385,7 @@ Rules:
 - Trace each wire carefully from its label to the terminal it lands on; wires often bend and run in parallel. If you are not sure which terminal a wire lands on, give your best reading and set "confident" to false.
 - "controller": maker and model as printed on the controller (like "Schneider Electric", "RP-C-12A"); "unit" is the unit name if the page shows one, else "".
 - "notes": one or two short sentences about anything a technician should double-check, or "".
+- TAC I/NET controllers (7716 PCU, 7756 PCU, or any drawing that shows I/NET point addresses like 0003 or 01030004): also fill "address" with the I/NET point address printed for that wire, as written (4 digits CCPP, or the full 8-digit LLSSCCPP), and "inet_type" with the I/NET point type if printed (AI, DI, DA, PI, AO, DO, DC, DM). The point name is the I/NET name; keep it exactly as printed, including capitals and spaces. Terminal labels on these boards: inputs "UI-1" to "UI-8" with pins like "TB1-1/2/3" (TB1 holds UI-1 to 4, TB2 holds UI-5 to 8), relays "Relay 1" to "Relay 8" with pins like "TB6-1/2/3" (TB6 holds relays 1 to 4, TB7 relays 5 to 8). Expansion card points (addresses 01xx and 31xx) and the 7756 lower board: give the terminal block as printed (TBX1, TB1A, TB6...). For every other controller, "address" and "inet_type" are "".
 List entries in terminal order.`;
 
   // On claude.ai the page reads with the viewer's own Claude account (sample); on the tools site it uses an API key.
@@ -357,7 +413,7 @@ List entries in terminal order.`;
     return out;
   }
   const SHAPE = `Reply with only one JSON object, no other text, in this shape:
-{"controller":{"maker":"","model":"","unit":""},"points":[{"terminal":"Ub 1","pins":"19/20","io":"ai","device":"TS1","name":"SaTmp","description":"Supply Air Temp","signal":"","confident":true}],"notes":""}
+{"controller":{"maker":"","model":"","unit":""},"points":[{"terminal":"Ub 1","pins":"19/20","io":"ai","device":"TS1","name":"SaTmp","description":"Supply Air Temp","signal":"","confident":true,"address":"","inet_type":""}],"notes":""}
 "io" is one of ai, ao, di, do, bus, pwr, comm, spare. "confident" is true or false.`;
   async function readWithAccount(){
     const imgs = await pieces(sample.maxImgs);
@@ -423,11 +479,22 @@ List entries in terminal order.`;
   function apply(out){
     const OK = {ai: 1, ao: 1, di: 1, do: 1, bus: 1, pwr: 1, comm: 1};
     const pts = (out.points || []).filter(p => p && typeof p === 'object').map(p => ({term: String(p.terminal || ''), pins: String(p.pins || ''), io: p.io === 'spare' ? '' : (OK[p.io] ? p.io : guessIo(p.name || '', p.terminal || '')), dev: p.device || '',
-      name: p.io === 'spare' ? '' : (p.name || ''), descr: p.io === 'spare' ? '' : (p.description || ''), sig: p.signal || '', chk: p.confident === false}));
+      name: p.io === 'spare' ? '' : (p.name || ''), descr: p.io === 'spare' ? '' : (p.description || ''), sig: p.signal || '', chk: p.confident === false,
+      pt: String(p.address || '').replace(/\D/g, '').slice(-4), it: IT_ALL.includes(p.inet_type) ? p.inet_type : '', full: String(p.address || '').replace(/\D/g, '')}));
     if (!pts.length){ readErr("Claude didn't find any terminals in this picture. Try a closer, straighter shot."); return; }
-    if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts}); $('undoRead').hidden = false; }
+    if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts, inet: S.inet}); $('undoRead').hidden = false; }
     const c = out.controller || {};
-    S.pts = pts; S.model = c.model || S.model; S.maker = c.maker || S.maker; S.unit = S.unit || c.unit || '';
+    const board = (String(c.model || '').match(/77(16|56)/) || [''])[0] || (S.inet && /^77(16|56)$/.test(S.inet.board) ? S.inet.board : '');
+    if (board){
+      // put what Claude read onto the board's own terminal map, so every address and spare is there
+      const full = pts.find(p => p.full.length === 8), card = S.inet && S.inet.board === board ? S.inet.card : 'none';
+      pts.forEach(p => { if (p.it){ p.side = /^(AO|DO|DC)$/.test(p.it) ? 'out' : p.it === 'DM' ? '' : 'in'; } else p.side = p.io === 'do' || p.io === 'ao' ? 'out' : p.io === 'di' || p.io === 'ai' ? 'in' : '';
+        if (!p.it && p.name) p.it = {ai: 'AI', di: 'DI', ao: 'AO', do: 'DO'}[p.io] || ''; });
+      S.inet = {board, card, ll: full ? full.slice(0, 2) : S.inet ? S.inet.ll : '', ss: full ? full.slice(2, 4) : S.inet ? S.inet.ss : ''};
+      S.pts = toBoard(board, card, pts.filter(p => p.io !== 'pwr' && p.io !== 'bus' && p.io !== 'comm').map(p => { const {full, ...q} = p; return q; }));
+      S.model = board + ' PCU' + (card !== 'none' ? ' + ' + CARDS[card].replace(/,.*$/, '') : ''); S.maker = 'TAC I/NET'; S.unit = S.unit || c.unit || '';
+    }
+    else { pts.forEach(p => { delete p.full; }); S.pts = pts; S.model = c.model || S.model; S.maker = c.maker || S.maker; S.unit = S.unit || c.unit || ''; }
     save(); renderAll();
     const n = pts.filter(p => p.name).length, k = pts.filter(p => p.chk).length;
     $('chkNote').hidden = !(k || out.notes);
@@ -452,7 +519,7 @@ List entries in terminal order.`;
       if (m[0] === '</PI>') { pi = null; continue; }
       if (m[1] !== undefined) { const n = attrs(m[1]); n.children = []; top.children.push(n); if (!m[2]) stack.push(n); continue; }
       if (m[3] !== undefined) {
-        const a = attrs(m[3]); if (!top.TYPE || !/^bacnet\.mpx\.(point|ru)\./.test(top.TYPE)) { if (!m[4]) pi = null; continue; }
+        const a = attrs(m[3]); if (!top.TYPE || !/^bacnet\.mpx\.(point|ru)\.|^inet\./i.test(top.TYPE)) { if (!m[4]) pi = null; continue; }
         (top.pi = top.pi || {})[a.Name] = a.Value; if (!m[4]) pi = a.Name; continue;
       }
       if (m[5] !== undefined && pi) { const top2 = stack[stack.length - 1]; (top2.ref = top2.ref || {})[pi] = attrs(m[5]).Object || ''; }
@@ -461,12 +528,14 @@ List entries in terminal order.`;
     const devs = [];
     const walk = (n, path) => n.children.forEach(c => {
       if (/^bacnet\.mpx\.udt\.(MP|RP)/.test(c.TYPE || '') && find(c, 'IO Resources')) devs.push({node: c, path});
+      else if (/^inet\.dcu\./i.test(c.TYPE || '')) devs.push({node: c, path, inet: true});
       else walk(c, path ? path + '/' + c.NAME : c.NAME || '');
     });
     walk(root, '');
+    if (!devs.length && root.children.some(function a(c){ return /^inet\./i.test(c.TYPE || '') || c.children.some(a); })) throw new Error('That export has I/NET objects but no DCUs (inet.dcu.*). Export the I/NET interface or a DCU, or send the file to Buddy\'s Claude to look at.');
     if (!devs.length) throw new Error(root.children.some(function a(c){ return /^io\./.test(c.TYPE || '') || c.children.some(a); })
       ? 'That export has SmartX IO modules on an AS-P. This version lists MP and RP controllers; export those.' : 'No MP or RP controllers found in that export.');
-    return devs.map(({node, path}) => controllerRows(node, path));
+    return devs.map(({node, path, inet}) => inet ? inetDcuRows(node, path) : controllerRows(node, path));
   }
   const KIND = {TemperatureInput: ['ai', 'Temperature input'], VoltageInput: ['ai', 'Voltage input'], CurrentInput: ['ai', 'Current input'], RTD2WireInput: ['ai', 'RTD input'],
     RTDInput: ['ai', 'RTD input'], ResistiveInput: ['ai', 'Resistive input'], AirflowInput: ['ai', 'Airflow sensor'], DigitalInput: ['di', 'Digital input'], CounterInput: ['di', 'Counter input'],
@@ -503,13 +572,50 @@ List entries in terminal order.`;
     const model = prettyModel((dev.TYPE || '').replace('bacnet.mpx.udt.', ''));
     return {name: dev.NAME || '', model, path, noTerm, pts: pts.sort((a, b) => grp(a).ord - grp(b).ord || natKey(a.term).localeCompare(natKey(b.term)))};
   }
+  // I/NET DCUs behind EBO's I/NET interface (primer section 8): PointNumber = controller CC, BitOffset = point PP,
+  // PointAddr = the I/NET name. Built from the primer before a real export was seen; the property names are the ones EBO shows.
+  const IT_NUM = {1: 'DI', 2: 'DA', 3: 'DM', 4: 'DC', 5: 'DO', 6: 'AI', 7: 'AO', 10: 'PI'};
+  const itOf = v => IT_NUM[+v] || (String(v || '').toUpperCase().match(/\b(AI|AO|DI|DO|DA|DM|DC|PI)\b/) || [])[1] || '';
+  const classOf = v => /^\d+$/.test(String(v)) ? ['Ext', 'Int', 'Ind'][+v] || '' : (/ext/i.test(v) ? 'Ext' : /ind/i.test(v) ? 'Ind' : /int/i.test(v) ? 'Int' : '');
+  function inetDcuRows(dev, path){
+    const dp = dev.pi || {}, num = k => { const v = dp[k]; return v != null && /^\d+$/.test(v) ? two(+v).slice(-2) : ''; };
+    const board = ((dev.TYPE || '').match(/77\d\d/) || [''])[0];
+    const pts = [], skipped = {Int: 0, Ind: 0};
+    const walk = n => n.children.forEach(c => {
+      const p = c.pi || {};
+      if (p.PointNumber != null && p.BitOffset != null){
+        const cls = classOf(p.PointClass);
+        if (cls === 'Int' || cls === 'Ind') skipped[cls]++;
+        else pts.push({cc: two(+p.PointNumber || 0), pp: two(+p.BitOffset || 0), it: itOf(p.PointType), name: p.PointAddr || c.NAME || '', descr: ''});
+      }
+      walk(c);
+    });
+    walk(dev);
+    // 7716 expansion card: AOs at 31xx mean UI/AO; outputs at 01xx mean UI/DO; inputs only at 01xx could be either
+    const at = cc => pts.filter(p => p.cc === cc), isOut = it => /^(AO|DO|DC)$/.test(it);
+    const card = board !== '7716' ? 'none' : at('31').length ? 'uiao' : at('01').some(p => isOut(p.it)) ? 'uido8' : at('01').length ? 'uidoi' : 'none';
+    const rows = /^77(16|56)$/.test(board) ? inetRows(board, card) : [];
+    const other = {key: 'ox', title: board === '7798' ? 'Sub-LAN points' : 'Other Ext points', ord: 60};
+    pts.forEach(p => {
+      const pt = p.cc + p.pp, hoa = /^(08|09)$/.test(p.pp) && +p.cc < 16;
+      const side = p.it === 'DM' ? '' : isOut(p.it) ? 'out' : 'in';
+      const r = !hoa && rows.find(r => r.pt === pt && !r.name && (!side || r.side === side));
+      if (r){ r.name = p.name; setInetType(r, p.it); if (p.it === 'DM') r.chk = true; }
+      else rows.push({...blank(), pt, it: p.it, io: inetIo(side, p.it), side, name: p.name, blk: other,
+        sig: hoa ? 'HOA switch feedback, no wire' : rows.length ? 'no terminal for this address' : '', chk: !hoa && !!rows.length});
+    });
+    const model = (board ? board + (board === '7798' ? '' : ' PCU') : (dev.TYPE || '').replace(/^inet\.dcu\./i, '')) + (card !== 'none' ? ' + ' + CARDS[card].replace(/,.*$/, '') : '');
+    return {name: dev.NAME || '', model, path, noTerm: [], skipped, inet: {board: board || 'other', card, ll: num('LinkNumber'), ss: num('StationNumber')},
+      pts: rows.sort((a, b) => grp(a).ord - grp(b).ord)};
+  }
   let XML = [];
   function loadCtl(i){
     const c = XML[i]; if (!c) return;
-    if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts}); $('undoRead').hidden = false; }
-    S.unit = c.name; S.model = c.model; S.maker = 'Schneider Electric'; S.pts = c.pts.map(p => ({...p}));
+    if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts, inet: S.inet}); $('undoRead').hidden = false; }
+    S.unit = c.name; S.model = c.model; S.maker = c.inet ? 'TAC I/NET' : 'Schneider Electric'; S.pts = c.pts.map(p => ({...p})); S.inet = c.inet ? {...c.inet} : null;
     $('chkNote').hidden = true; save(); renderAll();
-    toast(`${c.name}: ${c.pts.filter(p => p.name).length} points, ${c.pts.filter(p => !p.name).length} spare` + (c.noTerm.length ? `. Left out ${c.noTerm.length} with no terminal: ${c.noTerm.slice(0, 3).join(', ')}${c.noTerm.length > 3 ? '…' : ''}` : '.'));
+    if (c.inet){ const k = c.pts.filter(p => p.chk).length; $('chkNote').hidden = !k; $('chkNote').textContent = k ? `${k} row${k > 1 ? 's' : ''} marked Check: a DM point (input or output not known yet) or an address with no terminal on this board.` : ''; }
+    toast(`${c.name}: ${c.pts.filter(p => p.name).length} ${c.inet ? 'Ext ' : ''}points, ${c.pts.filter(p => !p.name).length} spare` + (c.skipped && c.skipped.Int + c.skipped.Ind ? `. Left out ${c.skipped.Int} Int and ${c.skipped.Ind} Ind points` : '') + (c.noTerm.length ? `. Left out ${c.noTerm.length} with no terminal: ${c.noTerm.slice(0, 3).join(', ')}${c.noTerm.length > 3 ? '…' : ''}` : '.'));
   }
   $('xmlIn').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
@@ -524,18 +630,27 @@ List entries in terminal order.`;
   $('xmlSel').onchange = e => loadCtl(+e.target.value);
   $('xmlAll').onclick = () => {
     const q = v => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    const head = ['UNIT', 'CONTROLLER', 'TERMINAL', 'WIRE #', 'TYPE', 'DEVICE', 'NAME', 'DESCR', 'SIGNAL / NOTES'];
-    const rows = XML.flatMap(c => c.pts.map(p => [c.name, c.model, p.term, p.pins, p.name ? (IO[p.io] || '') : 'Spare', p.dev, p.name, p.descr, p.sig]));
+    const I = XML.some(c => c.inet), ad = (c, p) => c.inet && p.pt ? `="${two(c.inet.ll || 0).slice(-2)}${two(c.inet.ss || 0).slice(-2)}${p.pt}"` : '';
+    const head = (I ? ['ADDRESS'] : []).concat(['UNIT', 'CONTROLLER', 'TERMINAL', 'WIRE #', 'TYPE', 'DEVICE', 'NAME', 'DESCR', 'SIGNAL / NOTES']);
+    const rows = XML.flatMap(c => c.pts.map(p => (I ? [ad(c, p)] : []).concat([c.name, c.model, p.term, p.pins, p.name ? (c.inet ? p.it : IO[p.io] || '') : 'Spare', p.dev, p.name, p.descr, p.sig])));
     saveBlob(new Blob(['\ufeff' + [head, ...rows].map(r => r.map(q).join(',')).join('\r\n')], {type: 'text/csv'}), `Point list ${XML.length} controllers.csv`, 'text/csv', 'csv');
   };
 
   // ------------------------------------------------------------ table editor
   const COLS = [['term', 'c-term'], ['pins', 'c-pins'], ['io', 'c-io'], ['dev', 'c-dev'], ['name', 'c-name'], ['descr', 'c-descr'], ['sig', 'c-sig']];
+  const ICOLS = [['pt', 'c-addr'], ['term', 'c-term'], ['pins', 'c-pins'], ['it', 'c-io'], ['dev', 'c-dev'], ['name', 'c-name'], ['descr', 'c-descr'], ['sig', 'c-sig']];
   function renderTable(){
-    const tb = $('pts').tBodies[0];
-    if (!S.pts.length){ tb.innerHTML = '<tr><td colspan="9" class="empty">No points yet. Read the picture with Claude, or add terminals by hand.</td></tr>'; return; }
+    const tb = $('pts').tBodies[0], I = !!S.inet;
+    $('pts').tHead.innerHTML = I ? '<tr><th></th><th>Address</th><th>Terminal</th><th>Wire #</th><th>I/NET type</th><th>Device</th><th>I/NET name</th><th>Description</th><th>Signal / notes</th><th></th></tr>'
+      : '<tr><th></th><th>Terminal</th><th>Wire #</th><th>Type</th><th>Device</th><th>Point name</th><th>Description</th><th>Signal / notes</th><th></th></tr>';
+    if (!S.pts.length){ tb.innerHTML = `<tr><td colspan="${I ? 10 : 9}" class="empty">No points yet. Read the picture with Claude, or add terminals by hand.</td></tr>`; return; }
+    const pre = I ? two(S.inet.ll || 0).slice(-2) + two(S.inet.ss || 0).slice(-2) : '';
     tb.innerHTML = S.pts.map((p, i) => `<tr data-i="${i}" class="${p.chk ? 'chk' : ''} ${p.name ? '' : 'spare'}"><td style="width:14px"><span class="sw" style="background:var(--t-${p.name ? (p.io || 'spare') : 'spare'})"></span></td>` +
-      COLS.map(([k, c]) => k === 'io'
+      (I ? ICOLS : COLS).map(([k, c]) => k === 'pt'
+        ? `<td class="${c}"><span class="pre" title="Link and station">${pre}</span><input data-k="pt" value="${esc(p.pt)}" maxlength="4" inputmode="numeric" spellcheck="false" placeholder="CCPP" aria-label="Point address (controller and point)"></td>`
+        : k === 'it'
+        ? `<td class="${c}"><select data-k="it" aria-label="I/NET type"><option value="">–</option>${IT_ALL.map(v => `<option${p.it === v ? ' selected' : ''}>${v}</option>`).join('')}</select></td>`
+        : k === 'io'
         ? `<td class="${c}"><select data-k="io" aria-label="Type">${['', 'ai', 'ao', 'di', 'do', 'bus', 'pwr', 'comm'].map(v => `<option value="${v}"${p.io === v ? ' selected' : ''}>${v ? IO[v] : '–'}</option>`).join('')}</select></td>`
         : `<td class="${c}"><input data-k="${k}" value="${esc(p[k])}" spellcheck="false"${k === 'name' ? ' class="nm" placeholder="spare"' : ''} aria-label="${k}"></td>`).join('') +
       `<td class="c-x">${p.chk ? '<button type="button" class="ib ok" data-ok title="Mark as checked">Check</button> ' : ''}<button type="button" class="ib" data-del title="Delete this row">✕</button></td></tr>`).join('');
@@ -543,19 +658,26 @@ List entries in terminal order.`;
   const tb = $('pts').tBodies[0];
   tb.addEventListener('input', e => {
     const tr = e.target.closest('tr[data-i]'); if (!tr) return;
-    const p = S.pts[+tr.dataset.i], k = e.target.dataset.k; p[k] = e.target.value;
+    const p = S.pts[+tr.dataset.i], k = e.target.dataset.k;
+    if (k === 'pt'){ const v = e.target.value.replace(/\D/g, '').slice(0, 4); if (v !== e.target.value) e.target.value = v; p.pt = v; }
+    else if (k === 'it') setInetType(p, e.target.value);
+    else p[k] = e.target.value;
     save(); renderDiagram();
   });
   tb.addEventListener('change', e => {
     const tr = e.target.closest('tr[data-i]'); if (!tr) return;
     const p = S.pts[+tr.dataset.i];
-    if (e.target.dataset.k === 'name' && p.name){
+    if (e.target.dataset.k === 'name' && p.name && S.inet){
+      // I/NET names are already plain words, so only a missing type is guessed
+      if (!p.it){ let g = guessIo(p.name, p.term); if (p.side && (p.side === 'out') !== /^(do|ao)$/.test(g)) g = p.side === 'out' ? 'do' : 'di'; if (g){ setInetType(p, g.toUpperCase()); save(); } }
+    }
+    else if (e.target.dataset.k === 'name' && p.name){
       let fill = false;
       if (!p.io){ p.io = guessIo(p.name, p.term); fill = true; }
       if (!p.descr){ p.descr = expand(p.name); fill = true; }
       if (fill){ save(); renderTable(); }
     }
-    if (e.target.dataset.k === 'io' || e.target.dataset.k === 'name') renderTable();
+    if (/^(io|it|name)$/.test(e.target.dataset.k)) renderTable();
     renderDiagram();
   });
   tb.addEventListener('click', e => {
@@ -576,6 +698,7 @@ List entries in terminal order.`;
   const BLOCK = {UB: 'Universal I/O', UC: 'Universal I/O (Uc)', UI: 'Universal inputs', U: 'Universal I/O', IN: 'Inputs', AI: 'Analog inputs', DI: 'Digital inputs', BI: 'Binary inputs',
     DO: 'Digital outputs', RO: 'Relay outputs', BO: 'Binary outputs', AO: 'Analog outputs', UO: 'Universal outputs', OUT: 'Outputs'};
   function grp(p){
+    if (p.blk) return p.blk;
     if (p.io === 'pwr') return {key: 'pwr', title: 'Power', ord: 90};
     if (p.io === 'bus' || p.io === 'comm') return {key: 'com', title: 'Communication', ord: 80};
     const m = String(p.term).trim().toUpperCase().match(/^([A-Z]+)/), pre = m ? m[1] : '';
@@ -615,7 +738,7 @@ List entries in terminal order.`;
     o.push(`<text x="${PAD}" y="30" font-family="Barlow Condensed, Arial Narrow, sans-serif" font-weight="700" font-size="26" fill="${P.ink}">${esc(fit(title, W - 2 * PAD, 26 * 0.8))}</text>`);
     const cnt = {}; S.pts.forEach(p => { if (p.name && p.io) cnt[p.io] = (cnt[p.io] || 0) + 1; });
     const sp = S.pts.filter(p => p.term && !p.name).length;
-    const sum = ['ai', 'di', 'ao', 'do'].filter(k => cnt[k]).map(k => cnt[k] + ' ' + IO[k]).concat(sp ? [sp + ' spare'] : []).join('   ');
+    const sum = (S.inet ? ['DCU ' + addrOf({pt: 'x'}).slice(0, 4)] : []).concat(['ai', 'di', 'ao', 'do'].filter(k => cnt[k]).map(k => cnt[k] + ' ' + IO[k]), sp ? [sp + ' spare'] : []).join('   ');
     o.push(`<text x="${PAD}" y="50" font-family="IBM Plex Mono, monospace" font-size="12" fill="${P.muted}">${esc(sum)}</text>`);
     // controller body
     o.push(`<rect x="${bodyX}" y="${TOP}" width="${BW}" height="${bodyH}" rx="10" fill="${P.body}"/>`);
@@ -647,8 +770,9 @@ List entries in terminal order.`;
             const tx = right ? cx + 14 : cx + 10, badgeW = 34, bx = right ? cx + CW - badgeW - 8 : cx + CW - badgeW - 14;
             const head = (p.dev ? p.dev + '  ' : '');
             o.push(`<text x="${tx}" y="${cy - 3}" font-size="14" font-weight="600" fill="${P.ink}">${p.dev ? `<tspan font-family="IBM Plex Mono, monospace" font-size="11" font-weight="500" fill="${P.muted}">${esc(fit(p.dev, 60, 11))}  </tspan>` : ''}${esc(fit(p.name, CW - 70 - head.length * 7, 14))}</text>`);
-            o.push(`<text x="${tx}" y="${cy + 13}" font-size="11.5" fill="${P.muted}">${esc(fit([p.descr, p.sig].filter(Boolean).join(' · '), CW - 30, 11.5))}</text>`);
-            const tag = {ai: 'AI', ao: 'AO', di: 'DI', do: 'DO', bus: 'BUS', pwr: 'PWR', comm: 'NET'}[p.io] || '';
+            const ad = addrOf(p), line2 = [p.descr, p.sig].filter(Boolean).join(' · ');
+            o.push(`<text x="${tx}" y="${cy + 13}" font-size="11.5" fill="${P.muted}">${ad ? `<tspan font-family="IBM Plex Mono, monospace" font-weight="600" fill="${P.ink}">${ad}</tspan>${line2 ? '  ' : ''}` : ''}${esc(fit(line2, CW - 30 - (ad ? 70 : 0), 11.5))}</text>`);
+            const tag = (S.inet && p.it) || {ai: 'AI', ao: 'AO', di: 'DI', do: 'DO', bus: 'BUS', pwr: 'PWR', comm: 'NET'}[p.io] || '';
             if (tag) { o.push(`<rect x="${bx}" y="${cy - 15}" width="${badgeW}" height="15" rx="3" fill="${col}"/>`); o.push(`<text x="${bx + badgeW / 2}" y="${cy - 4}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" font-weight="600" fill="${P.panel}">${tag}</text>`); }
           }
           y += RH;
@@ -668,13 +792,45 @@ List entries in terminal order.`;
     const used = new Set(S.pts.filter(p => p.name).map(p => p.io).filter(Boolean));
     $('legend').innerHTML = has ? ['ai', 'di', 'ao', 'do', 'bus', 'comm', 'pwr'].filter(k => used.has(k)).map(k => `<span><i style="background:var(--t-${k === 'comm' ? 'bus' : k})"></i>${IO[k]}</span>`).join('') + '<span><i style="background:var(--t-spare)"></i>Spare</span>' : '';
     const rows = blocks().flatMap(b => b.rows);
+    if (S.inet){ $('printList').innerHTML = rows.length ? `<table><thead><tr><th>Address</th><th>I/NET name</th><th>Type</th><th>Board</th><th>Terminal</th><th>Wire #</th><th>Device</th><th>Description</th><th>Notes</th></tr></thead><tbody>${rows.map(p => `<tr><td>${esc(addrOf(p))}</td><td class="nm">${p.name ? esc(p.name) : 'Spare'}</td><td>${esc(p.name ? p.it : '')}</td><td>${esc(grp(p).title)}</td><td>${esc(p.term)}</td><td>${esc(p.pins)}</td><td>${esc(p.dev)}</td><td>${esc(p.descr)}</td><td>${esc(p.sig)}</td></tr>`).join('')}</tbody></table>` : ''; return; }
     $('printList').innerHTML = rows.length ? `<table><thead><tr><th>Terminal</th><th>Wire #</th><th>Type</th><th>Device</th><th>Point</th><th>Description</th><th>Signal / notes</th></tr></thead><tbody>${rows.map(p => `<tr><td>${esc(p.term)}</td><td>${esc(p.pins)}</td><td>${p.name ? esc(IO[p.io] || '') : 'Spare'}</td><td>${esc(p.dev)}</td><td class="nm">${esc(p.name)}</td><td>${esc(p.descr)}</td><td>${esc(p.sig)}</td></tr>`).join('')}</tbody></table>` : '';
   }
   let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (($('diag').clientWidth < 620) !== narrowNow) renderDiagram(); }, 150); });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderDiagram);
 
+  // I/NET board picker
+  $('inCard').innerHTML = Object.entries(CARDS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('inBoard').onchange = () => { $('inCardF').hidden = $('inBoard').value !== '7716'; };
+  // move the names typed so far onto the new layout: same side and address, else same terminal
+  function toBoard(board, card, from){
+    const rows = inetRows(board, card), left = [];
+    from.filter(p => p.name || p.dev || p.it).forEach(p => {
+      const r = rows.find(r => !r.name && p.pt && r.pt === p.pt && (!p.side || r.side === p.side) && (p.side || !p.it || inetIo('', p.it) === inetIo(r.side, p.it)))
+        || rows.find(r => !r.name && !p.pt && p.term && r.term === p.term);
+      if (r){ Object.assign(r, {name: p.name, dev: p.dev, descr: p.descr, chk: p.chk, sig: [r.sig, p.sig].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', ')}); setInetType(r, p.it || (p.name ? (r.side === 'out' ? 'DO' : 'DI') : '')); }
+      else left.push({...p, blk: {key: 'ox', title: 'Other points', ord: 60}, chk: true});
+    });
+    return rows.concat(left);
+  }
+  $('inFill').onclick = () => {
+    const board = $('inBoard').value, card = board === '7716' ? $('inCard').value : 'none';
+    if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts, inet: S.inet}); $('undoRead').hidden = false; }
+    S.pts = toBoard(board, card, S.inet ? S.pts : []);
+    S.inet = {board, card, ll: S.inet ? S.inet.ll : '', ss: S.inet ? S.inet.ss : ''};
+    S.model = board + ' PCU' + (card !== 'none' ? ' + ' + CARDS[card].replace(/,.*$/, '') : ''); S.maker = 'TAC I/NET';
+    save(); renderAll(); $('inLL').focus();
+    toast(`${S.pts.length} terminals filled. Set the link and station, then type the I/NET names.`);
+  };
+  ['inLL', 'inSS'].forEach(id => $(id).addEventListener('input', e => {
+    const v = e.target.value.replace(/\D/g, '').slice(0, 2); if (v !== e.target.value) e.target.value = v;
+    if (!S.inet) return; S.inet[id === 'inLL' ? 'll' : 'ss'] = v; save(); renderTable(); renderDiagram();
+  }));
+  $('inOff').onclick = () => { S.inet = null; S.pts.forEach(p => { delete p.blk; }); save(); renderAll(); toast('I/NET addresses turned off. The table is a plain point list again.'); };
+
   function renderAll(){
     $('uName').value = S.unit; $('uModel').value = S.model; $('uMaker').value = S.maker;
+    $('inetRow').hidden = !S.inet;
+    if (S.inet){ $('inLL').value = S.inet.ll || ''; $('inSS').value = S.inet.ss || ''; $('inBoard').value = S.inet.board; $('inCard').value = S.inet.card || 'none'; $('inBoard').onchange(); }
     renderPic(); renderTable(); renderDiagram();
   }
 
@@ -711,8 +867,13 @@ List entries in terminal order.`;
   $('saveCsv').onclick = () => {
     if (!needPts()) return;
     const q = v => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    const head = ['UNIT', 'CONTROLLER', 'TERMINAL', 'WIRE #', 'TYPE', 'DEVICE', 'NAME', 'DESCR', 'SIGNAL / NOTES'];
-    const rows = blocks().flatMap(b => b.rows).map(p => [S.unit, S.model, p.term, p.pins, p.name ? (IO[p.io] || '') : 'Spare', p.dev, p.name, p.descr, p.sig]);
+    let head = ['UNIT', 'CONTROLLER', 'TERMINAL', 'WIRE #', 'TYPE', 'DEVICE', 'NAME', 'DESCR', 'SIGNAL / NOTES'];
+    let rows = blocks().flatMap(b => b.rows).map(p => [S.unit, S.model, p.term, p.pins, p.name ? (IO[p.io] || '') : 'Spare', p.dev, p.name, p.descr, p.sig]);
+    if (S.inet){
+      // Joe's layout: full address and I/NET name first, then where it lands, sorted by board, inputs, outputs
+      head = ['ADDRESS', 'I/NET NAME', 'TYPE', 'UNIT', 'CONTROLLER', 'BOARD', 'IN/OUT', 'TERMINAL', 'WIRE #', 'DEVICE', 'DESCR', 'NOTES'];
+      rows = blocks().flatMap(b => b.rows).map(p => [addrOf(p) && `="${addrOf(p)}"`, p.name || 'Spare', p.name ? p.it : '', S.unit, S.model, grp(p).title, p.side === 'in' ? 'Input' : p.side === 'out' ? 'Output' : '', p.term, p.pins, p.dev, p.descr, p.sig]);
+    }
     saveBlob(new Blob(['﻿' + [head, ...rows].map(r => r.map(q).join(',')).join('\r\n')], {type: 'text/csv'}), `${base()} point list.csv`, 'text/csv', 'csv');
   };
   $('saveJob').onclick = () => {
@@ -723,7 +884,7 @@ List entries in terminal order.`;
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     try {
       const j = JSON.parse(await f.text());
-      if (j.format === 'point-list' && Array.isArray(j.pts)) S = {unit: j.unit || '', model: j.model || '', maker: j.maker || '', img: j.img || '', pts: j.pts.map(p => ({...blank(), ...p}))};
+      if (j.format === 'point-list' && Array.isArray(j.pts)) S = {unit: j.unit || '', model: j.model || '', maker: j.maker || '', img: j.img || '', inet: j.inet || null, pts: j.pts.map(p => ({...blank(), ...p}))};
       else if (Array.isArray(j.points)) { apply(j); return; }
       else throw 0;
       save(); renderAll(); toast('Opened ' + f.name);
@@ -737,7 +898,7 @@ List entries in terminal order.`;
     e.stopPropagation(); clearTimeout(ct);
     if (step === 0){ step = 1; cb.dataset.step = '1'; cb.textContent = 'Clear picture and table?'; }
     else if (step === 1){ step = 2; cb.dataset.step = '2'; cb.textContent = 'Tap again to erase'; }
-    else { S = {unit: '', model: '', maker: '', pts: [], img: ''}; undo = null; $('undoRead').hidden = true; $('chkNote').hidden = true; readErr(''); save(); renderAll(); reset(); toast('Cleared.'); return; }
+    else { S = {unit: '', model: '', maker: '', pts: [], img: '', inet: null}; undo = null; $('undoRead').hidden = true; $('chkNote').hidden = true; readErr(''); save(); renderAll(); reset(); toast('Cleared.'); return; }
     ct = setTimeout(reset, 6000);
   };
   document.addEventListener('click', e => { if (step && e.target !== cb) reset(); });
