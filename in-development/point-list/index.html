@@ -166,9 +166,9 @@ footer{font-size:12px;color:var(--muted)}
       </div>
     </details>
     <div class="xmlbox">
-      <div class="xmlhead"><b>Or start from an EBO export</b><span class="hint">Right-click the controller (or a whole server) in WorkStation, Export, and open the .xml here. It lists every hardware point on its terminal, plus the spares. For an I/NET site you can also open the server's backup (.xbk).</span></div>
+      <div class="xmlhead"><b>Or start from an EBO export</b><span class="hint">Right-click the controller (or a whole server) in WorkStation, Export, and open the .xml here. It lists every hardware point on its terminal, plus the spares. For an I/NET site you can also open the server's backup (.xbk) or I/NET controller saves (DCUnnnn.SAV, several at once).</span></div>
       <div class="btns">
-        <label class="btn"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/></svg>Open EBO XML or backup<input type="file" accept=".xml,.xbk,text/xml,application/xml" id="xmlIn" hidden></label>
+        <label class="btn"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/></svg>Open EBO XML, backup or SAV<input type="file" accept=".xml,.xbk,.sav,text/xml,application/xml" id="xmlIn" multiple hidden></label>
         <span class="reading" id="xmlBusy" hidden><span class="spin"></span>Reading the export…</span>
       </div>
       <div class="keyrow" id="xmlPick" hidden>
@@ -694,19 +694,52 @@ List entries in terminal order.`;
     if (!dcus.length) throw new Error('No I/NET DCUs in that backup. Backups are read for I/NET sites only; for MP/RP controllers use a WorkStation export.');
     return dcus.sort((a, b) => a.NAME.localeCompare(b.NAME)).map(d => inetDcuRows(d, ''));
   }
+
+  // ------------------------------------------------------------ I/NET SAV files (DCUnnnn.SAV)
+  // Point records are chained: [length][class<<6 | CC][PP<<4 | type][6 bytes][name: 16 bytes, 12 on an Ind point + its source].
+  // Worked out from Foster Plaza saves and checked point for point against the same DCUs in an EBO backup.
+  // The SAV has the station but not the link; the link comes from the file name (DCU LLSS) when it has one.
+  function parseSav(buf, fname){
+    const d = new Uint8Array(buf), ok = c => (c >= 32 && c < 127) || c === 0;
+    const chain = o => { const out = []; while (o + 25 <= d.length){ const L = d[o]; if (L < 0x18 || L > 0x60) break;
+      const nm = d.subarray(o + 9, o + ((d[o + 1] >> 6) === 2 ? 21 : 25)); if (nm[0] < 33 || nm[0] > 126 || !nm.every(ok)) break; out.push(o); o += L + 1; } return out; };
+    let best = []; for (let o = 0x40; o < d.length - 25; o++){ const c = chain(o); if (c.length > best.length){ best = c; o = c[c.length - 1]; } }
+    if (best.length < 3 || d[8] !== 1) throw new Error(`${fname} doesn't look like an I/NET controller save. Some .SAV files on the share are other files; check it opens in RdINET2c.`);
+    const txt = (a, b) => String.fromCharCode(...d.subarray(a, b)).split('\0')[0].trim();
+    const board = d[9] === 4 ? '7756' : d[9] === 6 ? '7716' : '';
+    const m = /DCU\s*(\d{2})(\d{2})/i.exec(fname), ss = two(d[7]);
+    const dev = {TYPE: 'inet.dcu.Dcu' + (board || 'Unknown'), NAME: (m ? `DCU${m[1]}${m[2]} ` : `Station ${ss} `) + txt(0x13, 0x23), pi: {StationNumber: String(d[7])}, children: [], guessed: true};
+    if (m && m[2] === ss) dev.pi.LinkNumber = String(+m[1]);
+    best.forEach(o => { const b1 = d[o + 1], b2 = d[o + 2];
+      dev.children.push({TYPE: 'inet.point', NAME: '', children: [], pi: {PointNumber: String(b1 & 0x1f), BitOffset: String(b2 >> 4), PointType: String(b2 & 0x0f), PointClass: String(b1 >> 6), PointAddr: txt(o + 9, o + ((b1 >> 6) === 2 ? 21 : 25))}}); });
+    const c = inetDcuRows(dev, '');
+    c.savNote = (board ? `Board ${board} read from the file` : 'Board type not in the file, so the points are listed without terminals; pick the board below') + (dev.pi.LinkNumber ? '' : '; type the link number (SAV files don\'t store it)');
+    return c;
+  }
   let XML = [];
   function loadCtl(i){
     const c = XML[i]; if (!c) return;
     if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts, inet: S.inet}); $('undoRead').hidden = false; }
     S.unit = c.name; S.model = c.model; S.maker = c.inet ? 'TAC I/NET' : 'Schneider Electric'; S.pts = c.pts.map(p => ({...p})); S.inet = c.inet ? {...c.inet} : null;
     $('chkNote').hidden = true; save(); renderAll();
-    if (c.inet){ const k = c.pts.filter(p => p.chk).length; $('chkNote').hidden = !k; $('chkNote').textContent = k ? `${k} row${k > 1 ? 's' : ''} marked Check: a DM point (input or output not known yet) or an address with no terminal on this board.` : ''; }
+    if (c.inet){ const k = c.pts.filter(p => p.chk).length, t = (k ? `${k} row${k > 1 ? 's' : ''} marked Check: a DM point (input or output not known yet) or an address with no terminal on this board. ` : '') + (c.savNote ? 'From a SAV file: ' + c.savNote + '.' : '');
+      $('chkNote').hidden = !t; $('chkNote').textContent = t; }
     toast(`${c.name}: ${c.pts.filter(p => p.name).length} ${c.inet ? 'Ext ' : ''}points, ${c.pts.filter(p => !p.name).length} spare` + (c.skipped && c.skipped.Int + c.skipped.Ind ? `. Left out ${c.skipped.Int} Int and ${c.skipped.Ind} Ind points` : '') + (c.noTerm.length ? `. Left out ${c.noTerm.length} with no terminal: ${c.noTerm.slice(0, 3).join(', ')}${c.noTerm.length > 3 ? '…' : ''}` : '.'));
   }
   $('xmlIn').onchange = async e => {
-    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    const fs = [...e.target.files], f = fs[0]; e.target.value = ''; if (!f) return;
     $('xmlBusy').hidden = false; await new Promise(r => setTimeout(r, 30));
-    try { XML = /\.xbk$/i.test(f.name) ? await parseXbk(await f.arrayBuffer()) : parseEbo(await f.text()); }
+    try {
+      const savs = fs.filter(x => /\.sav$/i.test(x.name));
+      if (savs.length){
+        // one or more controller saves: each becomes a controller in the picker
+        XML = []; const bad = [];
+        for (const x of savs.sort((a, b) => a.name.localeCompare(b.name))){ try { XML.push(parseSav(await x.arrayBuffer(), x.name)); } catch(err){ bad.push(x.name); } }
+        if (!XML.length) throw new Error(savs.length > 1 ? "None of those files look like I/NET controller saves." : `${f.name} doesn't look like an I/NET controller save. Some .SAV files on the share are other files.`);
+        if (bad.length) setTimeout(() => toast(`Skipped ${bad.length} file${bad.length > 1 ? 's' : ''} that aren't controller saves: ${bad.slice(0, 3).join(', ')}`, true), 3200);
+      }
+      else XML = /\.xbk$/i.test(f.name) ? await parseXbk(await f.arrayBuffer()) : parseEbo(await f.text());
+    }
     catch(err){ XML = []; toast(err.message || "That export couldn't be read.", true); $('xmlBusy').hidden = true; $('xmlPick').hidden = true; return; }
     $('xmlBusy').hidden = true;
     $('xmlSel').innerHTML = XML.map((c, i) => `<option value="${i}">${esc(c.name)} · ${esc(c.model)} · ${c.pts.filter(p => p.name).length} pts</option>`).join('');
