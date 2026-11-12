@@ -845,10 +845,11 @@ List entries in terminal order.`;
   const cIx = (w, k) => (w.col && w.col[k] >= 0) ? w.col[k] : k;
   // a 4 conductor cable comes as two pairs, black/red and white/green: each circuit keeps to one pair (Buddy). A preset can fix its colours
   // as a 4th entry (indices into COND) where the hot/common rule alone would split a pair
+  // non-polarized inputs (thermistors, dry contacts) get no terminal markers: either conductor can land on either screw (Buddy)
   // device presets by point type: terminal labels, and where each conductor lands by default (t = this point's terminal, r = its RET/COM)
   const DEVS = {
-    ai: [['2-wire sensor (thermistor, contact)', ['+', '−'], ['t', 'r']], ['Transmitter, 3 wire (non-isolated)', ['G 24V', 'G0/M COM', 'Y OUT'], ['x1', 'r', 't']], ['Transmitter, 4 wire (isolated)', ['G 24V', 'G0 COM', 'Y OUT', 'M SIG COM'], ['x1', 'x2', 't', 'r']]],
-    di: [['Dry contact (status, switch)', ['C', 'NO'], ['t', 'r']], ['Powered status (current switch)', ['24V', 'COM', 'C', 'NO'], ['x1', 'x2', 't', 'r']], ['Low limit / freezestat: N/O status + N/C hot to X1S', ['NC C', 'NC', 'NO C', 'NO'], ['x1', 'x3', 't', 'r'], [1, 0, 2, 3]]],
+    ai: [['2-wire sensor (thermistor, contact)', ['', ''], ['t', 'r']], ['Transmitter, 3 wire (non-isolated)', ['G 24V', 'G0/M COM', 'Y OUT'], ['x1', 'r', 't']], ['Transmitter, 4 wire (isolated)', ['G 24V', 'G0 COM', 'Y OUT', 'M SIG COM'], ['x1', 'x2', 't', 'r']]],
+    di: [['Dry contact (status, switch)', ['', ''], ['t', 'r']], ['Powered status (current switch)', ['24V', 'COM', 'C', 'NO'], ['x1', 'x2', 't', 'r']], ['Low limit / freezestat: N/O status + N/C hot to X1S', ['NC C', 'NC', 'NO C', 'NO'], ['x1', 'x3', 't', 'r'], [1, 0, 2, 3]]],
     // outputs: a powered actuator takes 24 VAC straight from X1/X2 and only the signal comes from the point; RET is for inputs (Buddy)
     ao: [['Actuator / valve, 3 wire (non-isolated)', ['1 COM', '2 24V', '3 Y'], ['x2', 'x1', 't']], ['Actuator, 4 wire (isolated)', ['G 24V', 'G0 COM', 'X Y', 'M SIG COM'], ['x1', 'x2', 't', 'x2']], ['Actuator with feedback', ['1 COM', '2 24V', '3 Y', '5 U'], ['x2', 'x1', 't', '']], ['Signal only (2 wire)', ['Y', 'COM'], ['t', 'x2']]],
     // a DO landed on a universal Ub/Uc switches the coil's common side (team practice); a relay DO switches hot through its COM
@@ -951,7 +952,7 @@ List entries in terminal order.`;
     const where = id => { const s = st.s.find(x => x.id === id); return s ? `${s.label}${s.pin ? ' (' + s.pin + ')' : ''}` : id === 'x1' ? 'X1 24V hot' : id === 'x3' ? 'X1S 24V hot via low limit' : id === 'x2' ? 'X2 24V com' : 'not landed'; };
     let ly = WG.H - 105, lx = 30; const lg0 = o.length;
     o.push(`<text x="${lx}" y="${ly - 14}" font-size="10" font-weight="600" letter-spacing="1.1" fill="${P.muted}">CONDUCTORS</text>`);
-    for (let k = 0; k < n; k++){ o.push(`<rect x="${lx}" y="${ly - 9}" width="14" height="10" rx="2" fill="${COND[cIx(w, k)]}" stroke="${P.line}"/><text x="${lx + 20}" y="${ly}" font-size="11.5" fill="${P.ink}">${COND_N[cIx(w, k)]}: ${esc(w.labels[k] || '?')} → ${esc(where(w.ends[k]))}</text>`); ly += 17; }
+    for (let k = 0; k < n; k++){ o.push(`<rect x="${lx}" y="${ly - 9}" width="14" height="10" rx="2" fill="${COND[cIx(w, k)]}" stroke="${P.line}"/><text x="${lx + 20}" y="${ly}" font-size="11.5" fill="${P.ink}">${COND_N[cIx(w, k)]}${w.labels[k] ? ': ' + esc(w.labels[k]) : ''} → ${esc(where(w.ends[k]))}</text>`); ly += 17; }
     w.jump.forEach(j => { o.push(`<line x1="${lx}" y1="${ly - 4}" x2="${lx + 14}" y2="${ly - 4}" stroke="#c4700a" stroke-width="3" stroke-dasharray="4 3"/><text x="${lx + 20}" y="${ly}" font-size="11.5" fill="${P.ink}">Jumper: ${esc(where(j[0]))} → ${esc(where(j[1]))}</text>`); ly += 17; });
     // team practice: X2 (24 VAC common) always ties to the controller's 24 V N (terminal 2) and to the controller's ground
     o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" font-weight="600" fill="${P.ink}">X2 COM also ties to the controller's 24V N (terminal 2) and ground.</text>`); ly += 17;
