@@ -234,6 +234,7 @@ footer{font-size:12px;color:var(--muted)}
     <div class="keyrow">
       <label class="field"><span>Field device</span><select id="wDev"></select></label>
       <label class="field" style="flex:0 1 230px"><span>Low limit</span><label style="display:flex;gap:6px;align-items:center;min-height:38px;font-size:14px"><input type="checkbox" id="wLt">Hot through low limit (X1S)</label></label>
+      <label class="field" style="flex:0 1 200px"><span>24 VAC</span><label style="display:flex;gap:6px;align-items:center;min-height:38px;font-size:14px"><input type="checkbox" id="wPwr">Show X1 / X2 blocks</label></label>
       <label class="field" style="flex:0 1 150px"><span>Cable</span><select id="wCab"><option value="2">2 conductor</option><option value="3">3 conductor</option><option value="4">4 conductor</option></select></label>
     </div>
     <div class="keyrow" id="wLabels"></div>
@@ -893,10 +894,13 @@ List entries in terminal order.`;
     w.ends = w.ends.map(e => e === a ? b : e); w.jump = w.jump.map(j => j.map(e => e === a ? b : e)); return w; }
   // geometry: controller strip across the top, device on the right, X1/X2 blocks free
   const WG = {W: 780, H: 470, sx: 30, sy: 70, sw: 48, dx: 540, dy: 250, dw: 210};
+  // an input with nothing on 24 VAC (2-wire sensor, dry contact) gets no X1/X2 blocks (Buddy)
+  const pwrUsed = w => w.lt || w.ends.some(e => /^x[123]$/.test(e)) || w.jump.some(j => j.some(e => /^x[123]$/.test(e)));
+  const pwrLess = (p, w) => !pwrUsed(w) && (w.pwr != null ? !w.pwr : /^(ai|di)$/.test(p.io)) && !w.ends.some(e => /^x[123]$/.test(e)) && !w.jump.some(j => j.some(e => /^x[123]$/.test(e)));
   function targets(p){
     const st = strip(p), w = p.w, T = {};
     st.s.forEach((x, k) => { T[x.id] = [WG.sx + k * WG.sw + WG.sw / 2, WG.sy + 46]; });
-    T.x1 = [w.x1[0] + 70, w.x1[1]]; T.x2 = [w.x2[0] + 70, w.x2[1]]; if (w.lt){ w.x3 = w.x3 || [340, 250]; T.x3 = [w.x3[0] + 70, w.x3[1]]; }
+    if (!pwrLess(p, w)){ T.x1 = [w.x1[0] + 70, w.x1[1]]; T.x2 = [w.x2[0] + 70, w.x2[1]]; } if (w.lt){ w.x3 = w.x3 || [340, 250]; T.x3 = [w.x3[0] + 70, w.x3[1]]; }
     return {st, T};
   }
   function wSvg(P, forSave){
@@ -926,7 +930,7 @@ List entries in terminal order.`;
       o.push(`<circle cx="${mx - 16}" cy="${my}" r="2.5" fill="${P.pwr}"/><circle cx="${mx + 16}" cy="${my}" r="2.5" fill="${P.pwr}"/><line x1="${mx - 16}" y1="${my}" x2="${mx + 14}" y2="${my - 8}" stroke="${P.pwr}" stroke-width="2"/>`);
       o.push(`<text x="${mx}" y="${my + 16}" text-anchor="middle" font-size="9.5" font-weight="600" fill="${P.ink}">LOW LIMIT N/C (opens on trip)</text>`);
     }
-    [['x1', 'X1', '24 VAC HOT', P.pwr], ['x2', 'X2', '24 VAC COM', P.muted]].concat(w.lt ? [['x3', 'X1S', p.io === 'di' ? 'TRIP LOADS OUT' : 'VIA LOW LIMIT', P.pwr]] : []).forEach(([id, a, b, c]) => {
+    (pwrLess(p, w) ? [] : [['x1', 'X1', '24 VAC HOT', P.pwr], ['x2', 'X2', '24 VAC COM', P.muted]]).concat(w.lt ? [['x3', 'X1S', p.io === 'di' ? 'TRIP LOADS OUT' : 'VIA LOW LIMIT', P.pwr]] : []).forEach(([id, a, b, c]) => {
       const [x, y] = w[id];
       o.push(`<g class="wblk" data-blk="${id}" style="cursor:move"><rect x="${x}" y="${y - 22}" width="90" height="44" rx="6" fill="${P.panel}" stroke="${c}" stroke-width="2"/>`);
       o.push(`<text x="${x + 10}" y="${y - 4}" font-family="IBM Plex Mono, monospace" font-weight="700" font-size="14" fill="${c}">${a}</text><text x="${x + 10}" y="${y + 12}" font-size="9.5" fill="${P.muted}">${b}</text>`);
@@ -955,7 +959,7 @@ List entries in terminal order.`;
     for (let k = 0; k < n; k++){ o.push(`<rect x="${lx}" y="${ly - 9}" width="14" height="10" rx="2" fill="${COND[cIx(w, k)]}" stroke="${P.line}"/><text x="${lx + 20}" y="${ly}" font-size="11.5" fill="${P.ink}">${COND_N[cIx(w, k)]}${w.labels[k] ? ': ' + esc(w.labels[k]) : ''} → ${esc(where(w.ends[k]))}</text>`); ly += 17; }
     w.jump.forEach(j => { o.push(`<line x1="${lx}" y1="${ly - 4}" x2="${lx + 14}" y2="${ly - 4}" stroke="#c4700a" stroke-width="3" stroke-dasharray="4 3"/><text x="${lx + 20}" y="${ly}" font-size="11.5" fill="${P.ink}">Jumper: ${esc(where(j[0]))} → ${esc(where(j[1]))}</text>`); ly += 17; });
     // team practice: X2 (24 VAC common) always ties to the controller's 24 V N (terminal 2) and to the controller's ground
-    o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" font-weight="600" fill="${P.ink}">X2 COM also ties to the controller's 24V N (terminal 2) and ground.</text>`); ly += 17;
+    if (!pwrLess(p, w)) o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" font-weight="600" fill="${P.ink}">X2 COM also ties to the controller's 24V N (terminal 2) and ground.</text>`); ly += 17;
     // MP-V: every RET is internally tied to earth ground and terminal 2 (Hardware Reference Guide 11.8/11.9)
     if (/^MPV/.test(modelKey(S.model)) && st.s.some(x => /^RET/.test(x.label))) { o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" fill="${P.ink}">RET (dashed) is a common tied to earth ground and terminal 2, not an input.</text>`); ly += 17; }
     // team practice: a DO switches 24 VAC hot through the relay's COM screw, never the 24 VAC common
@@ -975,7 +979,7 @@ List entries in terminal order.`;
     const list = devList(p);
     $('wTitle').textContent = `Wiring · ${p.term}${p.name ? ' ' + p.name : ''}`;
     $('wDev').innerHTML = list.map((d, k) => `<option value="${k}"${k === p.w.dev ? ' selected' : ''}>${esc(d[0])}</option>`).join('');
-    $('wCab').value = String(p.w.cab); $('wLt').checked = !!p.w.lt; $('wLt').disabled = p.io === 'di';
+    $('wCab').value = String(p.w.cab); $('wLt').checked = !!p.w.lt; $('wLt').disabled = p.io === 'di'; $('wPwr').checked = !pwrLess(p, p.w); $('wPwr').disabled = pwrUsed(p.w);
     $('wLabels').innerHTML = p.w.labels.slice(0, p.w.cab).map((l, k) => `<label class="field"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;background:${COND[cIx(p.w, k)]};border:1px solid var(--line)"></i>${COND_N[cIx(p.w, k)]}</span><input data-k="${k}" value="${esc(l)}"></label>`).join('');
     $('wCan').innerHTML = wSvg(palette(true), false);
   }
@@ -988,6 +992,7 @@ List entries in terminal order.`;
   $('wDev').onchange = () => { const p = wPt(); const lt = !!p.w.lt, nw = {...wDefault(p, +$('wDev').value), x1: p.w.x1, x2: p.w.x2, x3: p.w.x3}; p.w = p.io === 'di' ? nw : ltSet(nw, lt); save(); wRender(); };
   $('wCab').onchange = () => { const p = wPt(), c = +$('wCab').value; while (p.w.labels.length < c) p.w.labels.push(''); while (p.w.ends.length < c) p.w.ends.push(''); p.w.cab = c; save(); wRender(); };
   $('wLabels').addEventListener('input', e => { const k = e.target.dataset.k; if (k == null) return; wPt().w.labels[+k] = e.target.value; save(); $('wCan').innerHTML = wSvg(palette(true), false); });
+  $('wPwr').onchange = () => { const p = wPt(); p.w.pwr = $('wPwr').checked; save(); wRender(); };
   $('wLt').onchange = () => { const p = wPt(); ltSet(p.w, $('wLt').checked); save(); wRender(); };
   $('wReset').onclick = () => { const p = wPt(); p.w = wDefault(p, p.w.dev); save(); wRender(); };
   $('wJump').onclick = () => { const p = wPt(), {st} = targets(p), own = ownIds(p, st); p.w.jump.push([own.r, 'x2']); save(); wRender(); toast('Jumper added from the RET/COM to X2. Drag either orange end to move it; Reset clears jumpers.'); };
