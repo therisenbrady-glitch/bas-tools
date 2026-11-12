@@ -1337,12 +1337,22 @@ List entries in terminal order.`;
     return new Blob([...parts, ...cen, new Uint8Array(e.buffer)], {type: 'application/zip'});
   }
   // wiring packet: page 1 = the I/O diagram, then one page per named AI/DI/AO/DO with its wiring (saved design, or the default for that point)
-  const svgJpg = svg => new Promise((res, rej) => { const m = svg.match(/width="(\d+)" height="(\d+)"/), w = +m[1], h = +m[2], k = 2, im = new Image();
-    im.onload = () => { const c = document.createElement('canvas'); c.width = w * k; c.height = h * k; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.scale(k, k); g.drawImage(im, 0, 0);
-      c.toBlob(async b => b ? res({w: c.width, h: c.height, data: new Uint8Array(await b.arrayBuffer())}) : rej(), 'image/jpeg', 0.9); };
+  // pages are drawn at 3x and stored lossless (Flate) so text and thin wires stay sharp when zoomed or printed; JPEG only where
+  // the browser has no CompressionStream
+  const svgJpg = svg => new Promise((res, rej) => { const m = svg.match(/width="(\d+)" height="(\d+)"/), w = +m[1], h = +m[2], k = 3, im = new Image();
+    im.onload = async () => { try {
+      const c = document.createElement('canvas'); c.width = w * k; c.height = h * k; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.scale(k, k); g.drawImage(im, 0, 0);
+      if (typeof CompressionStream === 'function'){
+        const px = g.getImageData(0, 0, c.width, c.height).data, rgb = new Uint8Array(c.width * c.height * 3);
+        for (let i = 0, o = 0; i < px.length; i += 4){ rgb[o++] = px[i]; rgb[o++] = px[i + 1]; rgb[o++] = px[i + 2]; }
+        const data = new Uint8Array(await new Response(new Blob([rgb]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+        return res({w: c.width, h: c.height, data, filter: 'FlateDecode'});
+      }
+      c.toBlob(async b => b ? res({w: c.width, h: c.height, data: new Uint8Array(await b.arrayBuffer()), filter: 'DCTDecode'}) : rej(), 'image/jpeg', 0.95);
+    } catch(e){ rej(e); } };
     im.onerror = rej; im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
   function pdfOf(imgs){
-    // minimal PDF: one JPEG per page, letter size, turned to suit the picture, fitted inside half-inch margins
+    // minimal PDF: one picture per page, letter size, turned to suit the picture, fitted inside half-inch margins
     const enc = new TextEncoder(), parts = [], offs = []; let len = 0;
     const put = x => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
     const obj = (n, body) => { offs[n] = len; put(`${n} 0 obj\n`); body(); put('\nendobj\n'); };
@@ -1355,7 +1365,7 @@ List entries in terminal order.`;
       const cs = `q ${dw.toFixed(2)} 0 0 ${dh.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm /Im0 Do Q`;
       obj(n, () => put(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 ${n + 2} 0 R >> >> /Contents ${n + 1} 0 R >>`));
       obj(n + 1, () => put(`<< /Length ${cs.length} >>\nstream\n${cs}\nendstream`));
-      obj(n + 2, () => { put(`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>\nstream\n`); put(im.data); put('\nendstream'); });
+      obj(n + 2, () => { put(`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /${im.filter || 'DCTDecode'} /Length ${im.data.length} >>\nstream\n`); put(im.data); put('\nendstream'); });
     });
     const xref = len, count = 3 + imgs.length * 3;
     put(`xref\n0 ${count}\n0000000000 65535 f \n` + Array.from({length: count - 1}, (_, i) => String(offs[i + 1]).padStart(10, '0') + ' 00000 n \n').join(''));
