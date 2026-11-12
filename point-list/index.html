@@ -846,7 +846,8 @@ List entries in terminal order.`;
   const DEVS = {
     ai: [['2-wire sensor (thermistor, contact)', ['+', '−'], ['t', 'r']], ['Transmitter, 3 wire (non-isolated)', ['G 24V', 'G0/M COM', 'Y OUT'], ['x1', 'r', 't']], ['Transmitter, 4 wire (isolated)', ['G 24V', 'G0 COM', 'Y OUT', 'M SIG COM'], ['x1', 'x2', 't', 'r']]],
     di: [['Dry contact (status, switch)', ['C', 'NO'], ['t', 'r']], ['Powered status (current switch)', ['24V', 'COM', 'C', 'NO'], ['x1', 'x2', 't', 'r']], ['Low limit / freezestat: N/O status + N/C hot to X1S', ['NC C', 'NC', 'NO C', 'NO'], ['x1', 'x3', 't', 'r']]],
-    ao: [['Actuator / valve, 3 wire (non-isolated)', ['1 COM', '2 24V', '3 Y'], ['x2', 'x1', 't']], ['Actuator, 4 wire (isolated)', ['G 24V', 'G0 COM', 'X Y', 'M SIG COM'], ['x1', 'x2', 't', 'r']], ['Actuator with feedback', ['1 COM', '2 24V', '3 Y', '5 U'], ['x2', 'x1', 't', '']], ['Signal only (2 wire)', ['Y', 'COM'], ['t', 'r']]],
+    // outputs: a powered actuator takes 24 VAC straight from X1/X2 and only the signal comes from the point; RET is for inputs (Buddy)
+    ao: [['Actuator / valve, 3 wire (non-isolated)', ['1 COM', '2 24V', '3 Y'], ['x2', 'x1', 't']], ['Actuator, 4 wire (isolated)', ['G 24V', 'G0 COM', 'X Y', 'M SIG COM'], ['x1', 'x2', 't', 'x2']], ['Actuator with feedback', ['1 COM', '2 24V', '3 Y', '5 U'], ['x2', 'x1', 't', '']], ['Signal only (2 wire)', ['Y', 'COM'], ['t', 'x2']]],
     // a DO landed on a universal Ub/Uc switches the coil's common side (team practice); a relay DO switches hot through its COM
     udo: [['24 VAC pilot relay coil, Ub switches common', ['A1', 'A2'], ['x1', 't']], ['Signal only (2 wire)', ['+', '−'], ['t', 'r']]],
     do: [['24 VAC relay or contactor coil', ['A1', 'A2'], ['t', 'x2']], ['Dry contact into equipment', ['C', 'NO'], ['t', 'r']]]
