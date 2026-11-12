@@ -185,6 +185,13 @@ footer{font-size:12px;color:var(--muted)}
         <button type="button" class="btn" id="inFill">Fill the terminals</button>
       </div>
     </div>
+    <div class="xmlbox">
+      <div class="xmlhead"><b>Or draft a new controller</b><span class="hint">For a drawing before install (for the electrician): pick the model and every terminal is listed as a spare. Type the point names and set each Ub to AI, DI, AO or DO, then tap a point in the diagram to plan its wiring.</span></div>
+      <div class="keyrow">
+        <label class="field"><span>Model</span><select id="newModel"></select></label>
+        <button type="button" class="btn" id="newFill">List the terminals</button>
+      </div>
+    </div>
   </section>
 
   <section class="panel noprint" aria-labelledby="h02">
@@ -218,6 +225,25 @@ footer{font-size:12px;color:var(--muted)}
     <div class="diag" id="diag"><div class="empty">The diagram appears here once the table has points.</div></div>
     <div class="legend noprint" id="legend"></div>
     <div id="printList"></div>
+    <p class="hint noprint" id="wHint">Tap a named point in the diagram to plan its wiring.</p>
+  </section>
+
+  <section class="panel noprint" id="wirePanel" aria-labelledby="h05" hidden>
+    <h2 id="h05"><span class="num">03</span><span id="wTitle">Wiring</span></h2>
+    <div class="keyrow">
+      <label class="field"><span>Field device</span><select id="wDev"></select></label>
+      <label class="field" style="flex:0 1 230px"><span>Low limit</span><label style="display:flex;gap:6px;align-items:center;min-height:38px;font-size:14px"><input type="checkbox" id="wLt">Hot through low limit (X1S)</label></label>
+      <label class="field" style="flex:0 1 150px"><span>Cable</span><select id="wCab"><option value="2">2 conductor</option><option value="3">3 conductor</option><option value="4">4 conductor</option></select></label>
+    </div>
+    <div class="keyrow" id="wLabels"></div>
+    <div class="diag" id="wCan" style="touch-action:none"></div>
+    <p class="hint">Drag the round end of each conductor onto a screw or onto the X1 / X2 block. Drag the X1 and X2 blocks wherever suits the drawing. Tick Hot through low limit for anything a low temp trip must kill (fans, CHW valve, cooling): its hot moves to X1S, which is fed from X1 through the low limit, so the controller itself stays powered. Type the device's own terminal names above.</p>
+    <div class="btns">
+      <button type="button" class="btn pri" id="wPng">Save wiring picture</button>
+      <button type="button" class="btn" id="wJump">Add jumper</button>
+      <button type="button" class="btn" id="wReset">Reset</button>
+      <button type="button" class="btn" id="wClose">Close</button>
+    </div>
   </section>
 
   <section class="panel noprint" aria-labelledby="h04">
@@ -225,6 +251,7 @@ footer{font-size:12px;color:var(--muted)}
     <div class="btns">
       <button type="button" class="btn pri" id="printBtn"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2"/><rect x="6" y="14" width="12" height="7"/></svg>Print or save PDF</button>
       <button type="button" class="btn" id="savePng">Save picture</button>
+      <button type="button" class="btn" id="savePack">Save wiring packet (PDF)</button>
       <button type="button" class="btn" id="saveCsv">Save point list (CSV)</button>
     </div>
     <div class="btns">
@@ -732,7 +759,7 @@ List entries in terminal order.`;
   // A .bog is a zip holding file.xml (a bajaObjectGraph), or that XML on its own. Each MP/RP controller keeps its offline
   // copy of the EBO application under config: the IO objects there carry terminalReference ("Ub 1", "DO 2"), so they land on terminals.
   const MODEL_IO = {RPC12A: ['Ub', 8, 'DO', 4], RPC16B: ['Ub', 8, 'DO', 8], MPC15A: ['Ub', 8, 'DO', 7], MPC18A: ['Ub', 10, 'DO', 8], MPC18B: ['Ub', 10, 'DO', 8],
-    MPC36A: ['Ub', 20, 'Uc', 8, 'DO', 8], MPV7A: ['UI', 3, 'AO', 1, 'DO', 3], MPV9A: ['UI', 4, 'AO', 2, 'DO', 3]};
+    MPC36A: ['Ub', 20, 'Uc', 8, 'DO', 8], MPC24A: ['Ub', 16, 'Uc', 4, 'DO', 4], RPC12B: ['Ub', 8, 'DO', 4], RPC12C: ['Ub', 4, 'DO', 8], MPV7A: ['UI', 3, 'AO', 1, 'DO', 3], MPV9A: ['UI', 4, 'AO', 2, 'DO', 3]};
   async function parseBog(buf){
     const u8 = new Uint8Array(buf), txt = u8[0] === 0x50 && u8[1] === 0x4b ? new TextDecoder().decode(await unzipEntry(buf, 'file.xml')) : new TextDecoder().decode(u8);
     const doc = new DOMParser().parseFromString(txt, 'text/xml');
@@ -779,6 +806,208 @@ List entries in terminal order.`;
         pts: pts.sort((a, b) => grp(a).ord - grp(b).ord || natKey(a.term).localeCompare(natKey(b.term)))};
     }
   }
+  // ------------------------------------------------------------ wiring designer
+  // Tap a terminal in the diagram to lay out how its cable lands: the controller's screw strip (real screw numbers where the
+  // model is known), the field device's terminals, and 24 VAC Hot (X1) / Common (X2) blocks that can sit anywhere.
+  // Each conductor runs from a device terminal; drag its free end onto a screw or an X1/X2 block. Saved on the point as p.w.
+  // Screw terminals from Schneider's installation sheets (MP-C 02-10052-04, MP-V 02-50017-02, RP-C 02-10054-04; RP-C-12A also from a job drawing).
+  // u(pre, from, to, pin): inputs in threes, In / RET / In+1. A relay with its own pair: 'DO n C' is the common side, 'DO n' the switched side.
+  const u = (pre, a, b, pin) => { const o = []; for (let n = a; n <= b; n += 2){ o.push([pin++, `${pre} ${n}`]); if (n + 1 <= b){ o.push([pin++, 'RET'], [pin++, `${pre} ${n + 1}`]); } } return o; };
+  const triac = (a, b, com, pin) => { const o = []; for (let n = a; n <= b; n += 2){ o.push([pin++, `DO ${n}`], [pin++, `COM ${com++}`]); if (n + 1 <= b) o.push([pin++, `DO ${n + 1}`]); } return o; };
+  const pairs = (a, b, pin) => { const o = []; for (let n = a; n <= b; n++) o.push([pin++, `DO ${n} C`], [pin++, `DO ${n}`]); return o; };
+  const RPB300 = n => [[16, `DO ${n} NC`], [17, `DO ${n} C`], [18, `DO ${n}`]];
+  const UB = (n, pin) => ({name: 'Universal inputs/outputs', s: u('Ub', 1, n, pin)});
+  const STRIPS = {
+    RPC12A: [UB(8, 19), {name: 'SSR outputs', s: triac(1, 4, 1, 6)}],
+    RPC12B: [UB(8, 19), {name: 'Relay outputs', s: [[12, 'COM 1'], [13, 'DO 1'], [14, 'DO 2'], [15, 'DO 3'], ...RPB300(4)]}],
+    RPC12C: [UB(4, 19), {name: 'SSR outputs', s: triac(1, 4, 1, 6)}, {name: 'Relay outputs', s: [[12, 'COM 3'], [13, 'DO 5'], [14, 'DO 6'], [15, 'DO 7'], ...RPB300(8)]}],
+    RPC16B: [UB(8, 19), {name: 'SSR outputs', s: triac(1, 4, 1, 6)}, {name: 'Relay outputs', s: [[12, 'COM 3'], [13, 'DO 5'], [14, 'DO 6'], [15, 'DO 7'], ...RPB300(8)]}],
+    MPC15A: [UB(8, 18), {name: 'Triac outputs', s: triac(1, 6, 1, 4)}, {name: 'Relay output', s: [[16, 'DO 7 C'], [17, 'DO 7']]}],
+    MPC18A: [UB(10, 18), {name: 'Triac outputs', s: triac(1, 4, 1, 4)}, {name: 'Relay outputs', s: pairs(5, 8, 10)}],
+    MPC18B: [UB(10, 18), {name: 'Triac outputs', s: triac(1, 8, 1, 4)}],
+    MPC24A: [UB(16, 32), {name: 'Universal I/O (Uc)', s: u('Uc', 1, 4, 4)}, {name: 'Relay outputs', s: pairs(1, 4, 16)}],
+    MPC36A: [UB(20, 32), {name: 'Universal I/O (Uc)', s: u('Uc', 1, 8, 4)}, {name: 'Relay outputs', s: pairs(1, 8, 16)}],
+    MPV7A: [{name: 'Universal inputs', s: [[3, 'UI 1'], [4, 'RET'], [5, 'UI 2'], [6, 'UI 3']]}, {name: 'Digital outputs', s: [[18, 'COM'], [17, 'DO 1'], [16, 'DO 2'], [15, 'DO 3']]}, {name: 'Analog output', s: [[13, 'AO 1'], [12, 'AO 1 mA'], [11, 'RET']]}],
+    MPV9A: [{name: 'Universal inputs', s: u('UI', 1, 4, 3)}, {name: 'Digital outputs', s: [[18, 'COM'], [17, 'DO 1'], [16, 'DO 2'], [15, 'DO 3']]}, {name: 'Analog outputs', s: [[13, 'AO 1'], [12, 'AO 1 mA'], [11, 'RET'], [10, 'AO 2'], [9, 'AO 2 mA']]}]
+  };
+  const modelKey = m => (String(m || '').toUpperCase().replace(/[^A-Z0-9]/g, '').match(/^(MPC|MPV|RPC)\d+[A-Z]/) || [''])[0];
+  const COND = ['#1d1d1d', '#d23a2e', '#e8e8e8', '#2e8a57'], COND_N = ['Black', 'Red', 'White', 'Green'];
+  // team practice on 24 VAC: red is hot (X1), black is common (X2). Colours are picked from where the preset lands each conductor
+  function pickCols(ends){
+    const col = ends.map(() => -1), used = new Set(), give = (k, c) => { if (col[k] < 0 && !used.has(c)){ col[k] = c; used.add(c); } };
+    ends.forEach((e, k) => { if (e === 'x1' || e === 'x3') give(k, 1); if (e === 'x2') give(k, 0); });
+    ends.forEach((e, k) => { if (e === 'r') give(k, 0); });
+    ends.forEach((e, k) => { if (e === 't') give(k, 1); });
+    ends.forEach((e, k) => { for (const c of [0, 1, 2, 3]) give(k, c); });
+    return col;
+  }
+  const cIx = (w, k) => (w.col && w.col[k] >= 0) ? w.col[k] : k;
+  // device presets by point type: terminal labels, and where each conductor lands by default (t = this point's terminal, r = its RET/COM)
+  const DEVS = {
+    ai: [['2-wire sensor (thermistor, contact)', ['+', '−'], ['t', 'r']], ['Transmitter, 3 wire (non-isolated)', ['G 24V', 'G0/M COM', 'Y OUT'], ['x1', 'r', 't']], ['Transmitter, 4 wire (isolated)', ['G 24V', 'G0 COM', 'Y OUT', 'M SIG COM'], ['x1', 'x2', 't', 'r']]],
+    di: [['Dry contact (status, switch)', ['C', 'NO'], ['t', 'r']], ['Powered status (current switch)', ['24V', 'COM', 'C', 'NO'], ['x1', 'x2', 't', 'r']], ['Low limit / freezestat: N/O status + N/C hot to X1S', ['NC C', 'NC', 'NO C', 'NO'], ['x1', 'x3', 't', 'r']]],
+    ao: [['Actuator / valve, 3 wire (non-isolated)', ['1 COM', '2 24V', '3 Y'], ['x2', 'x1', 't']], ['Actuator, 4 wire (isolated)', ['G 24V', 'G0 COM', 'X Y', 'M SIG COM'], ['x1', 'x2', 't', 'r']], ['Actuator with feedback', ['1 COM', '2 24V', '3 Y', '5 U'], ['x2', 'x1', 't', '']], ['Signal only (2 wire)', ['Y', 'COM'], ['t', 'r']]],
+    // a DO landed on a universal Ub/Uc switches the coil's common side (team practice); a relay DO switches hot through its COM
+    udo: [['24 VAC pilot relay coil, Ub switches common', ['A1', 'A2'], ['x1', 't']], ['Signal only (2 wire)', ['+', '−'], ['t', 'r']]],
+    do: [['24 VAC relay or contactor coil', ['A1', 'A2'], ['t', 'x2']], ['Dry contact into equipment', ['C', 'NO'], ['t', 'r']]]
+  };
+  const devList = p => DEVS[p.io === 'do' && /^U/.test(p.term || '') ? 'udo' : p.io] || DEVS.ai;
+  let wi = -1, drag = null;
+  const wPt = () => S.pts[wi];
+  function strip(p){
+    const known = (STRIPS[modelKey(S.model)] || []).find(g => g.s.some(([, l]) => l === p.term));
+    if (known){
+      // long strips (an MP-C-36A has 30 Ub screws) show a window of 12 around the point
+      let s2 = known.s; const i = s2.findIndex(([, l]) => l === p.term);
+      if (s2.length > 12){ const a = Math.max(0, Math.min(s2.length - 12, i - 5)); s2 = s2.slice(a, a + 12); }
+      return {name: known.name, s: s2.map(([n, l]) => ({id: 'c' + n, pin: String(n), label: l}))};
+    }
+    const out = p.io === 'do';
+    return {name: 'Controller terminals', s: [{id: 'ct', pin: '', label: p.term || 'Terminal'}, {id: 'cr', pin: '', label: out ? 'COM' : 'RET'}]};
+  }
+  function ownIds(p, st){
+    const i = st.s.findIndex(x => x.label === p.term), t = st.s[i] ? st.s[i].id : 'ct';
+    let r = 'cr';
+    const own = st.s.find(x => x.label === p.term + ' C');
+    if (own) r = own.id;
+    else if (i >= 0){ let best = 99; st.s.forEach((x, k) => { if (/^(RET|COM)/.test(x.label) && Math.abs(k - i) < best){ best = Math.abs(k - i); r = x.id; } }); }
+    return {t, r};
+  }
+  function wDefault(p, k){
+    const list = devList(p), d = list[k] || list[0], st = strip(p), own = ownIds(p, st);
+    const w = {dev: k, cab: d[1].length, col: pickCols(d[2]), labels: d[1].slice(), ends: d[2].map(e => e === 't' ? own.t : e === 'r' ? own.r : e), jump: p.io === 'do' && k === 0 && !/^U/.test(p.term || '') ? [[own.r, 'x1']] : [], x1: [40, 250], x2: [190, 250], x3: [340, 250]};
+    if (d[2].includes('x3')){ w.lt = true; return w; }
+    return ltSet(w, ltGuess(p));
+  }
+  // low limit (team practice): outputs a trip must kill take their 24 VAC hot from X1S, fed from X1 through the low limit, so the controller stays on.
+  // first guess: fans, cooling and CHW; HW valves and pumps stay on X1 because they must keep working on a trip
+  const ltGuess = p => (p.io === 'do' || p.io === 'ao') && /fan|clg|cool|chw|dx|comp/i.test(p.name + ' ' + p.descr) && !/hw|ht|heat|pmp|pump/i.test(p.name);
+  // a DI named like a low limit or freezestat opens on its own preset
+  const defDev = p => p.io === 'di' && /lmt|low ?lim|frz|freez|lowtmp|lt ?sw/i.test(p.name + ' ' + p.descr) ? 2 : 0;
+  function ltSet(w, on){ const a = on ? 'x1' : 'x3', b = on ? 'x3' : 'x1'; w.lt = !!on; w.x3 = w.x3 || [340, 250];
+    w.ends = w.ends.map(e => e === a ? b : e); w.jump = w.jump.map(j => j.map(e => e === a ? b : e)); return w; }
+  // geometry: controller strip across the top, device on the right, X1/X2 blocks free
+  const WG = {W: 780, H: 470, sx: 30, sy: 70, sw: 48, dx: 540, dy: 250, dw: 210};
+  function targets(p){
+    const st = strip(p), w = p.w, T = {};
+    st.s.forEach((x, k) => { T[x.id] = [WG.sx + k * WG.sw + WG.sw / 2, WG.sy + 46]; });
+    T.x1 = [w.x1[0] + 70, w.x1[1]]; T.x2 = [w.x2[0] + 70, w.x2[1]]; if (w.lt){ w.x3 = w.x3 || [340, 250]; T.x3 = [w.x3[0] + 70, w.x3[1]]; }
+    return {st, T};
+  }
+  function wSvg(P, forSave){
+    const p = wPt(), w = p.w, {st, T} = targets(p), o = [], n = w.cab;
+    const devTerm = k => [WG.dx + 20 + k * ((WG.dw - 40) / Math.max(1, n - 1 || 1)), WG.dy];
+    o.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WG.W} ${WG.H}" width="${WG.W}" height="${WG.H}" font-family="IBM Plex Sans, system-ui, sans-serif" id="wSvg">`);
+    o.push(`<rect width="${WG.W}" height="${WG.H}" fill="${P.bg}"/>`);
+    o.push(`<text x="20" y="30" font-family="Barlow Condensed, Arial Narrow, sans-serif" font-weight="700" font-size="24" fill="${P.ink}">${esc([S.unit, p.term, p.name].filter(Boolean).join('  ·  '))}</text>`);
+    o.push(`<text x="20" y="50" font-family="IBM Plex Mono, monospace" font-size="12" fill="${P.muted}">${esc([S.model, n + ' conductor cable', devList(p)[w.dev] ? devList(p)[w.dev][0] : ''].filter(Boolean).join('   '))}</text>`);
+    // controller strip
+    const sw = st.s.length * WG.sw;
+    o.push(`<rect x="${WG.sx - 8}" y="${WG.sy - 8}" width="${sw + 16}" height="74" rx="8" fill="${P.body}"/>`);
+    o.push(`<text x="${WG.sx}" y="${WG.sy + 6}" font-size="10" font-weight="600" letter-spacing="1.1" fill="${P.bodyDim}">${esc(st.name.toUpperCase())}</text>`);
+    st.s.forEach((x, k) => {
+      // RET screws are a common tied to earth ground, not points: drawn dashed so nobody reads them as an input
+      const cx = WG.sx + k * WG.sw, own = x.label === p.term, gnd = /^RET/.test(x.label), col = own ? (P[p.io] || P.accent) : P.bodyDim;
+      o.push(`<rect x="${cx + 4}" y="${WG.sy + 14}" width="${WG.sw - 8}" height="22" rx="3" fill="${gnd ? 'none' : P.pill}" stroke="${col}" stroke-width="${own ? 2 : 1}"${gnd ? ' stroke-dasharray="3 2"' : ''}/>`);
+      o.push(`<text x="${cx + WG.sw / 2}" y="${WG.sy + 29}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="600" fill="${own ? '#fff' : P.bodyInk}">${esc(x.label.replace(' ', ''))}</text>`);
+      o.push(`<circle cx="${cx + WG.sw / 2}" cy="${WG.sy + 46}" r="6" fill="#c9d1d7" stroke="#59656e"/><line x1="${cx + WG.sw / 2 - 4}" y1="${WG.sy + 46}" x2="${cx + WG.sw / 2 + 4}" y2="${WG.sy + 46}" stroke="#59656e" stroke-width="1.5"/>`);
+      if (x.pin) o.push(`<text x="${cx + WG.sw / 2}" y="${WG.sy + 63}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="${P.bodyDim}">${x.pin}</text>`);
+    });
+    // X1 / X2 blocks
+    if (w.lt && p.io !== 'di'){ // X1 -> low limit contact -> X1S (on the low limit's own page the device itself is the contact)
+      w.x3 = w.x3 || [340, 250];
+      const ax = w.x1[0] + 45, ay = w.x1[1] + 22, bx = w.x3[0] + 45, by = w.x3[1] + 22, my = Math.max(ay, by) + 34, mx = (ax + bx) / 2;
+      o.push(`<path d="M${ax} ${ay} V${my} H${mx - 16}" fill="none" stroke="${P.pwr}" stroke-width="2"/><path d="M${mx + 16} ${my} H${bx} V${by}" fill="none" stroke="${P.pwr}" stroke-width="2"/>`);
+      o.push(`<circle cx="${mx - 16}" cy="${my}" r="2.5" fill="${P.pwr}"/><circle cx="${mx + 16}" cy="${my}" r="2.5" fill="${P.pwr}"/><line x1="${mx - 16}" y1="${my}" x2="${mx + 14}" y2="${my - 8}" stroke="${P.pwr}" stroke-width="2"/>`);
+      o.push(`<text x="${mx}" y="${my + 16}" text-anchor="middle" font-size="9.5" font-weight="600" fill="${P.ink}">LOW LIMIT N/C (opens on trip)</text>`);
+    }
+    [['x1', 'X1', '24 VAC HOT', P.pwr], ['x2', 'X2', '24 VAC COM', P.muted]].concat(w.lt ? [['x3', 'X1S', p.io === 'di' ? 'TRIP LOADS OUT' : 'VIA LOW LIMIT', P.pwr]] : []).forEach(([id, a, b, c]) => {
+      const [x, y] = w[id];
+      o.push(`<g class="wblk" data-blk="${id}" style="cursor:move"><rect x="${x}" y="${y - 22}" width="90" height="44" rx="6" fill="${P.panel}" stroke="${c}" stroke-width="2"/>`);
+      o.push(`<text x="${x + 10}" y="${y - 4}" font-family="IBM Plex Mono, monospace" font-weight="700" font-size="14" fill="${c}">${a}</text><text x="${x + 10}" y="${y + 12}" font-size="9.5" fill="${P.muted}">${b}</text>`);
+      o.push(`<circle cx="${x + 70}" cy="${y}" r="7" fill="#c9d1d7" stroke="#59656e"/></g>`);
+      T[id] = [x + 70, y];
+    });
+    // device
+    o.push(`<rect x="${WG.dx}" y="${WG.dy - 12}" width="${WG.dw}" height="120" rx="8" fill="${P.panel}" stroke="${P[p.io] || P.line}" stroke-width="1.5"/>`);
+    o.push(`<text x="${WG.dx + WG.dw / 2}" y="${WG.dy + 62}" text-anchor="middle" font-size="14" font-weight="600" fill="${P.ink}">${esc(fit(p.dev || p.name || 'Field device', WG.dw - 16, 14))}</text>`);
+    o.push(`<text x="${WG.dx + WG.dw / 2}" y="${WG.dy + 80}" text-anchor="middle" font-size="11" fill="${P.muted}">${esc(fit(p.descr || '', WG.dw - 16, 11))}</text>`);
+    // jumpers, then conductors (drawn last so they sit on top)
+    const wire = (a, b, col, k, dash) => { const up = b[1] < a[1] - 20, c1 = a[1] + (up ? -90 : 60), c2 = b[1] + (up ? 90 : 60); return `<path d="M${a[0]} ${a[1]} C${a[0]} ${c1}, ${b[0]} ${c2}, ${b[0]} ${b[1]}" fill="none" stroke="${col === '#e8e8e8' ? '#9aa5ae' : col}" stroke-width="${col === '#e8e8e8' ? 5 : 3.5}"${dash ? ' stroke-dasharray="6 4"' : ''}/>` + (col === '#e8e8e8' ? `<path d="M${a[0]} ${a[1]} C${a[0]} ${c1}, ${b[0]} ${c2}, ${b[0]} ${b[1]}" fill="none" stroke="#f4f4f4" stroke-width="3"/>` : ''); };
+    w.jump.forEach((j, k) => { const jf = (w.jfree || [])[k] || [], a = T[j[0]] || jf[0] || [300, 200], b = T[j[1]] || jf[1] || [340, 200]; o.push(wire(a, b, '#c4700a', k, true));
+      [a, b].forEach((pt, e) => o.push(`<circle class="wend" data-j="${k},${e}" cx="${pt[0]}" cy="${pt[1]}" r="${forSave ? 4 : 7}" fill="#c4700a" stroke="${P.ink}" stroke-width="1" style="cursor:grab"/>`)); });
+    for (let k = 0; k < n; k++){
+      const a = devTerm(k), col = COND[cIx(w, k)], end = T[w.ends[k]] || (w.free && w.free[k]) || [a[0], a[1] - 70];
+      o.push(`<circle cx="${a[0]}" cy="${a[1]}" r="6" fill="#c9d1d7" stroke="#59656e"/>`);
+      o.push(`<text x="${a[0]}" y="${a[1] + 24}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" font-weight="600" fill="${P.ink}">${esc(w.labels[k] || '')}</text>`);
+      o.push(wire(a, end, col, k));
+      o.push(`<circle class="wend" data-k="${k}" cx="${end[0]}" cy="${end[1]}" r="${forSave ? 5 : 9}" fill="${col === '#e8e8e8' ? '#f4f4f4' : col}" stroke="${P.ink}" stroke-width="1.5" style="cursor:grab"/>`);
+    }
+    // legend: conductor colours and where each lands
+    const where = id => { const s = st.s.find(x => x.id === id); return s ? `${s.label}${s.pin ? ' (' + s.pin + ')' : ''}` : id === 'x1' ? 'X1 24V hot' : id === 'x3' ? 'X1S 24V hot via low limit' : id === 'x2' ? 'X2 24V com' : 'not landed'; };
+    let ly = WG.H - 105, lx = 30; const lg0 = o.length;
+    o.push(`<text x="${lx}" y="${ly - 14}" font-size="10" font-weight="600" letter-spacing="1.1" fill="${P.muted}">CONDUCTORS</text>`);
+    for (let k = 0; k < n; k++){ o.push(`<rect x="${lx}" y="${ly - 9}" width="14" height="10" rx="2" fill="${COND[cIx(w, k)]}" stroke="${P.line}"/><text x="${lx + 20}" y="${ly}" font-size="11.5" fill="${P.ink}">${COND_N[cIx(w, k)]}: ${esc(w.labels[k] || '?')} → ${esc(where(w.ends[k]))}</text>`); ly += 17; }
+    w.jump.forEach(j => { o.push(`<line x1="${lx}" y1="${ly - 4}" x2="${lx + 14}" y2="${ly - 4}" stroke="#c4700a" stroke-width="3" stroke-dasharray="4 3"/><text x="${lx + 20}" y="${ly}" font-size="11.5" fill="${P.ink}">Jumper: ${esc(where(j[0]))} → ${esc(where(j[1]))}</text>`); ly += 17; });
+    // team practice: X2 (24 VAC common) always ties to the controller's 24 V N (terminal 2) and to the controller's ground
+    o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" font-weight="600" fill="${P.ink}">X2 COM also ties to the controller's 24V N (terminal 2) and ground.</text>`); ly += 17;
+    // MP-V: every RET is internally tied to earth ground and terminal 2 (Hardware Reference Guide 11.8/11.9)
+    if (/^MPV/.test(modelKey(S.model)) && st.s.some(x => /^RET/.test(x.label))) { o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" fill="${P.ink}">RET (dashed) is a common tied to earth ground and terminal 2, not an input.</text>`); ly += 17; }
+    // team practice: a DO switches 24 VAC hot through the relay's COM screw, never the 24 VAC common
+    if (p.io === 'do' && !/^U/.test(p.term || '') && (w.jump.some(j => j.includes('x1') || j.includes('x3')) || w.ends.includes('x1') || w.ends.includes('x3'))) { o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" font-weight="600" fill="#b3261e">Relay COM switches 24 VAC HOT (${w.lt ? 'X1S' : 'X1'}), not 24 VAC common.</text>`); ly += 17; }
+    if (p.io === 'di' && w.dev === 2){ o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" fill="${P.ink}">N/O closes on a trip (DI On = tripped). N/C opens on a trip: X1 in, X1S out to the trip loads.</text>`); ly += 17; }
+    if (w.lt && p.io !== 'di'){ o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" fill="${P.ink}">X1S is fed from X1 through the low limit: a trip kills this output, the controller stays powered.</text>`); ly += 17; }
+    // a long legend slides up so it never runs into the footer line
+    const over = ly - (WG.H - 26); if (over > 0){ o.splice(lg0, 0, `<g transform="translate(0 ${-over})">`); o.push('</g>'); }
+    o.push(`<text x="${WG.W - 16}" y="${WG.H - 10}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="${P.muted}">Check against the device's own wiring diagram before landing wires.</text>`);
+    o.push('</svg>');
+    return o.join('');
+  }
+  function wRender(){
+    const p = wPt(); if (!p) { $('wirePanel').hidden = true; return; }
+    const list = devList(p);
+    $('wTitle').textContent = `Wiring · ${p.term}${p.name ? ' ' + p.name : ''}`;
+    $('wDev').innerHTML = list.map((d, k) => `<option value="${k}"${k === p.w.dev ? ' selected' : ''}>${esc(d[0])}</option>`).join('');
+    $('wCab').value = String(p.w.cab); $('wLt').checked = !!p.w.lt; $('wLt').disabled = p.io === 'di';
+    $('wLabels').innerHTML = p.w.labels.slice(0, p.w.cab).map((l, k) => `<label class="field"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;background:${COND[cIx(p.w, k)]};border:1px solid var(--line)"></i>${COND_N[cIx(p.w, k)]}</span><input data-k="${k}" value="${esc(l)}"></label>`).join('');
+    $('wCan').innerHTML = wSvg(palette(true), false);
+  }
+  function wOpen(i){
+    const p = S.pts[i]; if (!p || !p.term || !p.name || !/^(ai|di|ao|do)$/.test(p.io)) { if (p && !p.name) toast('Name the point first, then tap it to plan its wiring.'); return; }
+    wi = i; if (!p.w) p.w = wDefault(p, defDev(p));
+    $('wirePanel').hidden = false; wRender(); $('wirePanel').scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
+  $('diag').addEventListener('click', e => { const g = e.target.closest('[data-i]'); if (g) wOpen(+g.dataset.i); });
+  $('wDev').onchange = () => { const p = wPt(); const lt = !!p.w.lt, nw = {...wDefault(p, +$('wDev').value), x1: p.w.x1, x2: p.w.x2, x3: p.w.x3}; p.w = p.io === 'di' ? nw : ltSet(nw, lt); save(); wRender(); };
+  $('wCab').onchange = () => { const p = wPt(), c = +$('wCab').value; while (p.w.labels.length < c) p.w.labels.push(''); while (p.w.ends.length < c) p.w.ends.push(''); p.w.cab = c; save(); wRender(); };
+  $('wLabels').addEventListener('input', e => { const k = e.target.dataset.k; if (k == null) return; wPt().w.labels[+k] = e.target.value; save(); $('wCan').innerHTML = wSvg(palette(true), false); });
+  $('wLt').onchange = () => { const p = wPt(); ltSet(p.w, $('wLt').checked); save(); wRender(); };
+  $('wReset').onclick = () => { const p = wPt(); p.w = wDefault(p, p.w.dev); save(); wRender(); };
+  $('wJump').onclick = () => { const p = wPt(), {st} = targets(p), own = ownIds(p, st); p.w.jump.push([own.r, 'x2']); save(); wRender(); toast('Jumper added from the RET/COM to X2. Drag either orange end to move it; Reset clears jumpers.'); };
+  $('wClose').onclick = () => { $('wirePanel').hidden = true; wi = -1; };
+  $('wPng').onclick = async () => { try { const b = await svgPng(wSvg(palette(true), true)); saveBlob(b, `${base()} ${wPt().term} wiring.png`, 'image/png', 'png'); } catch(e){ toast("The picture couldn't be made in this browser.", true); } };
+  // drag conductor ends and the X1/X2 blocks (pointer events, so it works with a finger too)
+  const svgPt = e => { const s = $('wSvg'), r = s.getBoundingClientRect(); return [(e.clientX - r.left) * WG.W / r.width, (e.clientY - r.top) * WG.H / r.height]; };
+  $('wCan').addEventListener('pointerdown', e => {
+    const end = e.target.closest('.wend'), blk = e.target.closest('.wblk'); if (!end && !blk) return;
+    e.preventDefault(); const [x, y] = svgPt(e), w = wPt().w;
+    drag = end ? (end.dataset.j ? {j: end.dataset.j.split(',').map(Number)} : {k: +end.dataset.k}) : {blk: blk.dataset.blk, dx: x - w[blk.dataset.blk][0], dy: y - w[blk.dataset.blk][1]};
+    $('wCan').setPointerCapture(e.pointerId);
+  });
+  $('wCan').addEventListener('pointermove', e => {
+    if (!drag) return; const [x, y] = svgPt(e), w = wPt().w;
+    if (drag.blk){ w[drag.blk] = [Math.max(0, Math.min(WG.W - 90, x - drag.dx)), Math.max(140, Math.min(WG.H - 150, y - drag.dy))]; }
+    else if (drag.j){ const [k, e2] = drag.j; w.jump[k][e2] = ''; w.jfree = w.jfree || []; (w.jfree[k] = w.jfree[k] || [])[e2] = [x, y]; }
+    else { w.ends[drag.k] = ''; (w.free = w.free || [])[drag.k] = [x, y]; }
+    $('wCan').innerHTML = wSvg(palette(true), false);
+  });
+  $('wCan').addEventListener('pointerup', e => {
+    if (!drag) return; const w = wPt().w;
+    if (!drag.blk){ const [x, y] = svgPt(e), {T} = targets(wPt());
+      let best = '', bd = 26; Object.entries(T).forEach(([id, [tx, ty]]) => { const d = Math.hypot(tx - x, ty - y); if (d < bd){ bd = d; best = id; } });
+      if (drag.j) w.jump[drag.j[0]][drag.j[1]] = best; else w.ends[drag.k] = best; }
+    drag = null; save(); wRender();
+  });
   let XML = [];
   function loadCtl(i){
     const c = XML[i]; if (!c) return;
@@ -937,6 +1166,7 @@ List entries in terminal order.`;
         b.rows.forEach(p => {
           const cy = y + RH / 2, spare = !p.name, col = spare ? P.spare : (P[p.io] || P.spare);
           const px = right ? edge - PW + 6 : edge - 6;
+          o.push(`<g data-i="${S.pts.indexOf(p)}"${p.name ? ' style="cursor:pointer"' : ''}>`);
           o.push(`<rect x="${px}" y="${cy - 13}" width="${PW}" height="26" rx="5" fill="${P.pill}" stroke="${col}" stroke-width="1.5"/>`);
           o.push(`<text x="${px + PW / 2}" y="${cy + 1}" text-anchor="middle" dominant-baseline="middle" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600" fill="#e9f0f4">${esc(fit(p.term || p.pt || '?', PW - 8, 12))}</text>`);
           if (p.pins) o.push(`<text x="${right ? px - 6 : px + PW + 6}" y="${cy + 4}" text-anchor="${right ? 'end' : 'start'}" font-family="IBM Plex Mono, monospace" font-size="10" fill="${P.bodyDim}">${esc(p.pins)}</text>`);
@@ -958,7 +1188,7 @@ List entries in terminal order.`;
             const tag = (S.inet && p.it) || {ai: 'AI', ao: 'AO', di: 'DI', do: 'DO', bus: 'BUS', pwr: 'PWR', comm: 'NET'}[p.io] || '';
             if (tag) { o.push(`<rect x="${bx}" y="${cy - 15}" width="${badgeW}" height="15" rx="3" fill="${col}"/>`); o.push(`<text x="${bx + badgeW / 2}" y="${cy - 4}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" font-weight="600" fill="${P.panel}">${tag}</text>`); }
           }
-          y += RH;
+          o.push('</g>'); y += RH;
         });
       });
     });
@@ -995,6 +1225,18 @@ List entries in terminal order.`;
     });
     return rows.concat(left);
   }
+  // draft from scratch: the model's terminals (MODEL_IO) as spares; DOs and AOs typed, universal points left for the user to set
+  const niceModel = k => k.replace(/^(MP|RP)([CV])(\d+[A-Z])$/, '$1-$2-$3');
+  $('newModel').innerHTML = Object.keys(MODEL_IO).sort().map(k => `<option value="${k}">${niceModel(k)}</option>`).join('');
+  $('newFill').onclick = () => {
+    const k = $('newModel').value, io = MODEL_IO[k], pts = [];
+    if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts, inet: S.inet}); $('undoRead').hidden = false; }
+    for (let i = 0; i < io.length; i += 2) for (let n = 1; n <= io[i + 1]; n++) pts.push({...blank(), term: `${io[i]} ${n}`, io: io[i] === 'DO' ? 'do' : io[i] === 'AO' ? 'ao' : ''});
+    if (!/^MPV/.test(k)) pts.push({...blank(), term: 'Sensor bus', io: 'bus'});
+    S.pts = pts; S.inet = null; S.model = niceModel(k); S.maker = 'Schneider Electric'; S.unit = S.unit || '';
+    save(); renderAll(); $('uName').focus();
+    toast(`${pts.length} terminals listed for a new ${S.model}. Name the unit and the points.`);
+  };
   $('inFill').onclick = () => {
     const board = $('inBoard').value, card = board === '7716' ? $('inCard').value : 'none';
     if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts, inet: S.inet}); $('undoRead').hidden = false; }
@@ -1066,6 +1308,47 @@ List entries in terminal order.`;
     e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, csz, true); e.setUint32(16, off, true);
     return new Blob([...parts, ...cen, new Uint8Array(e.buffer)], {type: 'application/zip'});
   }
+  // wiring packet: page 1 = the I/O diagram, then one page per named AI/DI/AO/DO with its wiring (saved design, or the default for that point)
+  const svgJpg = svg => new Promise((res, rej) => { const m = svg.match(/width="(\d+)" height="(\d+)"/), w = +m[1], h = +m[2], k = 2, im = new Image();
+    im.onload = () => { const c = document.createElement('canvas'); c.width = w * k; c.height = h * k; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.scale(k, k); g.drawImage(im, 0, 0);
+      c.toBlob(async b => b ? res({w: c.width, h: c.height, data: new Uint8Array(await b.arrayBuffer())}) : rej(), 'image/jpeg', 0.9); };
+    im.onerror = rej; im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
+  function pdfOf(imgs){
+    // minimal PDF: one JPEG per page, letter size, turned to suit the picture, fitted inside half-inch margins
+    const enc = new TextEncoder(), parts = [], offs = []; let len = 0;
+    const put = x => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
+    const obj = (n, body) => { offs[n] = len; put(`${n} 0 obj\n`); body(); put('\nendobj\n'); };
+    put('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+    const kids = imgs.map((_, i) => `${3 + i * 3} 0 R`).join(' ');
+    obj(1, () => put('<< /Type /Catalog /Pages 2 0 R >>'));
+    obj(2, () => put(`<< /Type /Pages /Kids [${kids}] /Count ${imgs.length} >>`));
+    imgs.forEach((im, i) => {
+      const n = 3 + i * 3, land = im.w >= im.h, W = land ? 792 : 612, H = land ? 612 : 792, k = Math.min((W - 72) / im.w, (H - 72) / im.h), dw = im.w * k, dh = im.h * k, x = (W - dw) / 2, y = H - 36 - dh;
+      const cs = `q ${dw.toFixed(2)} 0 0 ${dh.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm /Im0 Do Q`;
+      obj(n, () => put(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 ${n + 2} 0 R >> >> /Contents ${n + 1} 0 R >>`));
+      obj(n + 1, () => put(`<< /Length ${cs.length} >>\nstream\n${cs}\nendstream`));
+      obj(n + 2, () => { put(`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>\nstream\n`); put(im.data); put('\nendstream'); });
+    });
+    const xref = len, count = 3 + imgs.length * 3;
+    put(`xref\n0 ${count}\n0000000000 65535 f \n` + Array.from({length: count - 1}, (_, i) => String(offs[i + 1]).padStart(10, '0') + ' 00000 n \n').join(''));
+    put(`trailer\n<< /Size ${count} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+    return new Blob(parts, {type: 'application/pdf'});
+  }
+  $('savePack').onclick = async () => {
+    if (!needPts()) return;
+    const P = palette(true), imgs = [], keep = wi;
+    try {
+      imgs.push(await svgJpg(drawSvg(P, false)));
+      const list = S.pts.map((p, i) => [p, i]).filter(([p]) => p.term && p.name && /^(ai|di|ao|do)$/.test(p.io));
+      for (const [p, i] of list){
+        const had = !!p.w; if (!had) p.w = wDefault(p, defDev(p));
+        wi = i; const svg = wSvg(P, true); if (!had) delete p.w;
+        imgs.push(await svgJpg(svg));
+      }
+      wi = keep;
+      await saveBlob(pdfOf(imgs), `${base()} wiring packet.pdf`, 'application/pdf', 'pdf');
+    } catch(e){ wi = keep; toast("The packet couldn't be made in this browser.", true); }
+  };
   $('xmlPics').onclick = async () => {
     if (!XML.length) return;
     const keep = {unit: S.unit, model: S.model, maker: S.maker, pts: S.pts, inet: S.inet}, files = [], seen = {};

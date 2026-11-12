@@ -25,7 +25,7 @@ Open it at **Field tools → Point List Generator**, or `point-list/` on the sit
 ## Or start from a Niagara .bog
 - In Workbench, export the MP or RP controller (or the folder of controllers under the BACnet network) as a .bog, and open it with **Open EBO, Niagara or I/NET file**.
 - It reads controllers under the **Schneider MPX driver**. Each one keeps its copy of the EBO application in Niagara, and the IO points there say which terminal they're on (Ub 1, DO 2), so they land on the right terminal with the same names, types, output range, reverse acting and reverse polarity notes as an EBO export. Room sensors on the sensor bus are listed with their address and what they sense.
-- Spare terminals are filled in for the RP-C-12A, RP-C-16B, MP-C-15A/18A/18B/36A and MP-V-7A/9A. For another model only the terminals in use are listed (the page says so); add the spares with **Add a terminal**.
+- Spare terminals are filled in for the RP-C-12A/12B/12C/16B, MP-C-15A/18A/18B/24A/36A and MP-V-7A/9A. For another model only the terminals in use are listed (the page says so); add the spares with **Add a terminal**.
 - Other BACnet devices in Niagara don't record a terminal, so they aren't read.
 
 ## Or start from a TAC I/NET board
@@ -42,6 +42,9 @@ For I/NET sites (7716 and 7756 PCUs). The layout follows Joe's I/NET primer and 
 - I/NET saves: the **point list CSV** is in Joe's order: ADDRESS, I/NET NAME, TYPE, then unit, board, IN/OUT, terminal, wire #, device, description and notes, sorted by board, then inputs, then outputs. Addresses are written so Excel keeps the leading zeros. Print shows the same columns.
 - **EBO backup (.xbk) of an I/NET site:** **Open EBO, Niagara or I/NET file** also takes the AS backup file. The page unpacks it and reads the I/NET DCUs straight from its database (nothing is uploaded), with a **Controller in this file** picker and **Save every controller (CSV)** like a server export. Checked on a real I/NET site backup: all 50 Ext points on a 7756 and a 7716 with a UI/AO card landed on their terminals. Backups are read for I/NET DCUs only; for MP/RP controllers use a WorkStation export.
 
+## Or draft a new controller
+For a drawing before install (for the electrician). Under **Or draft a new controller**, pick the **Model** (RP-C-12A/12B/12C/16B, MP-C-15A/18A/18B/24A/36A, MP-V-7A/9A) and tap **List the terminals**. Every terminal is listed as a spare (DOs and AOs already typed; RP-C and MP-C get a Sensor bus row). Name the unit and the points, set each Ub/Uc/UI to AI, DI, AO or DO, then plan the wiring below.
+
 ## 3. Check the table
 - One row per terminal: **Terminal** (as printed on the controller: Ub 1, UI 3, DO 1, COM A), **Wire #** (the screw terminal numbers, signal/return like 19/20), **Type** (AI, AO, DI, DO, Sensor bus, Network, Power), **Device** (field tag like TS1, VA1), **Point name**, **Description**, **Signal / notes**.
 - Rows Claude wasn't sure about are amber with a **Check** button. Look at the picture (tap it to enlarge), fix the row, then tap **Check** to clear it.
@@ -56,9 +59,23 @@ For I/NET sites (7716 and 7756 PCUs). The layout follows Joe's I/NET primer and 
 - Colors: AI blue, DI purple, AO green, DO amber, sensor bus and network slate, power red.
 - On a phone the diagram switches to one column.
 
+## Wiring designer
+Tap a named AI, DI, AO or DO in the diagram to plan its field wiring. The controller's real screw strip is drawn (from Schneider's installation sheets: screw numbers, RET and COM screws; long strips show the 12 screws around the point).
+- Pick the **Field device** and the **Cable** (2, 3 or 4 conductor). Each preset lands the conductors the usual way; drag any round end onto another screw or onto **X1** (24 VAC hot) or **X2** (24 VAC common), and drag the X1/X2 blocks wherever suits the drawing. Type the device's own terminal names in the boxes above the drawing. **Add jumper** adds an orange jumper with two draggable ends; **Reset** goes back to the preset.
+- Team rules built in:
+  - Sensors and dry contacts land on the point and its RET. Transmitters and actuators follow the Hardware Reference Guide: 3 wire (non-isolated) or 4 wire (isolated: G to X1, G0 to X2, Y to the point, M to RET).
+  - A relay DO switches **hot**: the relay's COM is jumpered to X1, the coil's other side goes to X2 (the picture says so in red, since it often confuses people). A DO on a universal Ub switches **common**: coil A1 on X1, A2 on the Ub.
+  - X2 always also ties to the controller's 24V N (terminal 2) and ground.
+  - Wire colors: **red is hot, black is common**; white and green take the rest.
+  - On an MP-V, RET is a common tied to earth ground and terminal 2, not an input. RET screws are drawn dashed on every model.
+- **Low limit:** low temp kills the outputs, not the controller. A DI named like a low limit or freezestat opens the 4 conductor preset: the N/O set is the status input (On = tripped) and the N/C set takes X1 hot in and gives **X1S** out. On an output, **Hot through low limit (X1S)** moves its hot from X1 to X1S, drawn as X1 through the low limit's N/C contact. It starts ticked on fans, cooling, DX and CHW points and unticked on HW valves and pumps (they must keep working on a trip); change it per point.
+- **Save wiring picture** saves the drawing as a PNG. The design is kept with the point (and in the job file).
+- Always check against the device's own wiring diagram before landing wires.
+
 ## 5. Save
 - **Print or save PDF** (tools site only): the diagram plus the point list table on one sheet (choose "Save as PDF" in the print dialog).
 - **Save picture**: a PNG of the diagram.
+- **Save wiring packet (PDF)**: page 1 is the controller's I/O diagram, then one wiring page per named AI, DI, AO and DO (your design where you made one, otherwise the default). Letter size; works in the Claude version too.
 - **Save point list (CSV)**: `UNIT, CONTROLLER, TERMINAL, WIRE #, TYPE, DEVICE, NAME, DESCR, SIGNAL / NOTES`.
 - **Save job file** / **Open job file**: a JSON with the picture and the table, to finish on another device.
 - Clear (top right, three taps) erases the picture and table.
