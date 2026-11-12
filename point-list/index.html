@@ -215,6 +215,7 @@ footer{font-size:12px;color:var(--muted)}
     </div>
     <div class="btns">
       <button type="button" class="btn" id="addRow"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add a terminal</button>
+      <button type="button" class="btn" id="addPorts"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add network and sensor bus ports</button>
       <button type="button" class="btn" id="sortRows">Sort by terminal</button>
     </div>
     <p class="hint">Name terminals the way the controller labels them (Ub 1, DO 1, UI 3, COM A). Leave the point name empty for a spare. Typing a point name like SaTmp fills the type and description if they're empty.</p>
@@ -1150,7 +1151,7 @@ List entries in terminal order.`;
     const title = [S.unit, S.model].filter(Boolean).join('  ·  ') || 'Controller';
     o.push(`<text x="${PAD}" y="30" font-family="Barlow Condensed, Arial Narrow, sans-serif" font-weight="700" font-size="26" fill="${P.ink}">${esc(fit(title, W - 2 * PAD, 26 * 0.8))}</text>`);
     const cnt = {}; S.pts.forEach(p => { if (p.name && p.io) cnt[p.io] = (cnt[p.io] || 0) + 1; });
-    const sp = S.pts.filter(p => p.term && !p.name).length;
+    const sp = S.pts.filter(p => p.term && !p.name && p.io !== 'bus' && p.io !== 'comm').length;
     const sum = (S.inet ? ['DCU ' + addrOf({pt: 'x'}).slice(0, 4)] : []).concat(['ai', 'di', 'ao', 'do'].filter(k => cnt[k]).map(k => cnt[k] + ' ' + IO[k]), sp ? [sp + ' spare'] : []).join('   ');
     o.push(`<text x="${PAD}" y="50" font-family="IBM Plex Mono, monospace" font-size="12" fill="${P.muted}">${esc(sum)}</text>`);
     // controller body
@@ -1178,7 +1179,7 @@ List entries in terminal order.`;
           else o.push(`<line x1="${x1}" y1="${cy}" x2="${x2}" y2="${cy}" stroke="${col}" stroke-width="1.5" stroke-dasharray="3 4"/>`);
           const cx = right ? x2 : x2 - CW;
           o.push(`<rect x="${cx}" y="${cy - 20}" width="${CW}" height="40" rx="6" fill="${P.panel}" stroke="${spare ? P.line : col}" stroke-width="1"${spare ? ' stroke-dasharray="4 3"' : ''}/>`);
-          if (spare){ o.push(`<text x="${cx + 12}" y="${cy + 4}" font-size="13" font-style="italic" fill="${P.muted}">Spare</text>`); }
+          if (spare){ o.push(`<text x="${cx + 12}" y="${cy + 4}" font-size="13" font-style="italic" fill="${P.muted}">${p.io === 'bus' || p.io === 'comm' ? 'Not used' + (p.descr ? ' · ' + esc(p.descr) : '') : 'Spare'}</text>`); }
           else {
             o.push(`<rect x="${right ? cx : cx + CW - 5}" y="${cy - 20}" width="5" height="40" fill="${col}"${right ? '' : ''}/>`);
             const tx = right ? cx + 14 : cx + 10, badgeW = 34, bx = right ? cx + CW - badgeW - 8 : cx + CW - badgeW - 14;
@@ -1229,11 +1230,26 @@ List entries in terminal order.`;
   // draft from scratch: the model's terminals (MODEL_IO) as spares; DOs and AOs typed, universal points left for the user to set
   const niceModel = k => k.replace(/^(MP|RP)([CV])(\d+[A-Z])$/, '$1-$2-$3');
   $('newModel').innerHTML = Object.keys(MODEL_IO).sort().map(k => `<option value="${k}">${niceModel(k)}</option>`).join('');
+  // communication ports (Hardware Reference Guide 12.3 MP-C/MP-V, 16.9 RP-C): both families have Ethernet 1/2 (onboard switch).
+  // MP-C/MP-V have one sensor bus port; RP-C has RS-485 Com A (sensor bus by default) and Com B (room bus by default)
+  const PORTS = k => /^RPC/.test(k)
+    ? [{term: 'Ethernet 1', io: 'comm'}, {term: 'Ethernet 2', io: 'comm'}, {term: 'Com A', io: 'bus', descr: 'Sensor bus'}, {term: 'Com B', io: 'bus', descr: 'Room bus'}].map(x => ({...blank(), ...x}))
+    : [{term: 'Ethernet 1', io: 'comm'}, {term: 'Ethernet 2', io: 'comm'}, {term: 'Sensor bus', io: 'bus'}].map(x => ({...blank(), ...x}));
+  $('addPorts').onclick = () => {
+    const k = modelKey(S.model), want = PORTS(k || 'MPC'), norm = t => String(t || '').toLowerCase().replace(/rs-?485|[^a-z0-9]/g, '');
+    const have = new Set(S.pts.map(p => norm(p.term)));
+    // a row already called "Sensor bus" on an RP-C is its Com A
+    if (/^RPC/.test(k) && have.has('sensorbus')) have.add('coma');
+    const add = want.filter(x => !have.has(norm(x.term)));
+    if (!add.length){ toast('The network and sensor bus ports are already in the table.'); return; }
+    S.pts.push(...add); save(); renderAll();
+    toast(`Added ${add.map(x => x.term).join(', ')}${k ? '' : ' (controller model not recognised, so MP-C ports were used)'}. Name a port to show what's on it.`);
+  };
   $('newFill').onclick = () => {
     const k = $('newModel').value, io = MODEL_IO[k], pts = [];
     if (S.pts.some(p => p.name || p.term)){ undo = JSON.stringify({unit: S.unit, model: S.model, maker: S.maker, pts: S.pts, inet: S.inet}); $('undoRead').hidden = false; }
     for (let i = 0; i < io.length; i += 2) for (let n = 1; n <= io[i + 1]; n++) pts.push({...blank(), term: `${io[i]} ${n}`, io: io[i] === 'DO' ? 'do' : io[i] === 'AO' ? 'ao' : ''});
-    if (!/^MPV/.test(k)) pts.push({...blank(), term: 'Sensor bus', io: 'bus'});
+    pts.push(...PORTS(k));
     S.pts = pts; S.inet = null; S.model = niceModel(k); S.maker = 'Schneider Electric'; S.unit = S.unit || '';
     save(); renderAll(); $('uName').focus();
     toast(`${pts.length} terminals listed for a new ${S.model}. Name the unit and the points.`);

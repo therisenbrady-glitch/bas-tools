@@ -43,14 +43,14 @@ For I/NET sites (7716 and 7756 PCUs). The layout follows Joe's I/NET primer and 
 - **EBO backup (.xbk) of an I/NET site:** **Open EBO, Niagara or I/NET file** also takes the AS backup file. The page unpacks it and reads the I/NET DCUs straight from its database (nothing is uploaded), with a **Controller in this file** picker and **Save every controller (CSV)** like a server export. Checked on a real I/NET site backup: all 50 Ext points on a 7756 and a 7716 with a UI/AO card landed on their terminals. Backups are read for I/NET DCUs only; for MP/RP controllers use a WorkStation export.
 
 ## Or draft a new controller
-For a drawing before install (for the electrician). Under **Or draft a new controller**, pick the **Model** (RP-C-12A/12B/12C/16B, MP-C-15A/18A/18B/24A/36A, MP-V-7A/9A) and tap **List the terminals**. Every terminal is listed as a spare (DOs and AOs already typed; RP-C and MP-C get a Sensor bus row). Name the unit and the points, set each Ub/Uc/UI to AI, DI, AO or DO, then plan the wiring below.
+For a drawing before install (for the electrician). Under **Or draft a new controller**, pick the **Model** (RP-C-12A/12B/12C/16B, MP-C-15A/18A/18B/24A/36A, MP-V-7A/9A) and tap **List the terminals**. Every terminal is listed as a spare (DOs and AOs already typed). The communication ports are listed too: Ethernet 1 and Ethernet 2 on every model, plus the Sensor bus port on an MP-C or MP-V, or RS-485 Com A (sensor bus by default) and Com B (room bus by default) on an RP-C (Hardware Reference Guide 12.3 and 16.9). Name a port to show what's on it, such as the switch or the next controller in a daisy chain; an unnamed port shows as Not used and isn't counted as a spare. Name the unit and the points, set each Ub/Uc/UI to AI, DI, AO or DO, then plan the wiring below.
 
 ## 3. Check the table
 - One row per terminal: **Terminal** (as printed on the controller: Ub 1, UI 3, DO 1, COM A), **Wire #** (the screw terminal numbers, signal/return like 19/20), **Type** (AI, AO, DI, DO, Sensor bus, Network, Power), **Device** (field tag like TS1, VA1), **Point name**, **Description**, **Signal / notes**.
 - Rows Claude wasn't sure about are amber with a **Check** button. Look at the picture (tap it to enlarge), fix the row, then tap **Check** to clear it.
 - A row with no point name is a **spare**.
 - Typing a point name like `SaTmp` or `HwVlvPos` fills an empty Type and Description for you.
-- **Add a terminal** adds a row; **✕** then **Delete?** removes one; **Sort by terminal** puts them in order.
+- **Add a terminal** adds a row; **Add network and sensor bus ports** adds whichever of the model's ports aren't in the table yet (useful after reading an export or a picture); **✕** then **Delete?** removes one; **Sort by terminal** puts them in order.
 - If a read replaced a table you'd already filled, **Undo, put my old table back** restores it.
 
 ## 4. The diagram
