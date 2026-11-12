@@ -961,6 +961,8 @@ List entries in terminal order.`;
     if (p.io === 'do' && !/^U/.test(p.term || '') && (w.jump.some(j => j.includes('x1') || j.includes('x3')) || w.ends.includes('x1') || w.ends.includes('x3'))) { o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" font-weight="600" fill="#b3261e">Relay COM switches 24 VAC HOT (${w.lt ? 'X1S' : 'X1'}), not 24 VAC common.</text>`); ly += 17; }
     if (p.io === 'di' && w.dev === 2){ o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" fill="${P.ink}">N/O closes on a trip (DI On = tripped). N/C opens on a trip: X1 in, X1S out to the trip loads.</text>`); ly += 17; }
     if (w.lt && p.io !== 'di'){ o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" fill="${P.ink}">X1S is fed from X1 through the low limit: a trip kills this output, the controller stays powered.</text>`); ly += 17; }
+    // anything wired through the low limit (its own page, or an output on X1S) carries Buddy's field warning
+    if (w.lt || (p.io === 'di' && w.dev === 2)){ o.push(`<text x="${lx}" y="${ly + 6}" font-size="14" font-weight="700" letter-spacing=".5" fill="#b3261e">VERIFY TERMINALS WITH VOLTMETER</text>`); ly += 21; }
     // a long legend slides up so it never runs into the footer line
     const over = ly - (WG.H - 26); if (over > 0){ o.splice(lg0, 0, `<g transform="translate(0 ${-over})">`); o.push('</g>'); }
     o.push(`<text x="${WG.W - 16}" y="${WG.H - 10}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="${P.muted}">Check against the device's own wiring diagram before landing wires.</text>`);
