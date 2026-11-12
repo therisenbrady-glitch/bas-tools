@@ -900,14 +900,14 @@ List entries in terminal order.`;
   function targets(p){
     const st = strip(p), w = p.w, T = {};
     st.s.forEach((x, k) => { T[x.id] = [WG.sx + k * WG.sw + WG.sw / 2, WG.sy + 46]; });
-    if (!pwrLess(p, w)){ T.x1 = [w.x1[0] + 70, w.x1[1]]; T.x2 = [w.x2[0] + 70, w.x2[1]]; } if (w.lt){ w.x3 = w.x3 || [340, 250]; T.x3 = [w.x3[0] + 70, w.x3[1]]; }
+    if (!pwrLess(p, w)){ T.x1 = [w.x1[0] + 92, w.x1[1]]; T.x2 = [w.x2[0] + 92, w.x2[1]]; } if (w.lt){ w.x3 = w.x3 || [340, 250]; T.x3 = [w.x3[0] + 92, w.x3[1]]; }
     return {st, T};
   }
   function wSvg(P, forSave){
     const p = wPt(), w = p.w, {st, T} = targets(p), o = [], n = w.cab;
     const devTerm = k => [WG.dx + 20 + k * ((WG.dw - 40) / Math.max(1, n - 1 || 1)), WG.dy];
-    o.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WG.W} ${WG.H}" width="${WG.W}" height="${WG.H}" font-family="IBM Plex Sans, system-ui, sans-serif" id="wSvg">`);
-    o.push(`<rect width="${WG.W}" height="${WG.H}" fill="${P.bg}"/>`);
+    o.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WG.W} @@H@@" width="${WG.W}" height="@@H@@" font-family="IBM Plex Sans, system-ui, sans-serif" id="wSvg">`);
+    o.push(`<rect width="${WG.W}" height="@@H@@" fill="${P.bg}"/>`);
     o.push(`<text x="20" y="30" font-family="Barlow Condensed, Arial Narrow, sans-serif" font-weight="700" font-size="24" fill="${P.ink}">${esc([S.unit, p.term, p.name].filter(Boolean).join('  ·  '))}</text>`);
     o.push(`<text x="20" y="50" font-family="IBM Plex Mono, monospace" font-size="12" fill="${P.muted}">${esc([S.model, n + ' conductor cable', devList(p)[w.dev] ? devList(p)[w.dev][0] : ''].filter(Boolean).join('   '))}</text>`);
     // controller strip
@@ -922,27 +922,28 @@ List entries in terminal order.`;
       o.push(`<circle cx="${cx + WG.sw / 2}" cy="${WG.sy + 46}" r="6" fill="#c9d1d7" stroke="#59656e"/><line x1="${cx + WG.sw / 2 - 4}" y1="${WG.sy + 46}" x2="${cx + WG.sw / 2 + 4}" y2="${WG.sy + 46}" stroke="#59656e" stroke-width="1.5"/>`);
       if (x.pin) o.push(`<text x="${cx + WG.sw / 2}" y="${WG.sy + 63}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="${P.bodyDim}">${x.pin}</text>`);
     });
-    // X1 / X2 blocks
+    // X1 / X2 blocks. low = the lowest thing drawn, so the legend starts below it and never runs through the drawing
+    let low = WG.dy + 108;
     if (w.lt && p.io !== 'di'){ // X1 -> low limit contact -> X1S (on the low limit's own page the device itself is the contact)
       w.x3 = w.x3 || [340, 250];
-      const ax = w.x1[0] + 45, ay = w.x1[1] + 22, bx = w.x3[0] + 45, by = w.x3[1] + 22, my = Math.max(ay, by) + 34, mx = (ax + bx) / 2;
+      const ax = w.x1[0] + 56, ay = w.x1[1] + 22, bx = w.x3[0] + 56, by = w.x3[1] + 22, my = Math.max(ay, by) + 34, mx = (ax + bx) / 2; low = Math.max(low, my + 22);
       o.push(`<path d="M${ax} ${ay} V${my} H${mx - 16}" fill="none" stroke="${P.pwr}" stroke-width="2"/><path d="M${mx + 16} ${my} H${bx} V${by}" fill="none" stroke="${P.pwr}" stroke-width="2"/>`);
       o.push(`<circle cx="${mx - 16}" cy="${my}" r="2.5" fill="${P.pwr}"/><circle cx="${mx + 16}" cy="${my}" r="2.5" fill="${P.pwr}"/><line x1="${mx - 16}" y1="${my}" x2="${mx + 14}" y2="${my - 8}" stroke="${P.pwr}" stroke-width="2"/>`);
       o.push(`<text x="${mx}" y="${my + 16}" text-anchor="middle" font-size="9.5" font-weight="600" fill="${P.ink}">LOW LIMIT N/C (opens on trip)</text>`);
     }
     (pwrLess(p, w) ? [] : [['x1', 'X1', '24 VAC HOT', P.pwr], ['x2', 'X2', '24 VAC COM', P.muted]]).concat(w.lt ? [['x3', 'X1S', p.io === 'di' ? 'TRIP LOADS OUT' : 'VIA LOW LIMIT', P.pwr]] : []).forEach(([id, a, b, c]) => {
       const [x, y] = w[id];
-      o.push(`<g class="wblk" data-blk="${id}" style="cursor:move"><rect x="${x}" y="${y - 22}" width="90" height="44" rx="6" fill="${P.panel}" stroke="${c}" stroke-width="2"/>`);
+      o.push(`<g class="wblk" data-blk="${id}" style="cursor:move"><rect x="${x}" y="${y - 22}" width="112" height="44" rx="6" fill="${P.panel}" stroke="${c}" stroke-width="2"/>`);
       o.push(`<text x="${x + 10}" y="${y - 4}" font-family="IBM Plex Mono, monospace" font-weight="700" font-size="14" fill="${c}">${a}</text><text x="${x + 10}" y="${y + 12}" font-size="9.5" fill="${P.muted}">${b}</text>`);
-      o.push(`<circle cx="${x + 70}" cy="${y}" r="7" fill="#c9d1d7" stroke="#59656e"/></g>`);
-      T[id] = [x + 70, y];
+      o.push(`<circle cx="${x + 92}" cy="${y}" r="7" fill="#c9d1d7" stroke="#59656e"/></g>`);
+      T[id] = [x + 92, y]; low = Math.max(low, y + 22);
     });
     // device
     o.push(`<rect x="${WG.dx}" y="${WG.dy - 12}" width="${WG.dw}" height="120" rx="8" fill="${P.panel}" stroke="${P[p.io] || P.line}" stroke-width="1.5"/>`);
     o.push(`<text x="${WG.dx + WG.dw / 2}" y="${WG.dy + 62}" text-anchor="middle" font-size="14" font-weight="600" fill="${P.ink}">${esc(fit(p.dev || p.name || 'Field device', WG.dw - 16, 14))}</text>`);
     o.push(`<text x="${WG.dx + WG.dw / 2}" y="${WG.dy + 80}" text-anchor="middle" font-size="11" fill="${P.muted}">${esc(fit(p.descr || '', WG.dw - 16, 11))}</text>`);
     // jumpers, then conductors (drawn last so they sit on top)
-    const wire = (a, b, col, k, dash) => { const up = b[1] < a[1] - 20, c1 = a[1] + (up ? -90 : 60), c2 = b[1] + (up ? 90 : 60); return `<path d="M${a[0]} ${a[1]} C${a[0]} ${c1}, ${b[0]} ${c2}, ${b[0]} ${b[1]}" fill="none" stroke="${col === '#e8e8e8' ? '#9aa5ae' : col}" stroke-width="${col === '#e8e8e8' ? 5 : 3.5}"${dash ? ' stroke-dasharray="6 4"' : ''}/>` + (col === '#e8e8e8' ? `<path d="M${a[0]} ${a[1]} C${a[0]} ${c1}, ${b[0]} ${c2}, ${b[0]} ${b[1]}" fill="none" stroke="#f4f4f4" stroke-width="3"/>` : ''); };
+    const wire = (a, b, col, k, dash) => { const up = b[1] < a[1] - 20, down = b[1] > a[1] + 100, c1 = a[1] + (up ? -90 : 60), c2 = b[1] + (up ? 90 : down ? -60 : 60); return `<path d="M${a[0]} ${a[1]} C${a[0]} ${c1}, ${b[0]} ${c2}, ${b[0]} ${b[1]}" fill="none" stroke="${col === '#e8e8e8' ? '#9aa5ae' : col}" stroke-width="${col === '#e8e8e8' ? 5 : 3.5}"${dash ? ' stroke-dasharray="6 4"' : ''}/>` + (col === '#e8e8e8' ? `<path d="M${a[0]} ${a[1]} C${a[0]} ${c1}, ${b[0]} ${c2}, ${b[0]} ${b[1]}" fill="none" stroke="#f4f4f4" stroke-width="3"/>` : ''); };
     w.jump.forEach((j, k) => { const jf = (w.jfree || [])[k] || [], a = T[j[0]] || jf[0] || [300, 200], b = T[j[1]] || jf[1] || [340, 200]; o.push(wire(a, b, '#c4700a', k, true));
       [a, b].forEach((pt, e) => o.push(`<circle class="wend" data-j="${k},${e}" cx="${pt[0]}" cy="${pt[1]}" r="${forSave ? 4 : 7}" fill="#c4700a" stroke="${P.ink}" stroke-width="1" style="cursor:grab"/>`)); });
     for (let k = 0; k < n; k++){
@@ -954,7 +955,7 @@ List entries in terminal order.`;
     }
     // legend: conductor colours and where each lands
     const where = id => { const s = st.s.find(x => x.id === id); return s ? `${s.label}${s.pin ? ' (' + s.pin + ')' : ''}` : id === 'x1' ? 'X1 24V hot' : id === 'x3' ? 'X1S 24V hot via low limit' : id === 'x2' ? 'X2 24V com' : 'not landed'; };
-    let ly = WG.H - 105, lx = 30; const lg0 = o.length;
+    let ly = Math.max(WG.H - 105, low + 44), lx = 30;
     o.push(`<text x="${lx}" y="${ly - 14}" font-size="10" font-weight="600" letter-spacing="1.1" fill="${P.muted}">CONDUCTORS</text>`);
     for (let k = 0; k < n; k++){ o.push(`<rect x="${lx}" y="${ly - 9}" width="14" height="10" rx="2" fill="${COND[cIx(w, k)]}" stroke="${P.line}"/><text x="${lx + 20}" y="${ly}" font-size="11.5" fill="${P.ink}">${COND_N[cIx(w, k)]}${w.labels[k] ? ': ' + esc(w.labels[k]) : ''} → ${esc(where(w.ends[k]))}</text>`); ly += 17; }
     w.jump.forEach(j => { o.push(`<line x1="${lx}" y1="${ly - 4}" x2="${lx + 14}" y2="${ly - 4}" stroke="#c4700a" stroke-width="3" stroke-dasharray="4 3"/><text x="${lx + 20}" y="${ly}" font-size="11.5" fill="${P.ink}">Jumper: ${esc(where(j[0]))} → ${esc(where(j[1]))}</text>`); ly += 17; });
@@ -968,11 +969,11 @@ List entries in terminal order.`;
     if (w.lt && p.io !== 'di'){ o.push(`<text x="${lx}" y="${ly + 4}" font-size="11.5" fill="${P.ink}">X1S is fed from X1 through the low limit: a trip kills this output, the controller stays powered.</text>`); ly += 17; }
     // anything wired through the low limit (its own page, or an output on X1S) carries Buddy's field warning
     if (w.lt || (p.io === 'di' && w.dev === 2)){ o.push(`<text x="${lx}" y="${ly + 6}" font-size="14" font-weight="700" letter-spacing=".5" fill="#b3261e">VERIFY LOW LIMIT TERMINALS WITH VOLTMETER</text>`); ly += 21; }
-    // a long legend slides up so it never runs into the footer line
-    const over = ly - (WG.H - 26); if (over > 0){ o.splice(lg0, 0, `<g transform="translate(0 ${-over})">`); o.push('</g>'); }
-    o.push(`<text x="${WG.W - 16}" y="${WG.H - 10}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="${P.muted}">Check against the device's own wiring diagram before landing wires.</text>`);
+    // the page grows to fit a long legend
+    const H = Math.max(WG.H, ly + 34);
+    o.push(`<text x="${WG.W - 16}" y="${H - 10}" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="10" fill="${P.muted}">Check against the device's own wiring diagram before landing wires.</text>`);
     o.push('</svg>');
-    return o.join('');
+    return o.join('').replace(/@@H@@/g, H);
   }
   function wRender(){
     const p = wPt(); if (!p) { $('wirePanel').hidden = true; return; }
@@ -999,7 +1000,7 @@ List entries in terminal order.`;
   $('wClose').onclick = () => { $('wirePanel').hidden = true; wi = -1; };
   $('wPng').onclick = async () => { try { const b = await svgPng(wSvg(palette(true), true)); saveBlob(b, `${base()} ${wPt().term} wiring.png`, 'image/png', 'png'); } catch(e){ toast("The picture couldn't be made in this browser.", true); } };
   // drag conductor ends and the X1/X2 blocks (pointer events, so it works with a finger too)
-  const svgPt = e => { const s = $('wSvg'), r = s.getBoundingClientRect(); return [(e.clientX - r.left) * WG.W / r.width, (e.clientY - r.top) * WG.H / r.height]; };
+  const svgPt = e => { const s = $('wSvg'), r = s.getBoundingClientRect(); return [(e.clientX - r.left) * WG.W / r.width, (e.clientY - r.top) * s.viewBox.baseVal.height / r.height]; };
   $('wCan').addEventListener('pointerdown', e => {
     const end = e.target.closest('.wend'), blk = e.target.closest('.wblk'); if (!end && !blk) return;
     e.preventDefault(); const [x, y] = svgPt(e), w = wPt().w;
@@ -1008,7 +1009,7 @@ List entries in terminal order.`;
   });
   $('wCan').addEventListener('pointermove', e => {
     if (!drag) return; const [x, y] = svgPt(e), w = wPt().w;
-    if (drag.blk){ w[drag.blk] = [Math.max(0, Math.min(WG.W - 90, x - drag.dx)), Math.max(140, Math.min(WG.H - 150, y - drag.dy))]; }
+    if (drag.blk){ w[drag.blk] = [Math.max(0, Math.min(WG.W - 112, x - drag.dx)), Math.max(140, Math.min(WG.H - 150, y - drag.dy))]; }
     else if (drag.j){ const [k, e2] = drag.j; w.jump[k][e2] = ''; w.jfree = w.jfree || []; (w.jfree[k] = w.jfree[k] || [])[e2] = [x, y]; }
     else { w.ends[drag.k] = ''; (w.free = w.free || [])[drag.k] = [x, y]; }
     $('wCan').innerHTML = wSvg(palette(true), false);
