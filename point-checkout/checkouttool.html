@@ -172,6 +172,8 @@ h1{font-family:var(--f-display);font-weight:700;font-size:34px;line-height:1;mar
 .scanlist{margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}
 .scanlist li{font-family:var(--f-mono);font-size:12.5px;background:var(--sunk);border:1px solid var(--line);border-radius:5px;padding:3px 8px}
 .scanhead{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0}
+.fbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.fbtn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:600;font-size:12.5px;padding:5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
 .pabar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 14px;border-top:1px solid var(--line);background:var(--sunk)}
 .pahint{font-size:12.5px;color:var(--muted)}
 .pabtn{border:1px solid var(--ok);background:transparent;color:var(--ok);font-weight:700;font-size:12.5px;letter-spacing:.02em;padding:6px 12px;border-radius:6px;cursor:pointer;white-space:nowrap}
@@ -354,6 +356,7 @@ footer{font-size:12px;color:var(--muted)}
   let units = [];               // [{id, tag, type, loc, example, points:[{n,s,note,by,at}], at}]
   let project = {name:''};
   let filter = 'all';
+  const allPts = new Set(); // units the tech asked to see every point on while Fails / Notes is picked
   let typeTab = 'all';
   try { typeTab = localStorage.getItem('pct-tab') || 'all'; } catch(e) {}
   const TAB_ORDER = ['AHU','RTU','VAV','UV','FCU','EF','HWS','CHWS','Other'];
@@ -490,7 +493,13 @@ footer{font-size:12px;color:var(--muted)}
       const edbar = isOpen && canWrite && !u.example ? `<div class="edbar"><label>Name<input class="uedit" data-ue="${u.id}" data-k="tag" value="${esc(u.tag)}" maxlength="40" autocomplete="off"></label><label>Type<select class="uedit" data-ue="${u.id}" data-k="type">${TYPE_OPTS.concat(TYPE_OPTS.some(o => o[0] === u.type) ? [] : [[u.type, u.type]]).map(([v,l]) => `<option value="${esc(v)}" ${u.type===v?'selected':''}>${esc(v==='BLANK'?'Other':l)}</option>`).join('')}</select></label><label>Location / serves<input class="uedit" data-ue="${u.id}" data-k="loc" value="${esc(u.loc||'')}" maxlength="80" autocomplete="off"></label></div>` : '';
       const devbar = isOpen && u.dev ? `<div class="devbar"><span class="devlbl">Device</span>${esc(devLine(u.dev))}</div>` : '';
       const fzbar = isOpen && u.dev && u.dev.fuzzy ? `<div class="fzbar"><span>Scan matched by ${esc(u.dev.fuzzy)}. Is this the right device?</span>${canWrite ? fzBtns(u.id) : ''}</div>` : '';
-      const pts = isOpen ? edbar + devbar + fzbar + passAll + `<div class="points">${u.points.map((p,i) => {
+      // Fails / Notes show only the matching points, with a link to show the rest.
+      const want = filter === 'fail' ? (p => p.s === 'fail' && !p.info) : filter === 'note' ? (p => p.s === 'fail' && p.info) : null;
+      const narrow = isOpen && want && !allPts.has(u.id);
+      const shownN = want ? u.points.filter(want).length : u.points.length;
+      const fbar = isOpen && want && shownN < u.points.length ? `<div class="fbar"><span>${narrow ? `Showing ${shownN} ${filter === 'note' ? 'note' : 'failed'} point${shownN===1?'':'s'} of ${u.points.length}` : `Showing all ${u.points.length} points`}</span><button type="button" class="fbtn" data-allpts="${u.id}">${narrow ? 'Show all points' : `Only ${filter === 'note' ? 'notes' : 'fails'}`}</button></div>` : '';
+      const pts = isOpen ? edbar + devbar + fzbar + passAll + fbar + `<div class="points">${u.points.map((p,i) => {
+        if (narrow && !want(p)) return '';
         const s = p.s || '';
         const who = p.by && names[p.by] ? names[p.by] + ' · ' : '';
         const meta = s ? `<div class="pmeta">${esc(who)}${esc(fmtTime(p.at))}</div>` : '';
@@ -503,7 +512,7 @@ footer{font-size:12px;color:var(--muted)}
         const armed = delPt === u.id + ':' + i;
         const del = canWrite ? `<button type="button" class="pdel" data-delpt="${u.id}" data-i="${i}" ${armed ? 'data-armed="1"' : ''} aria-label="${armed ? 'Tap again to delete' : 'Delete'} ${esc(p.n)}" title="Delete point">${armed ? 'Delete?' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>'}</button>` : '';
         return `<div class="pt" data-s="${s}" ${s === 'fail' && p.info ? 'data-sev="note"' : ''}><span class="stripe"></span><div class="pname">${esc(p.n)}${meta}</div><div class="sbtns" role="group" aria-label="${esc(p.n)}">${b('pass')}${b('fail')}${b('na')}</div>${del}${note}</div>`;
-      }).join('') || '<div class="pt"><span class="stripe"></span><div class="pname" style="color:var(--muted)">No points yet. Add one below.</div></div>'}</div>
+      }).join('') || `<div class="pt"><span class="stripe"></span><div class="pname" style="color:var(--muted)">${u.points.length ? `No ${filter === 'note' ? 'notes' : 'failed points'} left on this unit.` : 'No points yet. Add one below.'}</div></div>`}</div>
       ${isOpen && canWrite && cpFrom === u.id ? copyPanel(u) : ''}
       ${canWrite ? `<div class="ufoot"><input class="newpt" data-u="${u.id}" placeholder="Add a point, e.g. CO2 sensor" maxlength="80" aria-label="New point for ${esc(u.tag)}"><button class="btn" type="button" data-addpt="${u.id}">Add point</button><button class="btn" type="button" data-cpopen="${u.id}" aria-expanded="${cpFrom===u.id}" title="Give other units this unit's point list">Update points on other units</button><button class="btn danger" type="button" data-del="${u.id}">${delArm===u.id?'Tap again to delete':'Delete unit'}</button></div>` : ''}` : '';
       return `<article class="unit${u.example?' example':''}">
@@ -602,7 +611,7 @@ footer{font-size:12px;color:var(--muted)}
   });
   document.querySelector('.chips').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
-    filter = b.dataset.f;
+    filter = b.dataset.f; allPts.clear();
     document.querySelectorAll('.chips button').forEach(x => x.setAttribute('aria-pressed', x === b));
     render();
   });
@@ -630,6 +639,7 @@ footer{font-size:12px;color:var(--muted)}
       writeUnit(u); render(); toast(`Deleted ${gone ? gone.n : 'point'} from ${u.tag}`);
       return;
     }
+    if (t.dataset.allpts) { const id = t.dataset.allpts; allPts.has(id) ? allPts.delete(id) : allPts.add(id); render(); return; }
     if (t.dataset.toggle) { const id = t.dataset.toggle; open.has(id) ? open.delete(id) : open.add(id); delArm = null; render(); return; }
     if (t.dataset.v && canWrite) {
       const u = units.find(x => x.id === t.dataset.u); if (!u) return;
