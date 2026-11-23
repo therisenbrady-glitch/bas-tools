@@ -69,6 +69,10 @@ header p{margin:2px 0 0;color:var(--muted);font-size:14px}
 
 .readout{background:var(--readout);color:var(--readout-ink);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:12px}
 .readout .main{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.copybtn{align-self:center;margin-left:auto;min-height:40px;min-width:84px;padding:8px 14px;border:1px solid var(--readout-dim);border-radius:6px;background:transparent;color:var(--readout-ink);font-family:var(--f-display);font-weight:600;font-size:16px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.copybtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.copybtn:disabled{opacity:.4;cursor:default}
+.copybtn.done{background:var(--ok);border-color:var(--ok);color:#fff}
 .readout .big{font-family:var(--f-mono);font-weight:600;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
 .readout .bigunit{font-family:var(--f-display);font-size:22px;color:var(--readout-dim);letter-spacing:.04em}
 .readout .lbl{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--readout-dim)}
@@ -194,7 +198,7 @@ code.k{font-family:var(--f-mono);font-size:12px;background:var(--bg);border:1px 
     </div>
     <div class="readout" style="margin-top:12px">
       <span class="lbl">New K-factor</span>
-      <div class="main"><span class="big" id="k-new">–</span><span class="bigunit">K</span></div>
+      <div class="main"><span class="big" id="k-new">–</span><span class="bigunit">K</span><button type="button" class="copybtn" id="k-copy" aria-live="polite" title="Copy the new K-factor number">Copy</button></div>
       <span class="pill" id="k-pill"></span>
       <div class="subs">
         <div><span class="lbl">Reading error</span><b id="k-err">–</b></div>
@@ -322,12 +326,35 @@ code.k{font-family:var(--f-mono);font-size:12px;background:var(--bg);border:1px 
     else pill($('a-pill'),'ok','Within normal control range');
   }
 
+  let kCopyVal = '', kCopyTimer = 0;
+  function copyText(t){
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t).catch(() => legacyCopy(t));
+    return legacyCopy(t);
+  }
+  function legacyCopy(t){
+    const ta = document.createElement('textarea');
+    ta.value = t; ta.setAttribute('readonly',''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;font-size:16px';
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, t.length);
+    let ok = false; try { ok = document.execCommand('copy'); } catch(e) {}
+    ta.remove();
+    return ok ? Promise.resolve() : Promise.reject();
+  }
+  $('k-copy').addEventListener('click', () => {
+    const b = $('k-copy'); if (!kCopyVal) return;
+    copyText(kCopyVal).then(() => { b.textContent = 'Copied'; b.classList.add('done'); },
+                            () => { b.textContent = 'Copy failed'; b.classList.remove('done'); });
+    clearTimeout(kCopyTimer);
+    kCopyTimer = setTimeout(() => { b.textContent = 'Copy'; b.classList.remove('done'); }, 1600);
+  });
+
   function calcK(){
     const disp = num('k-disp'), meas = num('k-meas'), old = num('k-old');
     const ratio = meas / disp;
     const knew = old * ratio;
     const err = (disp - meas) / meas * 100;
     $('k-new').textContent = fmt(knew);
+    kCopyVal = isFinite(knew) ? String(Math.round(knew)) : '';
+    $('k-copy').disabled = !kCopyVal;
     $('k-err').textContent = isFinite(err) ? (err>0?'+':'') + fmt(err,1) + '%' : '–';
     $('k-mult').textContent = fmt(ratio,3);
     const dp = Math.pow(disp/old,2);

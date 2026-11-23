@@ -40,6 +40,8 @@ Corrects the K-factor after comparing the controller reading to a hood or traver
 
 **Shows:** new K-factor, reading error %, correction multiplier, and the ΔP the controller is currently seeing (`(displayed ÷ K_old)²`).
 
+**Copy** (next to the new K-factor) puts just the number on the clipboard, rounded and with no comma (for example `1753`), so it can be pasted straight into a text to the balancer. The button flashes **Copied** for a moment.
+
 **Flags**
 | Flag | Meaning |
 |---|---|
