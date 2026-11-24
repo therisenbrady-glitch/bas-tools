@@ -40,6 +40,8 @@ Corrects the K-factor after comparing the controller reading to a hood or traver
 
 **Shows:** new K-factor, reading error %, correction multiplier, and the ΔP the controller is currently seeing (`(displayed ÷ K_old)²`).
 
+The **×** at the end of Controller reads, Hood / traverse and Current K-factor clears that field and puts the cursor in it, so the next reading can be typed straight in without backspacing.
+
 **Copy** (next to the new K-factor) puts just the number on the clipboard, rounded and with no comma (for example `1753`), so it can be pasted straight into a text to the balancer. The button flashes **Copied** for a moment.
 
 **Flags**

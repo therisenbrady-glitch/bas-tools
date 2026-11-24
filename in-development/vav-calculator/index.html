@@ -69,6 +69,9 @@ header p{margin:2px 0 0;color:var(--muted);font-size:14px}
 
 .readout{background:var(--readout);color:var(--readout-ink);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:12px}
 .readout .main{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.fclr{flex:none;width:44px;border:0;border-left:1px solid var(--line);background:transparent;color:var(--muted);font-family:var(--f-body);font-size:22px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.fclr:active{background:var(--line)}
+.fclr:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .copybtn{align-self:center;margin-left:auto;min-height:40px;min-width:84px;padding:8px 14px;border:1px solid var(--readout-dim);border-radius:6px;background:transparent;color:var(--readout-ink);font-family:var(--f-display);font-weight:600;font-size:16px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .copybtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .copybtn:disabled{opacity:.4;cursor:default}
@@ -187,12 +190,12 @@ code.k{font-family:var(--f-mono);font-size:12px;background:var(--bg);border:1px 
       <p class="formula">K<sub>new</sub> = K<sub>old</sub> × (measured ÷ displayed)</p>
       <div class="grid">
         <div class="field"><label for="k-disp">Controller reads</label>
-          <div class="row"><input id="k-disp" type="number" inputmode="decimal" min="0" value="620"><span class="unit">CFM</span></div></div>
+          <div class="row"><input id="k-disp" type="number" inputmode="decimal" min="0" value="620"><span class="unit">CFM</span><button type="button" class="fclr" data-clear="k-disp" aria-label="Clear" title="Clear this field">×</button></div></div>
         <div class="field"><label for="k-meas">Hood / traverse</label>
-          <div class="row"><input id="k-meas" type="number" inputmode="decimal" min="0" value="575"><span class="unit">CFM</span></div></div>
+          <div class="row"><input id="k-meas" type="number" inputmode="decimal" min="0" value="575"><span class="unit">CFM</span><button type="button" class="fclr" data-clear="k-meas" aria-label="Clear" title="Clear this field">×</button></div></div>
       </div>
       <div class="field"><label for="k-old">Current K-factor</label>
-        <div class="row"><input id="k-old" type="number" inputmode="decimal" min="0" value="890"><span class="unit">CFM @ 1″</span></div>
+        <div class="row"><input id="k-old" type="number" inputmode="decimal" min="0" value="890"><span class="unit">CFM @ 1″</span><button type="button" class="fclr" data-clear="k-old" aria-label="Clear" title="Clear this field">×</button></div>
         <p class="hint">Check max and min both. If the error differs a lot between them, the sensor offset or zero needs work before the K-factor.</p>
       </div>
     </div>
@@ -339,6 +342,9 @@ code.k{font-family:var(--f-mono);font-size:12px;background:var(--bg);border:1px 
     ta.remove();
     return ok ? Promise.resolve() : Promise.reject();
   }
+  document.querySelectorAll('.fclr').forEach(b => b.addEventListener('click', () => {
+    const el = $(b.dataset.clear); el.value = ''; el.focus(); el.dispatchEvent(new Event('input', {bubbles:true}));
+  }));
   $('k-copy').addEventListener('click', () => {
     const b = $('k-copy'); if (!kCopyVal) return;
     copyText(kCopyVal).then(() => { b.textContent = 'Copied'; b.classList.add('done'); },
